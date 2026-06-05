@@ -1,0 +1,13 @@
+{
+  "response": {
+    "header": {"resultCode": "00", "resultMsg": "NORMAL SERVICE."},
+    "body": {
+      "items": {
+        "item": {"gpslati": 35.572, "gpslong": 129.189, "nodeid": "USB246000123", "nodenm": "울산과학기술원", "nodeord": 12, "routenm": "1127", "routetp": "직행좌석버스", "vehicleno": "울산70자1234"}
+      },
+      "numOfRows": 100,
+      "pageNo": 1,
+      "totalCount": 1
+    }
+  }
+}

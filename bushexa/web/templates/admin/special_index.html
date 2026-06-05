@@ -1,0 +1,44 @@
+{% extends "admin/_admin_base.html" %}
+
+{% block admin_title %}특별 시간표{% endblock %}
+{% block page_title %}특별 시간표{% endblock %}
+
+{% block content %}
+<h2 id="special-timetable">특별 시간표(Special Edition) 관리</h2>
+<p>시험기간·행사일 등 특정 날짜에 별도 운행 시간표를 지정합니다.<br>
+   특별 시간표는 공휴일·요일 분류보다 <strong>우선</strong> 적용됩니다.</p>
+
+<section>
+    <h3>에디션 목록</h3>
+    {% if editions %}
+    <ul class="edition-list">
+        {% for eid in editions %}
+        <li>
+            <a href="{{ url_for('admin.special_edit', edition_id=eid) }}"><strong>{{ eid }}</strong></a>
+            {% set assigned_dates = [] %}
+            {% for d, e in mapping.items() %}{% if e == eid %}{% set _ = assigned_dates.append(d) %}{% endif %}{% endfor %}
+            {% if assigned_dates %}
+            — 배정일: {{ assigned_dates | sort | join(', ') }}
+            {% else %}
+            — <em>배정일 없음</em>
+            {% endif %}
+        </li>
+        {% endfor %}
+    </ul>
+    {% else %}
+    <p>등록된 에디션이 없습니다.</p>
+    {% endif %}
+</section>
+
+<section style="margin-top: 2em;">
+    <h3>새 에디션 생성</h3>
+    <p>에디션 ID: 영문·숫자·<code>_</code>·<code>-</code> 조합, 최대 64자 (예: <code>exam-2026-06</code>)</p>
+    <form method="post" action="{{ url_for('admin.special_create') }}">
+        <input type="hidden" name="csrf_token" value="{{ session['csrf_token'] }}">
+        <label for="edition-id">에디션 ID:</label>
+        <input type="text" id="edition-id" name="edition_id" placeholder="exam-2026-06"
+               maxlength="64" pattern="[A-Za-z0-9_-]+" required>
+        <button type="submit" class="btn-primary">생성</button>
+    </form>
+</section>
+{% endblock %}

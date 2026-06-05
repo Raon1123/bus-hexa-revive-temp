@@ -1,0 +1,51 @@
+{#
+  stops_partial.html — HTMX 폴링 조각 (TP-003 §8)
+  이 파일은 <html>/<head>/<body> 태그를 포함하지 않는다.
+  hx-trigger="every 10s" 는 이 조각의 컨테이너에 있다 (자동 갱신).
+#}
+<div id="stops-table"
+     hx-get="/partial/stops?stop_id={{ snapshot.stop_id }}"
+     hx-trigger="every 10s"
+     hx-swap="outerHTML">
+
+<h3>{{ snapshot.stop_name }}</h3>
+
+{% if snapshot.error %}
+<div class="error-banner">
+    실시간 정보를 가져오지 못했습니다: {{ snapshot.error }}
+</div>
+{% endif %}
+
+{% if snapshot.long_gap %}
+<div class="warning-banner">
+    첫 번째 버스와 두 번째 버스의 간격이 30분 이상입니다.
+</div>
+{% endif %}
+
+{% if snapshot.has_no_bus %}
+<p class="empty-state">운행 중인 버스가 없습니다.</p>
+{% else %}
+<table class="stops-table">
+    <thead>
+        <tr>
+            <th>노선</th>
+            <th>방향</th>
+            <th>도착 예상</th>
+            <th>현재 위치</th>
+            <th>차량번호</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for row in snapshot.rows %}
+        <tr>
+            <td><span class="c-route route-{{ row.bus_number }}">{{ row.bus_number }}</span></td>
+            <td>{{ row.direction_str }}</td>
+            <td>{{ row.arrival_str }}</td>
+            <td>{{ row.present_stop }}</td>
+            <td>{{ row.vehicle_no }}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% endif %}
+</div>

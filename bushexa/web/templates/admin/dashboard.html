@@ -1,0 +1,61 @@
+{% extends "admin/_admin_base.html" %}
+
+{% block admin_title %}관리자 대시보드{% endblock %}
+{% block page_title %}관리자 대시보드{% endblock %}
+
+{% block admin_head %}
+<style>
+    /* govtrack-card 기본 스타일 — 인라인 style= 대신 stylesheet에서 정의해야
+       .warning 선택자가 border-color를 덮어쓸 수 있다 (specificity 규칙) */
+    #govtrack-card { border: 1px solid #ccc; padding: 1em; border-radius: 4px; margin: 1em 0; }
+    #govtrack-card.warning { border-color: #e53e3e; background: #fff5f5; }
+    .govtrack-ok { color: #2f855a; }
+    .govtrack-fail { color: #c53030; }
+</style>
+{% endblock %}
+
+{% block content %}
+<h2 id="admin-dashboard">관리자 대시보드</h2>
+
+<!-- Govtrack 상태 카드 — SSE 5초 갱신 (F04 §4.5, W14 이월) -->
+<section id="govtrack-card">
+    <h2>Govtrack 데몬 상태</h2>
+    <div id="govtrack-status-content">
+        <p>상태를 로드 중입니다...</p>
+    </div>
+</section>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+    (function() {
+        var card = document.getElementById('govtrack-card');
+        var content = document.getElementById('govtrack-status-content');
+        var es = new EventSource("{{ url_for('admin.govtrack_status_stream') }}");
+
+        es.addEventListener('status', function(e) {
+            var data = JSON.parse(e.data);
+            var failures = data.consecutive_failures;
+            var isWarning = failures > 0;
+
+            card.className = isWarning ? 'warning' : '';
+
+            var html = '';
+            if (!data.last_success_at) {
+                html = '<p class="govtrack-fail">데이터 없음 — 데몬이 아직 실행되지 않았습니다.</p>';
+            } else {
+                html += '<p>마지막 성공: <strong>' + data.last_success_at + '</strong></p>';
+                html += '<p>연속 실패: <strong class="' + (isWarning ? 'govtrack-fail' : 'govtrack-ok') + '">' + failures + '</strong></p>';
+                if (isWarning) {
+                    html += '<p class="govtrack-fail">&#9888; 데몬 미동작 감지 — 연속 실패 중입니다.</p>';
+                }
+            }
+            content.innerHTML = html;
+        });
+
+        es.onerror = function() {
+            content.innerHTML = '<p class="govtrack-fail">SSE 연결 오류. 재연결 중...</p>';
+        };
+    })();
+</script>
+{% endblock %}

@@ -1,0 +1,53 @@
+{# 관리자 로그인 — pre-auth 페이지.
+   _admin_base.html 셸을 상속해 디자인만 통일하고,
+   sidebar_nav를 빈 블록으로 덮어써 보호된 관리자 네비를 노출하지 않는다(로그인 전). #}
+{% extends "admin/_admin_base.html" %}
+
+{% block admin_title %}{% if needs_setup %}초기 설정{% else %}로그인{% endif %}{% endblock %}
+{% block page_title %}관리자 {% if needs_setup %}초기 설정{% else %}로그인{% endif %}{% endblock %}
+
+{# 로그인 전: 사이드바 네비 비워 관리자 메뉴 미노출 #}
+{% block sidebar_nav %}{% endblock %}
+{# 로그인 전: 로그아웃 버튼 없음 #}
+{% block sidebar_footer %}{% endblock %}
+
+{% block admin_head %}
+<style>
+.login-card {
+    max-width: 26rem;
+    margin: 3rem auto;
+    background: #fff;
+    border: 1px solid #c5cae9;
+    border-radius: 8px;
+    padding: 2rem 2.5rem;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+}
+.login-card h2 { margin-top: 0; color: #3949ab; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="login-card">
+<h2>관리자{% if needs_setup %} 초기 설정{% else %} 로그인{% endif %}</h2>
+
+{% if needs_setup %}
+{# 초기 setup 모드: 현재 비밀번호 칸 없음 (AC-A5) #}
+<form method="post" action="{{ url_for('admin.login_submit') }}{% if request.args.get('next') %}?next={{ request.args.get('next') }}{% endif %}" class="admin-form">
+    <input type="hidden" name="csrf_token" value="{{ session['csrf_token'] }}">
+    <p>관리자 비밀번호가 설정되지 않았습니다. 새 비밀번호를 설정하세요.</p>
+    <label for="new_password">새 비밀번호 (8자 이상)</label>
+    <input type="password" id="new_password" name="new_password" required>
+    <label for="confirm_password">비밀번호 확인</label>
+    <input type="password" id="confirm_password" name="confirm_password" required>
+    <button type="submit">설정 완료</button>
+</form>
+{% else %}
+<form method="post" action="{{ url_for('admin.login_submit') }}{% if request.args.get('next') %}?next={{ request.args.get('next') }}{% endif %}" class="admin-form">
+    <input type="hidden" name="csrf_token" value="{{ session['csrf_token'] }}">
+    <label for="password">비밀번호</label>
+    <input type="password" id="password" name="password" required autocomplete="current-password">
+    <button type="submit">로그인</button>
+</form>
+{% endif %}
+</div>{# /.login-card #}
+{% endblock %}

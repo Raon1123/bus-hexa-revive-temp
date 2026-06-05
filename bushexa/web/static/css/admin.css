@@ -1,0 +1,182 @@
+/* 관리자 페이지 전용 스타일 (admin.css)
+   공개 style.css(레이아웃·Pretendard 폰트) 위에 덧입혀진다.
+   폰트/배경 등 셸은 style.css를 따르고, 여기서는 관리자 전용 컴포넌트만 정의한다. */
+
+body {
+    line-height: 1.6;
+}
+
+.flash-list {
+    list-style: none;
+    padding: 0;
+    margin: 0.5em 0;
+}
+
+.flash {
+    padding: 0.5em 1em;
+    border-radius: 4px;
+    margin-bottom: 0.25em;
+}
+
+.flash.success {
+    background: #e6ffed;
+    border: 1px solid #68d391;
+    color: #276749;
+}
+
+.flash.error {
+    background: #fff5f5;
+    border: 1px solid #fc8181;
+    color: #c53030;
+}
+
+.btn-primary {
+    background: #3182ce;
+    color: #fff;
+    border: none;
+    padding: 0.4em 1em;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.95rem;
+}
+
+.btn-primary:hover {
+    background: #2b6cb0;
+}
+
+.btn-danger-sm {
+    background: #e53e3e;
+    color: #fff;
+    border: none;
+    padding: 0.2em 0.6em;
+    border-radius: 3px;
+    cursor: pointer;
+    font-size: 0.85rem;
+}
+
+.btn-danger-sm:hover {
+    background: #c53030;
+}
+
+.holiday-list {
+    list-style: none;
+    padding: 0;
+}
+
+.holiday-list li {
+    padding: 0.3em 0;
+    border-bottom: 1px solid #eee;
+}
+
+.holiday-date {
+    font-family: monospace;
+    font-size: 1.05em;
+    margin-right: 1em;
+}
+
+.edition-list {
+    list-style: none;
+    padding: 0;
+}
+
+.edition-list li {
+    padding: 0.3em 0;
+    border-bottom: 1px solid #eee;
+}
+
+.busno-section summary {
+    cursor: pointer;
+    user-select: none;
+}
+
+.error-box {
+    background: #fff5f5;
+    border: 1px solid #fc8181;
+    border-radius: 4px;
+    padding: 0.75em 1em;
+    margin: 0.5em 0;
+    color: #c53030;
+}
+
+/* ── 관리자 공통 폼/표/페이지네이션 (UI 통일) ──────────────────────── */
+.error-msg {
+    color: #c53030;
+    margin: 0.5em 0;
+}
+
+.admin-form {
+    display: flex;
+    flex-direction: column;
+    gap: 0.6em;
+    align-items: flex-start;
+    max-width: 32rem;
+    margin: 1em 0;
+}
+.admin-form label { font-weight: 600; color: #555; }
+.admin-form input[type="text"],
+.admin-form input[type="password"],
+.admin-form input[type="number"],
+.admin-form select {
+    padding: 0.4rem 0.6rem;
+    border: 1px solid #c5cae9;
+    border-radius: 5px;
+    font-size: 0.95rem;
+    background: #fff;
+}
+.admin-form button {
+    padding: 0.45rem 1.1rem;
+    border: none;
+    border-radius: 5px;
+    background: #3949ab;
+    color: #fff;
+    font-weight: 600;
+    cursor: pointer;
+}
+.admin-form button:hover { background: #303f9f; }
+
+/* 필터 폼은 가로 배치 */
+.admin-filter {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    max-width: none;
+}
+
+.admin-table {
+    width: 100%;
+    border-collapse: collapse;
+    background: #fff;
+    font-size: 0.9rem;
+}
+.admin-table th,
+.admin-table td {
+    padding: 0.5rem 0.75rem;
+    text-align: left;
+    border-bottom: 1px solid #eee;
+}
+.admin-table thead th {
+    background: #3949ab;
+    color: #fff;
+    font-weight: 600;
+}
+.admin-table tbody tr:hover td { background: #f5f6fb; }
+
+.admin-pagination {
+    margin: 1em 0;
+    display: flex;
+    gap: 1.5em;
+}
+
+/* 사이드바 하단 로그아웃 */
+.admin-logout-form { margin: 0; }
+.admin-logout-btn {
+    width: 100%;
+    padding: 0.5rem;
+    border: 1px solid #5c6bc0;
+    border-radius: 5px;
+    background: transparent;
+    color: #e8eaf6;
+    font-size: 0.9rem;
+    cursor: pointer;
+}
+.admin-logout-btn:hover { background: rgba(255,255,255,0.1); }

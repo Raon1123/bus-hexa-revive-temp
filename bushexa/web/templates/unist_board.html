@@ -1,0 +1,24 @@
+{% extends "_base.html" %}
+
+{% block title %}UNIST 출발 버스 현황{% endblock %}
+
+{% block content %}
+<h2>UNIST 출발 버스 현황</h2>
+
+{% if snapshot.bis_error %}
+<div class="error-banner">
+    실시간 BIS 정보를 일시적으로 가져오지 못했습니다. 시간표 기반 정보를 표시합니다.
+</div>
+{% endif %}
+
+{#
+  TP-004 §2: id="unist-grid" 컨테이너에 HTMX 자동갱신 속성
+  hx-get="/partial/unist"  hx-trigger="every 30s"  hx-swap="outerHTML"
+#}
+<div id="unist-grid"
+     hx-get="/partial/unist"
+     hx-trigger="every 30s"
+     hx-swap="outerHTML">
+    {% include "unist_partial.html" %}
+</div>
+{% endblock %}

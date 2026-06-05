@@ -1,0 +1,84 @@
+/* /info 페이지 스타일 — 노선도(SVG) + 정보 테이블/배너. */
+
+/* ── 노선도 ───────────────────────────────────────────────── */
+.route-note {
+    color: #666;
+    font-size: 0.85rem;
+    margin: 0.2rem 0 0.6rem;
+}
+
+.route-diagram-wrap {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    border: 1px solid #e5e5e5;
+    border-radius: 10px;
+    background: #fff;
+    padding: 8px 4px;
+}
+
+.route-svg {
+    display: block;
+    min-width: 1300px;   /* 좁은 화면에서는 가로 스크롤 */
+    height: auto;
+}
+
+.route-svg .route-box {
+    fill: none;
+    stroke: #34404a;
+    stroke-width: 1.6;
+}
+
+.route-svg .route-line {
+    opacity: 0.95;
+}
+
+.route-svg .route-stop {
+    fill: #fff;
+    stroke-width: 4.5;   /* 경유지 색을 더 진하게/굵게 */
+}
+
+.route-svg .route-label {
+    font-family: inherit;
+    font-size: 18px;     /* 라벨 확대 */
+    fill: #1f1f1f;
+    font-weight: 700;
+}
+
+.route-svg .route-pill-text {
+    font-family: inherit;
+    font-size: 15px;
+    font-weight: 700;
+    fill: #fff;
+}
+
+/* ── 정보 테이블 ──────────────────────────────────────────── */
+.info-table {
+    border-collapse: collapse;
+    width: 100%;
+    margin: 0.5rem 0 1.2rem;
+    font-size: 0.92rem;
+}
+
+.info-table th,
+.info-table td {
+    border: 1px solid #e0e0e0;
+    padding: 0.45rem 0.6rem;
+    text-align: left;
+    vertical-align: top;
+}
+
+.info-table thead th {
+    background: #f4f6f8;
+    font-weight: 700;
+}
+
+.info-table tbody tr:nth-child(even) {
+    background: #fafbfc;
+}
+
+/* ── 변경 이력 ────────────────────────────────────────────── */
+.changelog-list {
+    padding-left: 1.2rem;
+    color: #444;
+    font-size: 0.9rem;
+}

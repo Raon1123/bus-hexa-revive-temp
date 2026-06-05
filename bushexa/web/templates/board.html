@@ -1,0 +1,40 @@
+{% extends "_base.html" %}
+
+{% block title %}{{ t('board.title') }}{% endblock %}
+{% block page_title %}{{ t('board.page_title') }}{% endblock %}
+
+{% block content %}
+<div class="dboard-toolbar">
+    <div class="dboard-headline">
+        <span class="dboard-title">{{ t('board.title') }}</span>
+        <span class="dboard-clock"><span id="dboard-time">{{ snapshot.current_time }}</span> <small>{{ snapshot.weekday_str }}</small></span>
+    </div>
+    {# 표시 스타일 토글: 표(기본) ↔ Split-flap(실험). 상태는 localStorage 유지 (splitflap.js) #}
+    <div class="seg" role="group" aria-label="표시 스타일">
+        <button type="button" class="seg-btn" data-display="table">{{ t('board.btn.table') }}</button>
+        <button type="button" class="seg-btn" data-display="flap">{{ t('board.btn.flap') }}</button>
+    </div>
+</div>
+
+{% if snapshot.error %}
+<div class="error-banner">실시간 정보를 일시적으로 가져오지 못했습니다. ({{ snapshot.error }})</div>
+{% endif %}
+
+{#
+  TP-001 §2,§8: id="board-table" 컨테이너에 HTMX 자동갱신.
+  hx-get="/partial/board" hx-trigger="every 15s" hx-swap="innerHTML".
+  표시 스타일 토글 버튼은 이 컨테이너 밖에 두어 갱신에도 유지된다.
+#}
+<div id="board-table"
+     hx-get="/partial/board"
+     hx-trigger="every 15s"
+     hx-swap="innerHTML">
+    {% include "partial/board_table.html" %}
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script src="{{ url_for('static', filename='js/boardclock.js') }}"></script>
+<script src="{{ url_for('static', filename='js/splitflap.js') }}"></script>
+<script src="{{ url_for('static', filename='js/boardmobile.js') }}"></script>
+{% endblock %}

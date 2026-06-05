@@ -1,0 +1,55 @@
+{# 관리자 공통 레이아웃 — 공개 _base.html 셸(사이드바·topbar·style.css)을 그대로
+   재사용하고 네비만 관리자 전용으로 교체한다. (UI 통일) #}
+{% extends "_base.html" %}
+
+{% block title %}{% block admin_title %}관리자{% endblock %} — UNIST 버스{% endblock %}
+{% block page_title %}관리자{% endblock %}
+
+{# 공개 style.css(셸·폰트) 위에 관리자 전용 admin.css를 항상 덧입힌다.
+   페이지별 추가 스타일은 child가 admin_head 블록으로 확장한다. #}
+{% block extra_head %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/admin.css') }}">
+{% block admin_head %}{% endblock %}
+{% endblock %}
+
+{% block sidebar_nav %}
+<nav class="nav">
+    <div class="nav-group">
+        <p class="nav-group-title">{{ t('admin.nav.group.admin') }}</p>
+        {% set admin_links = [
+            ("admin.dashboard",        "📊", t('admin.nav.dashboard')),
+            ("admin.data_browser",     "🗄️", t('admin.nav.data_browser')),
+            ("admin.timetable_index",  "🕒", t('admin.nav.timetable')),
+            ("admin.via_index",        "🛣️", t('admin.nav.via')),
+            ("admin.holidays_index",   "📅", t('admin.nav.holidays')),
+            ("admin.special_index",    "⭐", t('admin.nav.special')),
+            ("admin.special_preview",  "🔍", "시간표 미리보기"),
+            ("admin.changelog_index",  "📝", t('admin.nav.changelog')),
+            ("admin.logs_view",        "📋", t('admin.nav.logs')),
+            ("admin.worker_status",    "🖥️", "워커 상태"),
+            ("admin.backup_index",     "💾", "백업/복구"),
+            ("admin.audit_index",      "📓", "감사 로그"),
+            ("admin.password_form",    "🔑", t('admin.nav.password')),
+        ] %}
+        {% for endpoint, icon, label in admin_links %}
+            <a class="nav-link {% if request.endpoint == endpoint %}active{% endif %}"
+               href="{{ url_for(endpoint) }}">
+                <span class="nav-icon">{{ icon }}</span>{{ label }}
+            </a>
+        {% endfor %}
+    </div>
+    <div class="nav-group">
+        <p class="nav-group-title">{{ t('admin.nav.group.site') }}</p>
+        <a class="nav-link" href="{{ url_for('board.departure_board') }}">
+            <span class="nav-icon">↩️</span>{{ t('admin.nav.public_site') }}
+        </a>
+    </div>
+</nav>
+{% endblock %}
+
+{% block sidebar_footer %}
+<form method="post" action="{{ url_for('admin.logout') }}" class="admin-logout-form">
+    <input type="hidden" name="csrf_token" value="{{ session['csrf_token'] }}">
+    <button type="submit" class="admin-logout-btn">{{ t('admin.nav.logout') }}</button>
+</form>
+{% endblock %}

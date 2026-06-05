@@ -1,0 +1,88 @@
+{% extends "admin/_admin_base.html" %}
+
+{% block admin_title %}특별 에디션 편집 — {{ edition_id }}{% endblock %}
+{% block page_title %}특별 시간표{% endblock %}
+
+{% block content %}
+<h2 id="special-edit">특별 시간표 편집: <code>{{ edition_id }}</code></h2>
+<p>노선별·요일별·출발지별 시간표를 입력하세요 (HH:MM, 줄바꿈 또는 콤마 구분).<br>
+   비워 두면 해당 요일의 시간표는 빈 것으로 저장됩니다.</p>
+
+{% if errors %}
+<div class="error-box">
+    <strong>저장 오류:</strong>
+    <ul>
+        {% for e in errors %}
+        <li>[{{ e.weekday }}] {{ e.departure }}: {{ e.code }} — {{ e.detail }}</li>
+        {% endfor %}
+    </ul>
+</div>
+{% endif %}
+
+<!-- 시간표 편집 폼 -->
+<form method="post" action="{{ url_for('admin.special_save', edition_id=edition_id) }}">
+    <input type="hidden" name="csrf_token" value="{{ session['csrf_token'] }}">
+    <input type="hidden" name="busnos" value="{{ busnos | join(' ') }}">
+
+    {% for busno in busnos %}
+    <details class="busno-section" style="border: 1px solid #ccc; border-radius:4px; padding: 1em; margin: 1em 0;">
+        <summary style="cursor:pointer;"><strong>노선 {{ busno }}</strong></summary>
+        <input type="hidden" name="weekdays__{{ busno }}" value="{{ weekday_tabs | map(attribute=0) | join(' ') }}">
+        {% set deps = departure_dict.get(busno, []) %}
+        {% for wd, wd_label in weekday_tabs %}
+        <fieldset style="margin: 0.5em 0; border: 1px solid #eee;">
+            <legend><strong>{{ wd_label }}</strong></legend>
+            <input type="hidden" name="departures__{{ busno }}__{{ wd }}" value="{{ deps | join(' ') }}">
+            {% for dep in deps %}
+            <div style="margin: 0.5em 0 0 0.5em;">
+                <label><strong>{{ dep }}</strong> 방면</label><br>
+                {% set times_list = busno_data.get(busno, {}).get(wd, {}).get(dep, []) %}
+                <textarea name="times__{{ busno }}__{{ wd }}__{{ dep }}"
+                          rows="4" cols="12"
+                          style="font-family: monospace; font-size: 0.9rem;">{{ times_list | join('\n') }}</textarea>
+            </div>
+            {% endfor %}
+        </fieldset>
+        {% endfor %}
+    </details>
+    {% endfor %}
+
+    <div style="margin-top: 1em;">
+        <button type="submit" class="btn-primary">시간표 저장</button>
+    </div>
+</form>
+
+<!-- 날짜 배정 -->
+<section style="margin-top: 2em; border-top: 1px solid #ccc; padding-top: 1em;">
+    <h3>날짜 배정</h3>
+    <p>이 에디션을 사용할 날짜를 지정합니다 (YYYYMMDD 형식).</p>
+
+    {% if assignments %}
+    <ul class="holiday-list">
+        {% for d in assignments %}
+        <li>
+            <span class="holiday-date">{{ d[:4] }}-{{ d[4:6] }}-{{ d[6:] }}</span>
+            <form method="post" action="{{ url_for('admin.special_unassign', edition_id=edition_id) }}" style="display:inline;">
+                <input type="hidden" name="csrf_token" value="{{ session['csrf_token'] }}">
+                <input type="hidden" name="date" value="{{ d }}">
+                <button type="submit" class="btn-danger-sm" onclick="return confirm('{{ d }} 배정을 해제하시겠습니까?')">배정 해제</button>
+            </form>
+        </li>
+        {% endfor %}
+    </ul>
+    {% else %}
+    <p><em>배정된 날짜가 없습니다.</em></p>
+    {% endif %}
+
+    <form method="post" action="{{ url_for('admin.special_assign', edition_id=edition_id) }}" style="margin-top: 1em;">
+        <input type="hidden" name="csrf_token" value="{{ session['csrf_token'] }}">
+        <label for="assign-date">날짜 추가 (YYYYMMDD):</label>
+        <input type="text" id="assign-date" name="date" placeholder="20260610" maxlength="8" pattern="[0-9]{8}" required>
+        <button type="submit" class="btn-primary">배정</button>
+    </form>
+</section>
+
+<p style="margin-top: 2em;">
+    <a href="{{ url_for('admin.special_index') }}">&larr; 에디션 목록으로</a>
+</p>
+{% endblock %}

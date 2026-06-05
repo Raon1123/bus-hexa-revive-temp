@@ -1,0 +1,73 @@
+{% extends "admin/_admin_base.html" %}
+
+{% block admin_title %}애플리케이션 로그{% endblock %}
+{% block page_title %}애플리케이션 로그{% endblock %}
+
+{% block admin_head %}
+<style>
+    .log-table { width: 100%; border-collapse: collapse; font-size: 0.85em; font-family: monospace; }
+    .log-table th, .log-table td { border: 1px solid #ddd; padding: 4px 8px; text-align: left; }
+    .log-table thead { background: #f4f4f4; }
+    .log-table .level-ERROR { color: #c53030; }
+    .log-table .level-CRITICAL { color: #702459; font-weight: bold; }
+    .log-table .level-WARNING { color: #c05621; }
+    .log-table .level-INFO { color: #2b6cb0; }
+    .log-table .level-DEBUG { color: #718096; }
+    .empty-notice { color: #718096; margin: 1em 0; }
+    .log-meta { color: #718096; font-size: 0.8em; }
+</style>
+{% endblock %}
+
+{% block content %}
+<h2>애플리케이션 로그</h2>
+
+<!-- 필터 폼 (GET, CSRF 불필요) -->
+<form method="get" action="{{ url_for('admin.logs_view') }}" class="admin-form admin-filter">
+    <label>레벨:
+        <select name="level">
+            <option value="" {% if not level %}selected{% endif %}>전체</option>
+            <option value="DEBUG" {% if level == 'DEBUG' %}selected{% endif %}>DEBUG 이상</option>
+            <option value="INFO" {% if level == 'INFO' %}selected{% endif %}>INFO 이상</option>
+            <option value="WARNING" {% if level == 'WARNING' %}selected{% endif %}>WARNING 이상</option>
+            <option value="ERROR" {% if level == 'ERROR' %}selected{% endif %}>ERROR 이상</option>
+            <option value="CRITICAL" {% if level == 'CRITICAL' %}selected{% endif %}>CRITICAL만</option>
+        </select>
+    </label>
+    <label>줄 수:
+        <input type="number" name="lines" value="{{ lines }}" min="1" max="2000" style="width:6em">
+    </label>
+    <button type="submit">필터 적용</button>
+</form>
+
+<p class="log-meta">
+    로그 파일: {{ log_file_path }} |
+    {% if log_lines %}표시: {{ log_lines|length }}줄 (최신 순){% endif %}
+</p>
+
+{% if log_lines %}
+    <div class="table-container">
+    <table class="log-table">
+        <thead>
+            <tr>
+                <th>시각</th>
+                <th>로거</th>
+                <th>레벨</th>
+                <th>메시지</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for ln in log_lines %}
+            <tr class="level-{{ ln.level }}">
+                <td>{{ ln.ts }}</td>
+                <td>{{ ln.logger }}</td>
+                <td>{{ ln.level }}</td>
+                <td>{{ ln.message }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    </div>
+{% else %}
+    <p class="empty-notice">로그 파일이 아직 없습니다.</p>
+{% endif %}
+{% endblock %}

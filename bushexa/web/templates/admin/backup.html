@@ -1,0 +1,80 @@
+{% extends "admin/_admin_base.html" %}
+
+{% block admin_title %}백업/복구{% endblock %}
+{% block page_title %}설정 백업/복구{% endblock %}
+
+{% block admin_head %}
+<style>
+    .backup-section {
+        border: 1px solid #ccc;
+        padding: 1em 1.5em;
+        border-radius: 4px;
+        margin-bottom: 1.5em;
+    }
+    .backup-section h3 { margin-top: 0; }
+    .backup-desc { color: #555; margin-bottom: 1em; font-size: 0.95em; }
+    .btn-export {
+        display: inline-block;
+        padding: 0.5em 1.2em;
+        background: #3182ce;
+        color: #fff;
+        border: none;
+        border-radius: 4px;
+        text-decoration: none;
+        cursor: pointer;
+        font-size: 1em;
+    }
+    .btn-export:hover { background: #2b6cb0; }
+    .btn-import {
+        padding: 0.5em 1.2em;
+        background: #38a169;
+        color: #fff;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 1em;
+    }
+    .btn-import:hover { background: #2f855a; }
+    .file-input { margin: 0.5em 0; }
+    .security-note {
+        font-size: 0.85em;
+        color: #718096;
+        margin-top: 0.5em;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<h2>설정 백업/복구</h2>
+
+<div class="backup-section">
+    <h3>내보내기 (Export)</h3>
+    <p class="backup-desc">
+        현재 편집 가능한 설정 파일을 ZIP 번들로 다운로드합니다.<br>
+        포함 항목: <code>holidays.json</code>, <code>special_timetables.json</code>,
+        <code>via_overrides.json</code>, 특별 에디션 시간표 (<code>timetable/special/**</code>)
+    </p>
+    <a class="btn-export" href="{{ url_for('admin.backup_export') }}">ZIP 다운로드</a>
+</div>
+
+<div class="backup-section">
+    <h3>가져오기 (Import/복구)</h3>
+    <p class="backup-desc">
+        이전에 내보낸 ZIP 번들을 업로드해 설정을 복구합니다.<br>
+        복구 전에 포함된 파일 목록을 미리 확인할 수 있습니다.<br>
+        <strong>주의:</strong> 기존 파일이 덮어쓰기됩니다.
+    </p>
+    <form method="post" action="{{ url_for('admin.backup_import_preview') }}"
+          enctype="multipart/form-data">
+        <input type="hidden" name="csrf_token" value="{{ session['csrf_token'] }}">
+        <div class="file-input">
+            <input type="file" name="bundle" accept=".zip" required>
+        </div>
+        <button type="submit" class="btn-import">미리보기 확인</button>
+    </form>
+    <p class="security-note">
+        보안: 화이트리스트 경로 외 파일, 절대경로, 경로 탐색(..) 등은 자동으로 거부됩니다.
+        모든 JSON 파일의 유효성이 검사된 후에만 복구가 진행됩니다.
+    </p>
+</div>
+{% endblock %}

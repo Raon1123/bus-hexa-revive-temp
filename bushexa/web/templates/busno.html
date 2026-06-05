@@ -1,0 +1,72 @@
+{% extends "_base.html" %}
+
+{% block title %}버스번호별 시간표{% endblock %}
+
+{% block content %}
+<h2>버스번호별 시간표</h2>
+<p class="current-time">현재 시각: {{ timetable.current_time }} ({{ timetable.weekday_str }})</p>
+
+{% if timetable.warning %}
+<div class="warning-banner">
+    경고: {{ timetable.warning }}
+</div>
+{% endif %}
+
+{# 버스번호 선택 #}
+<nav class="bus-selector">
+    {% for busno in timetable.busnos %}
+    <a href="/busno?bus={{ busno }}&day={{ timetable.selected_day }}&dep={{ timetable.selected_dep }}"
+       class="bus-btn {% if busno == timetable.selected_bus %}active{% endif %}">
+        {{ busno }}
+    </a>
+    {% endfor %}
+</nav>
+
+{# 요일 선택 #}
+<nav class="day-selector">
+    {% for i, day_name in [(0, timetable.day_options[0]), (1, timetable.day_options[1]), (2, timetable.day_options[2])] %}
+    <a href="/busno?bus={{ timetable.selected_bus }}&day={{ i }}&dep={{ timetable.selected_dep }}"
+       class="day-btn {% if i == timetable.selected_day %}active{% endif %}">
+        {{ day_name }}
+    </a>
+    {% endfor %}
+</nav>
+
+{# 출발지 선택 #}
+{% if timetable.terminals %}
+<form method="get" action="/busno" class="dep-form">
+    <input type="hidden" name="bus" value="{{ timetable.selected_bus }}">
+    <input type="hidden" name="day" value="{{ timetable.selected_day }}">
+    <label for="dep-select">출발지:</label>
+    <select id="dep-select" name="dep" onchange="this.form.submit()">
+        {% for terminal in timetable.terminals %}
+        <option value="{{ terminal }}" {% if terminal == timetable.selected_dep %}selected{% endif %}>
+            {{ terminal }}
+        </option>
+        {% endfor %}
+    </select>
+</form>
+{% endif %}
+
+{# 시간표 테이블 #}
+{% if timetable.timetable_rows %}
+<table class="timetable">
+    <thead>
+        <tr>
+            <th>시 (Hour)</th>
+            <th>분 (Minute)</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for row in timetable.timetable_rows %}
+        <tr>
+            <td>{{ row.hour }}</td>
+            <td>{{ row.minutes }}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% else %}
+<p class="empty-state">등록된 시간표가 없습니다.</p>
+{% endif %}
+{% endblock %}

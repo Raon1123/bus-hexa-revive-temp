@@ -1,0 +1,61 @@
+{% extends "_base.html" %}
+
+{% block title %}운행 이력 테이블{% endblock %}
+
+{% block content %}
+<h2>운행 이력 테이블</h2>
+<div class="info-banner">시범적으로 과거의 운행 정보를 제공합니다.</div>
+
+{% if warning %}
+<div class="warning-banner">{{ warning }}</div>
+{% endif %}
+
+{% if db_error %}
+<div class="error-banner">{{ db_error }}</div>
+{% endif %}
+
+{# 노선·날짜 선택 폼 — GET 제출 #}
+<form method="get" action="/running" class="running-form">
+    <label for="route-select">노선:</label>
+    <select id="route-select" name="route_id">
+        {% for rid, label in route_options %}
+        <option value="{{ rid }}" {% if rid == selected_route_id %}selected{% endif %}>
+            {{ label }}
+        </option>
+        {% endfor %}
+    </select>
+
+    <label for="date-input">날짜:</label>
+    <input type="date" id="date-input" name="date" value="{{ target_date }}">
+
+    <button type="submit">조회</button>
+</form>
+
+{# 운행 그리드 #}
+{% if grid and grid.runs %}
+<div class="table-container">
+<table class="running-table">
+    <thead>
+        <tr>
+            <th>정류장</th>
+            {% for _ in grid.runs %}
+            <th>{{ loop.index }}</th>
+            {% endfor %}
+        </tr>
+    </thead>
+    <tbody>
+        {% for stop_id in grid.stops_order %}
+        <tr>
+            <td class="stop-name">{{ stop_names.get(stop_id, stop_id) }}</td>
+            {% for run in grid.runs %}
+            <td>{{ run[stop_id] }}</td>
+            {% endfor %}
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+</div>
+{% elif not db_error %}
+<p class="empty-state">검색된 버스가 없습니다.</p>
+{% endif %}
+{% endblock %}

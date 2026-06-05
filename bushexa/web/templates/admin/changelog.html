@@ -1,0 +1,44 @@
+{% extends "admin/_admin_base.html" %}
+
+{% block admin_title %}변경이력 관리{% endblock %}
+{% block page_title %}변경이력 관리{% endblock %}
+
+{% block content %}
+<h2 id="changelog-manage">변경이력(Update History) 관리</h2>
+<p>여기에서 작성한 항목이 <strong>버스정보</strong> 페이지의 "Update History"에 날짜순으로 표시됩니다.</p>
+
+<section>
+    <h3>등록된 항목</h3>
+    {% if entries %}
+    <ul class="holiday-list">
+        {% for entry in entries %}
+        <li>
+            <span class="holiday-date">{{ entry.date }}</span>
+            <span class="changelog-desc">{{ entry.description }}</span>
+            <form method="post" action="{{ url_for('admin.changelog_remove') }}" style="display:inline;">
+                <input type="hidden" name="csrf_token" value="{{ session['csrf_token'] }}">
+                <input type="hidden" name="index" value="{{ loop.index0 }}">
+                <button type="submit" class="btn-danger-sm"
+                        onclick="return confirm('{{ entry.date }} 항목을 삭제하시겠습니까?')">삭제</button>
+            </form>
+        </li>
+        {% endfor %}
+    </ul>
+    {% else %}
+    <p><em>등록된 변경이력이 없습니다.</em></p>
+    {% endif %}
+</section>
+
+<section style="margin-top: 2em; border-top: 1px solid #ccc; padding-top: 1em;">
+    <h3>새 항목 추가</h3>
+    <form method="post" action="{{ url_for('admin.changelog_add') }}" class="admin-form">
+        <input type="hidden" name="csrf_token" value="{{ session['csrf_token'] }}">
+        <label for="changelog-date">날짜</label>
+        <input type="date" id="changelog-date" name="date" required>
+        <label for="changelog-desc">설명</label>
+        <textarea id="changelog-desc" name="description" rows="2" cols="60"
+                  placeholder="예: 버스 713 시간표 업데이트" required></textarea>
+        <button type="submit" class="btn-primary">추가</button>
+    </form>
+</section>
+{% endblock %}

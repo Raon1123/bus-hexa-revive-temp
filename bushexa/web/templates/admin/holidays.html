@@ -1,0 +1,51 @@
+{% extends "admin/_admin_base.html" %}
+
+{% block admin_title %}공휴일 관리{% endblock %}
+{% block page_title %}공휴일 관리{% endblock %}
+
+{% block content %}
+<h2 id="holiday-manage">관리자 지정 공휴일 관리</h2>
+<p>여기에 등록한 날짜는 data.go.kr 공휴일 API와 합산되어 <strong>공휴일 스케줄(일·공휴일)</strong>이 적용됩니다.</p>
+<p>날짜 형식: <code>YYYYMMDD</code> (예: <code>20261001</code>)</p>
+
+<section>
+    <h3>등록된 공휴일 ({{ dates|length }}건)</h3>
+    {% if dates %}
+    <ul class="holiday-list">
+        {% for d in dates %}
+        <li>
+            <span class="holiday-date">{{ d[:4] }}-{{ d[4:6] }}-{{ d[6:] }}</span>
+            <form method="post" action="{{ url_for('admin.holidays_remove') }}" style="display:inline;">
+                <input type="hidden" name="csrf_token" value="{{ session['csrf_token'] }}">
+                <input type="hidden" name="date" value="{{ d }}">
+                <button type="submit" class="btn-danger-sm" onclick="return confirm('{{ d }} 을 제거하시겠습니까?')">제거</button>
+            </form>
+        </li>
+        {% endfor %}
+    </ul>
+    {% else %}
+    <p>등록된 공휴일이 없습니다. data.go.kr API 공휴일만 적용됩니다.</p>
+    {% endif %}
+</section>
+
+<section style="margin-top: 2em;">
+    <h3>날짜 추가</h3>
+    <form method="post" action="{{ url_for('admin.holidays_add') }}">
+        <input type="hidden" name="csrf_token" value="{{ session['csrf_token'] }}">
+        <label for="holiday-date">날짜 (YYYYMMDD):</label>
+        <input type="text" id="holiday-date" name="date" placeholder="20261001" maxlength="8" pattern="[0-9]{8}" required>
+        <button type="submit" class="btn-primary">추가</button>
+    </form>
+</section>
+
+<section style="margin-top: 2em; border-top: 1px solid #ccc; padding-top: 1.5em;">
+    <h3>공휴일 API 일괄 동기화</h3>
+    <p>data.go.kr에서 특정 연도의 공휴일을 가져와 등록합니다. 가져온 후 미리보기를 확인하고 적용하세요.</p>
+    <form method="post" action="{{ url_for('admin.holidays_sync_fetch') }}">
+        <input type="hidden" name="csrf_token" value="{{ session['csrf_token'] }}">
+        <label for="sync-year">연도 (예: 2026):</label>
+        <input type="text" id="sync-year" name="year" placeholder="2026" maxlength="4" pattern="[0-9]{4}" required>
+        <button type="submit" class="btn-primary">조회 및 미리보기</button>
+    </form>
+</section>
+{% endblock %}

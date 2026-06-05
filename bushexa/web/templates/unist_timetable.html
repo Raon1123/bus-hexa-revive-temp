@@ -1,0 +1,55 @@
+{% extends "_base.html" %}
+
+{% block title %}전체 시간표{% endblock %}
+
+{% block extra_head %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/timetable.css') }}">
+{% endblock %}
+
+{% block content %}
+<h2>전체 시간표</h2>
+<p class="current-time">현재 시각: {{ snapshot.current_time }} ({{ snapshot.weekday_str }})</p>
+
+{# 요일 전환 — 일반 GET 링크 (F08 §4.2, TP-005) #}
+<nav class="day-selector">
+    <a href="/timetable?day=0" class="day-btn {% if snapshot.selected_day == 0 %}active{% endif %}">Weekday</a>
+    <a href="/timetable?day=1" class="day-btn {% if snapshot.selected_day == 1 %}active{% endif %}">Saturday</a>
+    <a href="/timetable?day=2" class="day-btn {% if snapshot.selected_day == 2 %}active{% endif %}">Sunday/Holiday</a>
+</nav>
+
+{# 버스 범례 — .bus-{N} CSS 클래스 사용, 인라인 style 없음 (AC-2) #}
+{% if snapshot.bus_legend %}
+<div class="bus-legend">
+    {% for busno in snapshot.bus_legend %}
+    <span class="bus-badge bus-{{ busno }}">{{ busno }}</span>
+    {% endfor %}
+</div>
+{% endif %}
+
+{# 시간표 그리드 #}
+{% if snapshot.is_empty %}
+<p class="empty-state">등록된 시간표가 없습니다.</p>
+{% else %}
+<table class="timetable-grid">
+    <thead>
+        <tr>
+            <th class="hour-col">시 (Hour)</th>
+            <th>분·노선 (Minutes)</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for row in snapshot.timetable_rows %}
+        <tr class="timetable-row">
+            <td class="hour-cell">{{ row.hour }}</td>
+            <td class="minutes-cell">
+                {% for dep in row.departures %}
+                {# .bus-{N} 클래스 사용 — 인라인 style="color:" 없음 (W7 AC-2) #}
+                <span class="bus-badge bus-{{ dep.busno }}">{{ dep.minute }} ({{ dep.busno }})</span>
+                {% endfor %}
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% endif %}
+{% endblock %}

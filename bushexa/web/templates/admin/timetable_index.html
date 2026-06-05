@@ -1,0 +1,22 @@
+{% extends "admin/_admin_base.html" %}
+
+{% block admin_title %}시간표 편집{% endblock %}
+{% block page_title %}시간표 편집{% endblock %}
+
+{% block content %}
+<h2 id="timetable-index">시간표 편집</h2>
+
+<p>편집할 노선을 선택하세요.</p>
+<ul class="route-list">
+    {% for route in routes %}
+        <li class="route-card">
+            <a href="{{ url_for('admin.timetable_edit', busno=route.busno) }}">
+                {{ route.busno }}
+            </a>
+            <span class="departures">
+                {{ route.departures | join(', ') }}
+            </span>
+        </li>
+    {% endfor %}
+</ul>
+{% endblock %}

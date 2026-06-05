@@ -1,0 +1,73 @@
+{% extends "admin/_admin_base.html" %}
+
+{% block admin_title %}백업 복구 확인{% endblock %}
+{% block page_title %}복구 미리보기{% endblock %}
+
+{% block admin_head %}
+<style>
+    .preview-section {
+        border: 1px solid #ccc;
+        padding: 1em 1.5em;
+        border-radius: 4px;
+        margin-bottom: 1.5em;
+    }
+    .preview-section h3 { margin-top: 0; }
+    .file-list { font-family: monospace; font-size: 0.9em; padding-left: 1.5em; }
+    .btn-confirm {
+        padding: 0.5em 1.5em;
+        background: #e53e3e;
+        color: #fff;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 1em;
+        margin-right: 0.5em;
+    }
+    .btn-confirm:hover { background: #c53030; }
+    .btn-cancel {
+        padding: 0.5em 1.2em;
+        background: #a0aec0;
+        color: #fff;
+        border: none;
+        border-radius: 4px;
+        text-decoration: none;
+        cursor: pointer;
+        font-size: 1em;
+    }
+    .btn-cancel:hover { background: #718096; }
+    .warn-box {
+        background: #fff5f5;
+        border: 1px solid #e53e3e;
+        padding: 0.7em 1em;
+        border-radius: 4px;
+        margin-bottom: 1em;
+        color: #c53030;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<h2>복구 미리보기</h2>
+
+<div class="preview-section">
+    <h3>복구될 파일 목록 ({{ preview_files | length }}개)</h3>
+    <ul class="file-list">
+        {% for fname in preview_files %}
+        <li>{{ fname }}</li>
+        {% else %}
+        <li>복구할 파일이 없습니다.</li>
+        {% endfor %}
+    </ul>
+</div>
+
+<div class="warn-box">
+    위 파일들이 현재 설정을 덮어씁니다. 계속하시겠습니까?
+</div>
+
+<form method="post" action="{{ url_for('admin.backup_import_confirm') }}">
+    <input type="hidden" name="csrf_token" value="{{ session['csrf_token'] }}">
+    <input type="hidden" name="encoded_bundle" value="{{ encoded_bundle }}">
+    <button type="submit" class="btn-confirm">복구 실행</button>
+    <a class="btn-cancel" href="{{ url_for('admin.backup_index') }}">취소</a>
+</form>
+{% endblock %}

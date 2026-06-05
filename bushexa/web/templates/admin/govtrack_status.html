@@ -1,0 +1,59 @@
+{% extends "admin/_admin_base.html" %}
+
+{% block admin_title %}Govtrack 데몬 상태{% endblock %}
+{% block page_title %}Govtrack 데몬 상태{% endblock %}
+
+{% block admin_head %}
+<style>
+    .status-card { border: 1px solid #ccc; padding: 1em; border-radius: 4px; }
+    .status-card.warning { border-color: #e53e3e; background: #fff5f5; }
+    .status-ok { color: #2f855a; }
+    .status-fail { color: #c53030; }
+</style>
+{% endblock %}
+
+{% block content %}
+<h2>Govtrack 데몬 상태</h2>
+
+<!-- 상태 카드 — SSE로 실시간 갱신 (EventSource) -->
+<div id="status-card" class="status-card">
+    <p>상태를 로드 중입니다...</p>
+</div>
+
+<hr>
+<h3>수동 JSON 조회</h3>
+<p><a href="{{ url_for('admin.govtrack_status') }}" target="_blank">JSON 직접 열기</a></p>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+    const card = document.getElementById('status-card');
+    const es = new EventSource("{{ url_for('admin.govtrack_status_stream') }}");
+
+    es.addEventListener('status', function(e) {
+        const data = JSON.parse(e.data);
+        const failures = data.consecutive_failures;
+        const isWarning = failures > 0;
+
+        card.className = 'status-card' + (isWarning ? ' warning' : '');
+
+        let html = '';
+        if (!data.last_success_at) {
+            html = '<p class="status-fail">데이터 없음 — 데몬이 아직 실행되지 않았습니다.</p>';
+        } else {
+            html += `<p>마지막 성공: <strong>${data.last_success_at}</strong></p>`;
+            html += `<p>연속 실패: <strong class="${isWarning ? 'status-fail' : 'status-ok'}">${failures}</strong></p>`;
+            html += `<p>마지막 삽입: ${data.total_inserts ?? 0}</p>`;
+            html += `<p>마지막 사이클: ${data.cycle_started_at ?? '-'}</p>`;
+            if (isWarning) {
+                html += '<p class="status-fail">⚠ 데몬 미동작 감지 — 연속 실패 중입니다.</p>';
+            }
+        }
+        card.innerHTML = html;
+    });
+
+    es.onerror = function() {
+        card.innerHTML = '<p class="status-fail">SSE 연결 오류. 재연결 중...</p>';
+    };
+</script>
+{% endblock %}

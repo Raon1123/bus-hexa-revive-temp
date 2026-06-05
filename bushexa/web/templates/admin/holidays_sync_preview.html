@@ -1,0 +1,60 @@
+{% extends "admin/_admin_base.html" %}
+
+{% block admin_title %}공휴일 동기화 미리보기 — {{ year }}년{% endblock %}
+{% block page_title %}공휴일 동기화{% endblock %}
+
+{% block content %}
+<h2 id="holidays-sync-preview">{{ year }}년 공휴일 동기화 미리보기</h2>
+<p>data.go.kr에서 조회한 결과입니다. 확인 후 "<strong>동기화 적용</strong>"을 눌러 저장하세요.</p>
+
+<section>
+    <h3>조회 결과 요약</h3>
+    <ul>
+        <li>API에서 조회된 공휴일 날짜: <strong>{{ total_fetched }}건</strong></li>
+        <li>새로 추가될 날짜: <strong>{{ new_dates | length }}건</strong></li>
+        <li>이미 등록된 날짜 (중복, 생략): <strong>{{ dup_dates | length }}건</strong></li>
+    </ul>
+</section>
+
+{% if new_dates %}
+<section style="margin-top: 1.5em;">
+    <h3>새로 추가될 날짜 ({{ new_dates | length }}건)</h3>
+    <ul class="holiday-list">
+        {% for d in new_dates %}
+        <li><span class="holiday-date">{{ d[:4] }}-{{ d[4:6] }}-{{ d[6:] }}</span></li>
+        {% endfor %}
+    </ul>
+</section>
+{% else %}
+<section style="margin-top: 1.5em;">
+    <p>새로 추가될 날짜가 없습니다. 이미 모두 등록되어 있습니다.</p>
+</section>
+{% endif %}
+
+{% if dup_dates %}
+<section style="margin-top: 1.5em;">
+    <h3>이미 등록된 날짜 (중복, {{ dup_dates | length }}건)</h3>
+    <ul class="holiday-list" style="color: #888;">
+        {% for d in dup_dates %}
+        <li><span class="holiday-date">{{ d[:4] }}-{{ d[4:6] }}-{{ d[6:] }}</span> <em>(기존 등록)</em></li>
+        {% endfor %}
+    </ul>
+</section>
+{% endif %}
+
+<section style="margin-top: 2em; border-top: 1px solid #ccc; padding-top: 1.5em;">
+    {% if new_dates %}
+    <form method="post" action="{{ url_for('admin.holidays_sync_confirm') }}">
+        <input type="hidden" name="csrf_token" value="{{ session['csrf_token'] }}">
+        <input type="hidden" name="year" value="{{ year }}">
+        <input type="hidden" name="new_dates" value="{{ new_dates | join(' ') }}">
+        <button type="submit" class="btn-primary">동기화 적용 ({{ new_dates | length }}건 추가)</button>
+    </form>
+    {% else %}
+    <p>추가할 날짜가 없으므로 적용이 필요하지 않습니다.</p>
+    {% endif %}
+    <p style="margin-top: 1em;">
+        <a href="{{ url_for('admin.holidays_index') }}">&larr; 공휴일 관리로 돌아가기</a>
+    </p>
+</section>
+{% endblock %}

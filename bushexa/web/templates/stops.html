@@ -1,0 +1,26 @@
+{% extends "_base.html" %}
+
+{% block title %}정류소별 버스 도착 정보{% endblock %}
+
+{% block content %}
+<h2>정류소별 버스 도착 정보</h2>
+
+<div class="stops-selector">
+    <label for="stop-select">정류소 선택:</label>
+    <select id="stop-select"
+            name="stop_id"
+            hx-get="/partial/stops"
+            hx-trigger="change"
+            hx-target="#stops-table"
+            hx-include="[name='stop_id']">
+        <option value="" disabled selected>-- 정류소를 선택해주세요 --</option>
+        {% for stop_id, stop_name in stop_options %}
+        <option value="{{ stop_id }}">{{ stop_name }}</option>
+        {% endfor %}
+    </select>
+</div>
+
+<div id="stops-table">
+    <p class="empty-state">정류소를 선택하면 도착 정보가 표시됩니다.</p>
+</div>
+{% endblock %}

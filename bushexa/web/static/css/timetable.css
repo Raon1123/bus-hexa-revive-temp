@@ -1,0 +1,65 @@
+/* W7 timetable.css — 전체 시간표 페이지 스타일
+ * 버스 색상은 .bus-{N} 클래스로 적용 (인라인 style="color:" 금지 — AC-2)
+ * BUS_COLORS 출처: infopages/unist_timetable.py (legacy 소스)
+ *   513: #D32F2F (Red), 713: #388E3C (Green), 743: #1976D2 (Blue)
+ *   753: #7B1FA2 (Purple), 1115: #F57C00 (Orange)
+ */
+
+.timetable-grid {
+    width: 100%;
+    border-collapse: collapse;
+    font-family: sans-serif;
+    font-size: 0.9rem;
+    table-layout: fixed;
+}
+
+.timetable-grid th,
+.timetable-grid td {
+    text-align: left;
+    padding: 8px;
+    border-bottom: 1px solid #eee;
+    vertical-align: middle;
+}
+
+.timetable-grid th {
+    background-color: #f0f2f6;
+    border-bottom: 2px solid #ddd;
+}
+
+.hour-col {
+    width: 60px;
+    text-align: center;
+}
+
+.hour-cell {
+    text-align: center;
+    font-weight: bold;
+}
+
+.timetable-row:hover {
+    background-color: #f9f9f9;
+}
+
+/* Bus badge — color via CSS class, no inline style */
+.bus-badge {
+    display: inline-block;
+    margin: 2px 4px;
+    padding: 2px 6px;
+    border-radius: 3px;
+    font-weight: bold;
+    font-size: 0.85rem;
+    color: #fff;
+}
+
+/* Bus-specific colors (BUS_COLORS from infopages/unist_timetable.py) */
+.bus-513  { background-color: #D32F2F; }   /* Red */
+.bus-713  { background-color: #388E3C; }   /* Green */
+.bus-743  { background-color: #1976D2; }   /* Blue */
+.bus-753  { background-color: #7B1FA2; }   /* Purple */
+.bus-1115 { background-color: #F57C00; }   /* Orange */
+
+/* Bus legend row */
+.bus-legend {
+    margin: 10px 0;
+    padding: 5px;
+}

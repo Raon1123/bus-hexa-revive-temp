@@ -1,0 +1,54 @@
+[project]
+name = "bushexa"
+version = "0.1.0"
+description = "Bus Hexa - UNIST bus information system"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "flask>=3.0",
+    "jinja2>=3.1",
+    "requests>=2.32",
+    "beautifulsoup4>=4.12",
+    "pandas>=2.2",
+    "openpyxl>=3.1",
+    "pyyaml>=6.0",
+    "pytz>=2024.1",
+    "python-dotenv>=1.0",
+    "argon2-cffi>=23",        # 관리자 비밀번호 Argon2id 해시 (OWASP 권장)
+]
+
+[project.optional-dependencies]
+# postgres extra(psycopg2)는 제거됨 — 배포는 SQLite 단일 백엔드. connection.py의 dual-backend
+# 코드는 deferred-import라 유지되며, psycopg2가 필요할 경우 직접 설치하면 동작한다.
+prod = [
+    "gunicorn>=21",
+]
+
+# Dev tooling lives in a PEP 735 dependency group so `uv sync` and
+# `uv run pytest` install/find it by default (no --extra flag needed).
+[dependency-groups]
+dev = [
+    "pytest>=8",
+    "pytest-mock>=3",
+    "responses>=0.25",
+    "freezegun>=1.5",
+]
+
+[project.scripts]
+bushexa = "bushexa.cli:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["bushexa"]
+
+[tool.pytest.ini_options]
+# Confine collection to tests/ so pytest never walks legacy dirs such as
+# postgres-data/ (root-owned PG data) or src/, crawl/, infopages/.
+testpaths = ["tests"]
+norecursedirs = ["postgres-data", "_legacy", "src", "crawl", "infopages", ".venv"]
+filterwarnings = [
+    # 울산/공휴일 XML을 html.parser로 파싱(legacy와 동일, lxml 의존 회피). 무해한 경고 억제.
+    "ignore::bs4.XMLParsedAsHTMLWarning",
+]

@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<response>
+  <tableInfo>
+    <list_total_count>3</list_total_count>
+    <totalCnt>3</totalCnt>
+    <RESULT>
+      <CODE>INFO-000</CODE>
+      <MESSAGE>NORMAL SERVICE</MESSAGE>
+    </RESULT>
+    <pageNo>1</pageNo>
+    <numOfRows>50</numOfRows>
+  </tableInfo>
+  <row>
+    <time>0530</time>
+    <direction>1</direction>
+  </row>
+  <row>
+    <time>0615</time>
+    <direction>2</direction>
+  </row>
+  <row>
+    <time>1145</time>
+    <direction>1</direction>
+  </row>
+</response>

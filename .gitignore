@@ -1,0 +1,17 @@
+# ignore python cache files
+__pycache__/
+secret/
+
+# bushexa refactor additions
+.venv/
+*.pyc
+.env
+data/bushexa.db*
+data/timetable_backup/
+logs/
+old-stuff/
+# git-baseline additions (2026-06-05)
+postgres-data/
+.pytest_cache/
+media/
+podman.out

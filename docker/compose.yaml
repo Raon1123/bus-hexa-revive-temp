@@ -1,0 +1,40 @@
+# docker/compose.yaml — 운영(production) base compose (단일 컨테이너)
+# 사용법: docker compose -f docker/compose.yaml up -d
+#         (또는 podman-compose -f docker/compose.yaml up -d)
+#
+# 루트의 compose.podman.yaml 과 동일한 단일 `app` 서비스 구성이며, docker/ 하위에서 ../ 상대
+# 경로로 호스트 디렉토리를 bind-mount 한다. (podman 워크플로의 canonical 은 루트 compose.podman.yaml)
+#
+# 포트 매핑: 8017:8000 (컨테이너 내부 8000 = bushexa serve 기본 포트).
+# postgres 제거됨 — SQLite 단일 백엔드(.env의 DATABASE_URL).
+
+services:
+
+  app:
+    image: bushexa:latest
+    build:
+      context: ..
+      # podman-compose 는 dockerfile 을 "이 compose 파일의 디렉토리(docker/)" 기준으로
+      # 해석하므로 'Dockerfile' 로만 적어 docker/Dockerfile 로 풀리게 한다.
+      dockerfile: Dockerfile
+    # web + 2 worker를 supervisord가 한 컨테이너에서 구동 (Dockerfile ENTRYPOINT override).
+    entrypoint: ["supervisord", "-n", "-c", "/app/docker/supervisord.conf"]
+    env_file: ../.env
+    ports:
+      - "8017:8000"
+    restart: always
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8000/lite >/dev/null || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    volumes:
+      - ../bushexa:/app/bushexa:ro   # 소스(bind-mount 모델 — 이미지엔 .venv·supervisord.conf만)
+      - ../data:/app/data            # SQLite DB + 시간표/공휴일/비밀번호 해시 (rw)
+      - ../secret:/app/secret:ro     # API 키 등 읽기전용 시크릿 (비밀번호는 data/로 이전됨)
+      - ../logs:/app/logs
+
+networks:
+  default:
+    name: bushexa

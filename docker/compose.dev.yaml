@@ -1,0 +1,16 @@
+# docker/compose.dev.yaml — 개발 override (compose.yaml에 머지)
+# 사용법: docker compose -f docker/compose.yaml -f docker/compose.dev.yaml up
+#
+# 목적:
+#   - bushexa/ 소스를 rw로 bind-mount하여 코드 변경 즉시 반영 (이미지 재빌드 불필요)
+#   - BUSHEXA_LOG_LEVEL=DEBUG 로 상세 로그
+#   - DATABASE_URL=sqlite:///./data/bushexa.db (운영과 동일 — postgres 제거됨)
+
+services:
+
+  app:
+    volumes:
+      - ../bushexa:/app/bushexa    # 소스 bind-mount(rw) — 변경사항 즉시 반영
+    environment:
+      BUSHEXA_LOG_LEVEL: DEBUG
+      DATABASE_URL: sqlite:///./data/bushexa.db

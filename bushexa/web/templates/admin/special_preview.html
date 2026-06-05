@@ -1,0 +1,115 @@
+{% extends "admin/_admin_base.html" %}
+
+{% block admin_title %}시간표 미리보기 — {{ date_str[:4] }}-{{ date_str[4:6] }}-{{ date_str[6:] }}{% endblock %}
+{% block page_title %}특별 시간표 미리보기{% endblock %}
+
+{% block content %}
+<h2 id="special-preview">그날 시간표 미리보기</h2>
+<p>날짜를 입력하면 해당 날짜에 <strong>실제로 적용되는 시간표</strong>를 표시합니다.<br>
+   우선순위: <strong>특별편 &gt; 공휴일 &gt; 요일</strong></p>
+
+<form method="get" action="{{ url_for('admin.special_preview') }}" class="admin-form admin-filter">
+    <label for="preview-date">날짜 (YYYYMMDD):</label>
+    <input type="text" id="preview-date" name="date" value="{{ date_str }}"
+           placeholder="20260610" maxlength="8" pattern="[0-9]{8}" required>
+    <button type="submit" class="btn-primary">조회</button>
+    {% if date_str != today_str %}
+    <a href="{{ url_for('admin.special_preview') }}" style="margin-left:1em; font-size:0.9rem;">오늘로</a>
+    {% endif %}
+</form>
+
+<section style="margin-top: 2em;">
+    <h3>{{ target_date.strftime('%Y년 %m월 %d일') }} — 적용 규칙</h3>
+    <p class="preview-label">
+        <strong>적용 규칙:</strong>
+        <span class="preview-rule-badge {% if '특별편' in label %}badge-special{% elif '공휴일' in label %}badge-holiday{% else %}badge-weekday{% endif %}">
+            {{ label }}
+        </span>
+    </p>
+    {% if edition_id %}
+    <p>
+        <a href="{{ url_for('admin.special_edit', edition_id=edition_id) }}">에디션 {{ edition_id }} 편집 &rarr;</a>
+    </p>
+    {% endif %}
+
+    {% if timetable %}
+    <div class="preview-timetable">
+        {% for busno in busnos %}
+        {% set deps = departure_dict.get(busno, []) %}
+        {% if deps %}
+        <div class="preview-bus-card">
+            <h4>노선 {{ busno }}</h4>
+            {% for dep in deps %}
+            {% set times = timetable.get(busno, {}).get(dep, []) %}
+            <div class="preview-dep-block">
+                <strong>{{ dep }}</strong> 방면
+                {% if times %}
+                <ul class="preview-times-list">
+                    {% for t in times %}<li>{{ t }}</li>{% endfor %}
+                </ul>
+                {% else %}
+                <p class="preview-empty">시간표 없음</p>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+        {% endfor %}
+    </div>
+    {% else %}
+    <p>표시할 시간표 데이터가 없습니다.</p>
+    {% endif %}
+</section>
+
+<p style="margin-top: 2em;">
+    <a href="{{ url_for('admin.special_index') }}">&larr; 에디션 목록으로</a>
+</p>
+{% endblock %}
+
+{% block admin_head %}
+<style>
+.preview-label { font-size: 1.05rem; margin: 0.5em 0; }
+.preview-rule-badge {
+    display: inline-block;
+    padding: 0.2em 0.7em;
+    border-radius: 4px;
+    font-weight: 700;
+    font-size: 1rem;
+}
+.badge-special  { background: #fef3c7; color: #92400e; border: 1px solid #f6ad55; }
+.badge-holiday  { background: #e9d8fd; color: #553c9a; border: 1px solid #b794f4; }
+.badge-weekday  { background: #ebf8ff; color: #2b6cb0; border: 1px solid #90cdf4; }
+
+.preview-timetable {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem;
+    margin-top: 1rem;
+}
+.preview-bus-card {
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    padding: 0.75rem 1rem;
+    min-width: 160px;
+    background: #fafafa;
+}
+.preview-bus-card h4 { margin: 0 0 0.5em; }
+.preview-dep-block { margin-top: 0.5em; }
+.preview-times-list {
+    list-style: none;
+    padding: 0;
+    margin: 0.3em 0 0;
+    font-family: monospace;
+    font-size: 0.95rem;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.3em 0.6em;
+}
+.preview-times-list li {
+    background: #edf2f7;
+    border-radius: 3px;
+    padding: 0.1em 0.4em;
+}
+.preview-empty { color: #888; font-style: italic; font-size: 0.9rem; margin: 0.3em 0; }
+</style>
+{% endblock %}

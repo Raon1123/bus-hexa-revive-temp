@@ -1,0 +1,49 @@
+# .dockerignore — keeps the build context small and prevents secrets leaking into the image.
+# See P5-W2 (docs/refactor/phases/P5-deployment-cutover.md §5 W2).
+
+# Version control
+.git
+.gitignore
+
+# Secrets — NEVER bake into image (bind-mount at runtime)
+secret/
+
+# Database storage — bind-mount at runtime
+postgres-data/
+*.db
+
+# Python bytecode and caches
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.venv/
+*.egg-info/
+dist/
+build/
+
+# Test suite (not needed in production image)
+tests/
+
+# Legacy code moved to _legacy/
+_legacy/
+
+# Log files
+logs/
+*.log
+
+# Dev / docs
+docs/
+api-manual/
+*.md
+
+# Timetable xlsx (bootstrap-only tool, runtime uses JSON)
+data/timetable/*.xlsx
+timetable/
+
+# Editor / OS artefacts
+.DS_Store
+*.swp
+*.swo
+.env
+.env.*

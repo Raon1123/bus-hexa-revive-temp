@@ -1,0 +1,17 @@
+{
+  "response": {
+    "header": {"resultCode": "00", "resultMsg": "NORMAL SERVICE."},
+    "body": {
+      "items": {
+        "item": [
+          {"gpslati": 35.572, "gpslong": 129.189, "nodeid": "USB246000123", "nodenm": "울산과학기술원", "nodeord": 12, "routenm": "1127", "routetp": "직행좌석버스", "vehicleno": "울산70자1234"},
+          {"gpslati": 35.565, "gpslong": 129.201, "nodeid": "USB246000124", "nodenm": "반천현대아파트", "nodeord": 14, "routenm": "1127", "routetp": "직행좌석버스", "vehicleno": "울산70자5678"},
+          {"gpslati": 35.558, "gpslong": 129.215, "nodeid": "USB246000125", "nodenm": "다운동", "nodeord": 16, "routenm": "1127", "routetp": "직행좌석버스", "vehicleno": "울산70자9012"}
+        ]
+      },
+      "numOfRows": 100,
+      "pageNo": 1,
+      "totalCount": 3
+    }
+  }
+}

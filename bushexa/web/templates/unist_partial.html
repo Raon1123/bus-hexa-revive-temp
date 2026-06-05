@@ -1,0 +1,27 @@
+{#
+  unist_partial.html — HTMX 폴링 조각 (TP-004 §8)
+  이 파일은 <html>/<head>/<body> 태그를 포함하지 않는다.
+  /partial/unist 응답이자 unist_board.html 의 {% include %} 대상.
+  id="unist-grid" 조각만 포함 (W6 지시사항).
+#}
+<div id="unist-grid">
+<div class="bus-card-grid">
+    {% for card in snapshot.cards %}
+    <div class="bus-card {% if card.is_last_bus %}last-bus{% endif %}">
+        <div class="bus-card-header route-{{ card.busno }}">
+            <span class="bus-number">{{ card.busno }}</span>
+            <span class="bus-direction">{{ card.direction }}</span>
+        </div>
+        <div class="bus-card-body">
+            {% if card.is_last_bus %}
+            <p class="empty-state">운행 종료 또는 정보 없음</p>
+            {% else %}
+            {% for entry in card.entries %}
+            <p class="entry entry-{{ entry.source }}">{{ entry.text }}</p>
+            {% endfor %}
+            {% endif %}
+        </div>
+    </div>
+    {% endfor %}
+</div>
+</div>

@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<response>
+  <tableInfo>
+    <list_total_count>2</list_total_count>
+    <RESULT>
+      <CODE>INFO-000</CODE>
+      <MESSAGE>NORMAL SERVICE</MESSAGE>
+    </RESULT>
+    <pageNo>1</pageNo>
+    <numOfRows>50</numOfRows>
+  </tableInfo>
+  <row>
+    <routeid>30300012</routeid>
+    <presentstopnm>다운동</presentstopnm>
+    <vehicleno>울산70바1234</vehicleno>
+    <arrivaltime>180</arrivaltime>
+  </row>
+  <row>
+    <routeid>30300034</routeid>
+    <presentstopnm>반천현대아파트</presentstopnm>
+    <vehicleno>울산70바5678</vehicleno>
+    <arrivaltime>420</arrivaltime>
+  </row>
+</response>

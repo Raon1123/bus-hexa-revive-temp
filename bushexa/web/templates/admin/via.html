@@ -1,0 +1,33 @@
+{% extends "admin/_admin_base.html" %}
+
+{% block admin_title %}경유지 편집{% endblock %}
+{% block page_title %}경유지 편집{% endblock %}
+
+{% block content %}
+<h2 id="via-edit">경유지(주요 정류소) 편집</h2>
+<p>출발 게시판의 <b>경유</b> 표시 문자열을 노선·목적지별로 편집합니다.
+   비워 두거나 기본값과 같으면 코드 기본값이 사용됩니다.</p>
+
+<form method="post" action="{{ url_for('admin.via_save') }}">
+    <input type="hidden" name="csrf_token" value="{{ session['csrf_token'] }}">
+
+    {% for e in entries %}
+    <div class="via-edit-row">
+        <label for="via-{{ e.busno }}-{{ e.dest }}">
+            <span class="c-route route-{{ e.busno }}">{{ e.busno }}</span>
+            <b>{{ e.dest }}</b> 방면
+            {% if e.is_override %}<span class="via-badge">사용자 수정됨</span>{% endif %}
+        </label>
+        <textarea id="via-{{ e.busno }}-{{ e.dest }}"
+                  name="{{ e.field }}"
+                  rows="2"
+                  class="via-textarea">{{ e.value }}</textarea>
+        <p class="via-default">기본값: {{ e.default }}</p>
+    </div>
+    {% endfor %}
+
+    <div class="via-actions">
+        <button type="submit" class="btn-primary">저장</button>
+    </div>
+</form>
+{% endblock %}

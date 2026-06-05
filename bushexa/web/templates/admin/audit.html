@@ -1,0 +1,89 @@
+{% extends "admin/_admin_base.html" %}
+
+{% block admin_title %}감사 로그{% endblock %}
+{% block page_title %}관리자 변경 감사 로그{% endblock %}
+
+{% block admin_head %}
+<style>
+    .audit-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.92em;
+    }
+    .audit-table th {
+        background: #edf2f7;
+        text-align: left;
+        padding: 0.5em 0.8em;
+        border-bottom: 2px solid #cbd5e0;
+        white-space: nowrap;
+    }
+    .audit-table td {
+        padding: 0.45em 0.8em;
+        border-bottom: 1px solid #e2e8f0;
+        vertical-align: top;
+    }
+    .audit-table tr:hover td { background: #f7fafc; }
+    .action-badge {
+        display: inline-block;
+        padding: 0.1em 0.5em;
+        border-radius: 3px;
+        background: #bee3f8;
+        color: #2b6cb0;
+        font-family: monospace;
+        font-size: 0.88em;
+    }
+    .action-badge.danger {
+        background: #fed7d7;
+        color: #c53030;
+    }
+    .no-entries {
+        padding: 2em;
+        text-align: center;
+        color: #718096;
+    }
+    .ts-cell { white-space: nowrap; font-family: monospace; font-size: 0.88em; color: #4a5568; }
+    .ip-cell { font-family: monospace; font-size: 0.88em; color: #718096; }
+    .details-cell { font-size: 0.88em; color: #4a5568; }
+</style>
+{% endblock %}
+
+{% block content %}
+<h2>관리자 변경 감사 로그</h2>
+<p>관리자 뮤테이션(공휴일 추가/삭제, 경유지 저장, 백업 복구 등) 이력 (최신순, 최대 500건).</p>
+
+{% if entries %}
+<table class="audit-table">
+    <thead>
+        <tr>
+            <th>시각 (KST)</th>
+            <th>액션</th>
+            <th>IP</th>
+            <th>상세</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for entry in entries %}
+        <tr>
+            <td class="ts-cell">{{ entry.ts }}</td>
+            <td>
+                <span class="action-badge {% if 'restore' in entry.action or 'delete' in entry.action or 'remove' in entry.action %}danger{% endif %}">
+                    {{ entry.action }}
+                </span>
+            </td>
+            <td class="ip-cell">{{ entry.actor_ip or '-' }}</td>
+            <td class="details-cell">
+                {% set skip = ['ts', 'action', 'actor_ip'] %}
+                {% for k, v in entry.items() %}
+                    {% if k not in skip %}
+                        <span>{{ k }}={{ v }}</span>{% if not loop.last %}&nbsp; {% endif %}
+                    {% endif %}
+                {% endfor %}
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% else %}
+<div class="no-entries">감사 로그가 없습니다. 관리자 뮤테이션이 발생하면 여기에 기록됩니다.</div>
+{% endif %}
+{% endblock %}

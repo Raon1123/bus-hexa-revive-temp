@@ -1,0 +1,82 @@
+{% extends "_base.html" %}
+
+{% block title %}버스 노선 정보{% endblock %}
+
+{% block extra_head %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/info.css') }}">
+{% endblock %}
+
+{% block content %}
+<h2>Bus HeXA Information</h2>
+
+<p>울산시 버스 노선정보가 24년 12월 21자로 개편되었습니다.
+이를 반영한 버스 시간표에 관한 정보를 제공하는 페이지입니다.</p>
+
+<h3>Bus Route Map</h3>
+<p class="route-note">노선 관계도 (지도가 아닌 그래프). 핵심 정류장만 표시합니다 · 가로로 스크롤하세요.</p>
+<div class="route-diagram-wrap">
+    {{ diagram }}
+</div>
+
+<h3>For Destination</h3>
+<table class="info-table">
+    <thead>
+        <tr><th>Destination</th><th>Bus Number</th></tr>
+    </thead>
+    <tbody>
+        <tr><td>울산역 (KTX Ulsan station)</td><td>513</td></tr>
+        <tr><td>구영리 (Guyoung-ri)</td><td>513, 713, 753, 1115</td></tr>
+        <tr><td>천상 (Chunsang)</td><td>713, 743, 1115</td></tr>
+        <tr><td>삼산 (Samsan, city)</td><td>713, 743, 753, 1115</td></tr>
+        <tr><td>신복교차로 (Sinbok)</td><td>743, 753</td></tr>
+        <tr><td>울산대학 (Ulsan university)</td><td>743, 753</td></tr>
+        <tr><td>성남동 (Sungnam-dong)</td><td>713</td></tr>
+        <tr><td>법원 (Ulsan court)</td><td>743</td></tr>
+        <tr><td>산단캠</td><td>753</td></tr>
+        <tr><td>명촌 (Myungchon)</td><td>713, 743, 753</td></tr>
+        <tr><td>덕하 (Dukha)</td><td>513</td></tr>
+        <tr><td>시청 (City hall)</td><td>513, 1115</td></tr>
+        <tr><td>태화강역 (Taewhagang station)</td><td>713, 743, 753, 1115</td></tr>
+        <tr><td>현대중공업 (Hyundai Heavy Industries)</td><td>1115</td></tr>
+    </tbody>
+</table>
+
+<h3>For Bus Number</h3>
+<div class="warning-banner">
+513번은 방향을 반드시 확인하십시오. 앞쪽이 울산(시내)방향, 뒤쪽이 삼남(언양, 울산역) 방향입니다.
+</div>
+<div class="info-banner">
+713번, 1115번 노선은 천상을 경유하여 구영리를 지나갑니다.
+Bus number 713 goes Guyoung-ri via Chunsang.
+</div>
+<table class="info-table">
+    <thead>
+        <tr><th>Bus Number</th><th>Route</th></tr>
+    </thead>
+    <tbody>
+        <tr><td>513</td><td>삼남 - 울산역(KTX) - UNIST - 구영리 - 굴화주공 - 시청 - 덕하</td></tr>
+        <tr><td>713</td><td>UNIST - 천상 - 구영리 - 굴화주공 - 태화루(국가정원) - 성남동 - 삼산 - 태화강역 - 명촌</td></tr>
+        <tr><td>743</td><td>UNIST - 천상 - 굴화주공 - 신복교차로 - 울산대학교 - 법원 - 공업탑 - 삼산 - 태화강역 - 명촌</td></tr>
+        <tr><td>753</td><td>UNIST - 구영리 - 굴화주공 - 신복교차로 - 울산대학교 - 산학융합지구캠퍼스 - 공업탑 - 삼산 - 태화강역 - 명촌</td></tr>
+        <tr><td>1115</td><td>UNIST - 천상 - 구영리 - 굴화주공 - 태화루(국가정원) - 시청 - 삼산 - 태화강역 - 염포동 - 남목 - 현대중공업, 울산대학병원 - 일산해수욕장 - 꽃바위</td></tr>
+    </tbody>
+</table>
+
+<h3>Tips</h3>
+<ul>
+    <li>울산역에서 출발하는 경우 513번 버스를 이용하면 되나, 불가피한 경우 진목회관을 경유해 주세요 (경유노선: 318, 413, 523, 543, 5001).</li>
+    <li>이전에 133을 타고 동구 방향으로 가시는 경우에는 태화강역에서 동구 방향 버스로 환승하시거나, 우미린2차에서 5002번으로 환승해주세요.</li>
+    <li>부산 (노포) 방향으로 가시는 경우 743, 753번 버스를 타고 좋은삼정병원에서 1224번 (이전 1147번) 으로 환승해주세요.</li>
+    <li>해운대 방향으로 가시는 경우 태화강역 가는 버스를 타고, 동해선으로 환승해주세요.</li>
+    <li>시외-고속버스 이용시 신복교차로를 경유하면 편리합니다.</li>
+</ul>
+
+{% if changelog %}
+<h3>Update History</h3>
+<ul class="changelog-list">
+    {% for entry in changelog %}
+    <li>{{ entry.date }}: {{ entry.description }}</li>
+    {% endfor %}
+</ul>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="{{ lang }}">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Bus HeXA — {{ t('page.default_title') }}{% endblock %}</title>
+    <link rel="icon" href="{{ url_for('static', filename='media/hexaLogo.ico') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    {% block extra_head %}{% endblock %}
+</head>
+<body>
+    {# 모바일에서 사이드바 토글 (JS 없이 체크박스로) #}
+    <input type="checkbox" id="nav-toggle" class="nav-toggle">
+
+    <div class="layout">
+        {# ── 좌측 사이드바 (레거시 st.navigation 3그룹 구조 복원) ── #}
+        <aside class="sidebar">
+            <a class="brand" href="{{ url_for('board.departure_board') }}">
+                <img src="{{ url_for('static', filename='media/hexaLogo.ico') }}" alt="HeXA" class="brand-logo">
+                <span>Bus HeXA</span>
+            </a>
+
+            {% block sidebar_nav %}
+            {% set nav_groups = [
+                (t('nav.group.information'), [
+                    ("info.info_page",                "ℹ️", t('nav.info')),
+                ]),
+                (t('nav.group.timetable'), [
+                    ("busno.busno_page",              "🚌", t('nav.busno')),
+                    ("running.running_page",          "🚏", t('nav.running')),
+                    ("unist_timetable.timetable_page","🕒", t('nav.unist_timetable')),
+                ]),
+                (t('nav.group.tracking'), [
+                    ("unist_board.unist_board_page",  "➡️", t('nav.unist_board')),
+                    ("stops.stops_page",              "⬅️", t('nav.stops')),
+                    ("board.departure_board",         "🕒", t('nav.board')),
+                ]),
+            ] %}
+
+            <nav class="nav">
+                {% for group_name, items in nav_groups %}
+                    <div class="nav-group">
+                        <p class="nav-group-title">{{ group_name }}</p>
+                        {% for endpoint, icon, label in items %}
+                            <a class="nav-link {% if request.endpoint == endpoint %}active{% endif %}"
+                               href="{{ url_for(endpoint) }}">
+                                <span class="nav-icon">{{ icon }}</span>{{ label }}
+                            </a>
+                        {% endfor %}
+                    </div>
+                {% endfor %}
+            </nav>
+            {% endblock %}
+
+            <div class="sidebar-footer">
+                {% block sidebar_footer %}
+                {{ t('footer.made_by') }} <a href="https://hexa.pro" target="_blank" rel="noopener">HeXA</a>
+                {% endblock %}
+            </div>
+        </aside>
+
+        {# ── 본문 영역 ── #}
+        <div class="content">
+            <header class="topbar">
+                <label for="nav-toggle" class="nav-toggle-btn" aria-label="메뉴 열기">☰</label>
+                <span class="topbar-title">{% block page_title %}{{ t('page.default_title') }}{% endblock %}</span>
+                {# ── 언어 전환기 ── #}
+                <nav class="lang-switcher" aria-label="언어 선택">
+                    <a href="{{ request.path }}?lang=ko"
+                       class="lang-btn{% if lang == 'ko' %} lang-active{% endif %}"
+                       hx-boost="false">한</a>
+                    <a href="{{ request.path }}?lang=en"
+                       class="lang-btn{% if lang == 'en' %} lang-active{% endif %}"
+                       hx-boost="false">EN</a>
+                </nav>
+            </header>
+
+            <main>
+                {# Flash messages — Jinja auto-escape is always ON; no |safe used #}
+                {% with messages = get_flashed_messages(with_categories=true) %}
+                    {% if messages %}
+                        <ul class="flash-list">
+                            {% for category, message in messages %}
+                                <li class="flash {{ category }}">{{ message }}</li>
+                            {% endfor %}
+                        </ul>
+                    {% endif %}
+                {% endwith %}
+
+                {% block content %}{% endblock %}
+            </main>
+
+            <footer>
+                <p>{{ t('footer.credit') }} <a href="https://hexa.pro" target="_blank" rel="noopener">HeXA</a></p>
+            </footer>
+        </div>
+    </div>
+
+    {# HTMX — vendored locally, no CDN dependency (W1 §4) #}
+    <script src="{{ url_for('static', filename='vendor/htmx.min.js') }}"></script>
+    {% block extra_scripts %}{% endblock %}
+</body>
+</html>

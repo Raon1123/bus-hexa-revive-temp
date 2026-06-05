@@ -1,0 +1,111 @@
+{% extends "admin/_admin_base.html" %}
+
+{% block admin_title %}워커 상태{% endblock %}
+{% block page_title %}워커 상태{% endblock %}
+
+{% block admin_head %}
+<style>
+    .worker-card {
+        border: 1px solid #ccc;
+        padding: 1em;
+        border-radius: 4px;
+        margin-bottom: 1.5em;
+    }
+    .worker-card.warning {
+        border-color: #e53e3e;
+        background: #fff5f5;
+    }
+    .worker-card.no-data {
+        border-color: #aaa;
+        background: #f9f9f9;
+    }
+    .status-ok { color: #2f855a; font-weight: bold; }
+    .status-fail { color: #c53030; font-weight: bold; }
+    .status-warn { color: #b7791f; font-weight: bold; }
+    .worker-card h3 { margin-top: 0; }
+    .field-row { margin: 0.3em 0; }
+</style>
+{% endblock %}
+
+{% block content %}
+<h2>워커 상태 대시보드</h2>
+<p>Govtrack 및 Arrival 데몬의 최신 사이클 상태를 표시합니다.
+   데몬이 실행되지 않았다면 "데이터 없음"으로 표시됩니다.</p>
+
+<!-- Govtrack 데몬 -->
+<div class="worker-card {% if govtrack_stale %}warning{% elif govtrack is none %}no-data{% endif %}">
+    <h3>Govtrack 데몬</h3>
+    {% if govtrack is none %}
+        <p class="status-fail">데이터 없음 — 데몬이 아직 실행되지 않았습니다.</p>
+    {% else %}
+        {% if govtrack_stale %}
+            <p class="status-warn">경고: 마지막 사이클이 오래되었습니다 (데몬 미동작 의심)</p>
+        {% endif %}
+        <div class="field-row">마지막 사이클:
+            <strong>{{ govtrack.cycle_started_at }}</strong>
+        </div>
+        <div class="field-row">마지막 성공:
+            {% if govtrack.last_success_at %}
+                <strong class="status-ok">{{ govtrack.last_success_at }}</strong>
+            {% else %}
+                <span class="status-fail">없음</span>
+            {% endif %}
+        </div>
+        <div class="field-row">연속 실패:
+            <strong class="{% if govtrack.consecutive_failures > 0 %}status-fail{% else %}status-ok{% endif %}">
+                {{ govtrack.consecutive_failures }}
+            </strong>
+        </div>
+        <div class="field-row">총 삽입: {{ govtrack.total_inserts }}</div>
+        <div class="field-row">총 오류: {{ govtrack.total_errors }}</div>
+        {% if govtrack.route_breakdown %}
+        <div class="field-row">노선별:
+            {% for rid, cnt in govtrack.route_breakdown.items() %}
+                <span>{{ rid }}={{ cnt }}</span>{% if not loop.last %}, {% endif %}
+            {% endfor %}
+        </div>
+        {% endif %}
+    {% endif %}
+</div>
+
+<!-- Arrival 데몬 -->
+<div class="worker-card {% if arrival_stale %}warning{% elif arrival is none %}no-data{% endif %}">
+    <h3>Arrival 데몬 (도착정보 poller)</h3>
+    {% if arrival is none %}
+        <p class="status-fail">데이터 없음 — 데몬이 아직 실행되지 않았습니다.</p>
+    {% else %}
+        {% if arrival_stale %}
+            <p class="status-warn">경고: 마지막 사이클이 오래되었습니다 (데몬 미동작 의심)</p>
+        {% endif %}
+        <div class="field-row">마지막 사이클:
+            <strong>{{ arrival.cycle_started_at }}</strong>
+        </div>
+        <div class="field-row">마지막 성공:
+            {% if arrival.last_success_at %}
+                <strong class="status-ok">{{ arrival.last_success_at }}</strong>
+            {% else %}
+                <span class="status-fail">없음</span>
+            {% endif %}
+        </div>
+        <div class="field-row">연속 오류:
+            <strong class="{% if arrival.consecutive_errors > 0 %}status-fail{% else %}status-ok{% endif %}">
+                {{ arrival.consecutive_errors }}
+            </strong>
+        </div>
+        <div class="field-row">정류장 성공:
+            <strong>{{ arrival.stops_ok }} / {{ arrival.stops_total }}</strong>
+            {% if arrival.stops_ok == arrival.stops_total %}
+                <span class="status-ok">✓</span>
+            {% else %}
+                <span class="status-fail">일부 실패</span>
+            {% endif %}
+        </div>
+        {% if arrival.last_error_msg %}
+        <div class="field-row">마지막 오류: <code>{{ arrival.last_error_msg }}</code></div>
+        {% endif %}
+    {% endif %}
+</div>
+
+<hr>
+<p><a href="{{ url_for('admin.govtrack_status') }}" target="_blank">Govtrack 상세 JSON</a></p>
+{% endblock %}

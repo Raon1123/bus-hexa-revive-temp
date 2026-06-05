@@ -1,0 +1,84 @@
+{% extends "admin/_admin_base.html" %}
+
+{% block admin_title %}{{ busno }} 시간표 편집{% endblock %}
+{% block page_title %}{{ busno }} 시간표 편집{% endblock %}
+
+{% block content %}
+<h2 id="timetable-edit">{{ busno }} 시간표 편집</h2>
+<p><a href="{{ url_for('admin.timetable_index') }}">← 노선 목록</a></p>
+
+{% if errors %}
+    <ul class="errors" id="validation-errors">
+        {% for issue in errors %}
+            <li class="error">
+                [{{ issue.code }}] {{ issue.weekday }}/{{ issue.departure }}: {{ issue.detail }}
+            </li>
+        {% endfor %}
+    </ul>
+{% endif %}
+
+<form method="post" action="{{ url_for('admin.timetable_save', busno=busno) }}">
+    <input type="hidden" name="csrf_token" value="{{ session['csrf_token'] }}">
+    {# _parse_timetable_form: weekdays = 공백 구분 weekday 키 목록 #}
+    <input type="hidden" name="weekdays" value="{{ weekday_tabs | map(attribute=0) | join(' ') }}">
+
+    {# ── weekday 탭 (평일/토요일/일·공휴일) ── #}
+    <div class="tabs" role="tablist">
+        {% for key, label in weekday_tabs %}
+            <button type="button"
+                    class="tab"
+                    role="tab"
+                    id="tab-{{ key }}"
+                    aria-controls="panel-{{ key }}"
+                    aria-selected="{{ 'true' if loop.first else 'false' }}">
+                {{ label }}
+            </button>
+        {% endfor %}
+    </div>
+
+    {# ── weekday별 패널 ── #}
+    {% for key, label in weekday_tabs %}
+        {% set deps = data.get(key, {}) %}
+        <section class="weekday-panel"
+                 id="panel-{{ key }}"
+                 role="tabpanel"
+                 aria-labelledby="tab-{{ key }}"
+                 {% if not loop.first %}hidden{% endif %}>
+            <h2>{{ label }}</h2>
+            {# departures__<wd> = 공백 구분 departure 목록 #}
+            <input type="hidden" name="departures__{{ key }}"
+                   value="{{ deps.keys() | join(' ') }}">
+
+            {% if deps %}
+                {% for dep, times in deps.items() %}
+                    <div class="departure">
+                        <label for="times__{{ key }}__{{ dep }}">{{ dep }} 출발</label>
+                        <textarea id="times__{{ key }}__{{ dep }}"
+                                  name="times__{{ key }}__{{ dep }}"
+                                  rows="6">{{ times | join('\n') }}</textarea>
+                    </div>
+                {% endfor %}
+            {% else %}
+                <p class="empty">등록된 시각 없음</p>
+            {% endif %}
+        </section>
+    {% endfor %}
+
+    <button type="submit">저장</button>
+</form>
+
+{# ── 재크롤 (TP-010) ── #}
+<section id="recrawl" aria-live="polite">
+    <h2>시간표 재크롤</h2>
+    <form id="recrawl-form"
+          method="post"
+          action="{{ url_for('admin.timetable_recrawl') }}">
+        <input type="hidden" name="csrf_token" value="{{ session['csrf_token'] }}">
+        <label>
+            <input type="checkbox" name="vacation" value="on"> 방학 모드
+        </label>
+        <button type="submit">재크롤 시작</button>
+    </form>
+    <div id="recrawl-progress"></div>
+</section>
+{% endblock %}

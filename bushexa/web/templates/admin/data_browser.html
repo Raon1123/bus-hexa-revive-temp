@@ -1,0 +1,62 @@
+{% extends "admin/_admin_base.html" %}
+
+{% block admin_title %}데이터 브라우저{% endblock %}
+{% block page_title %}데이터 브라우저{% endblock %}
+
+{% block content %}
+<h2>데이터 브라우저</h2>
+
+<form method="get" action="{{ url_for('admin.data_browser') }}" class="admin-form admin-filter">
+    <label>노선 ID <input type="text" name="route_id" value="{{ filters.route_id }}"></label>
+    <label>정류장 ID <input type="text" name="stop_id" value="{{ filters.stop_id }}"></label>
+    <label>차량번호 <input type="text" name="vehicle" value="{{ filters.vehicle }}"></label>
+    <label>날짜 (YYYYMMDD) <input type="text" name="day" value="{{ filters.day }}" placeholder="20260601"></label>
+    <label>크기 <input type="number" name="size" value="{{ size }}" min="1" max="500"></label>
+    <button type="submit">조회</button>
+</form>
+
+{% if result is not none %}
+    <p id="total-count">총 {{ result.total }}건 ({{ result.page }} / {{ ((result.total - 1) // result.size + 1) if result.total > 0 else 1 }}페이지)</p>
+
+    {% if result.rows %}
+    <p><a href="{{ url_for('admin.data_csv', **filters) }}">CSV 다운로드</a></p>
+    <div class="table-container">
+    <table id="data-table" class="admin-table">
+        <thead>
+            <tr>
+                <th>idx</th>
+                <th>stop_id</th>
+                <th>route_id</th>
+                <th>vehicle_no</th>
+                <th>stop_name</th>
+                <th>route_nm</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for row in result.rows %}
+            <tr>
+                <td>{{ row.idx }}</td>
+                <td>{{ row.stop_id }}</td>
+                <td>{{ row.route_id }}</td>
+                <td>{{ row.vehicle_no }}</td>
+                <td>{{ row.stop_name or '' }}</td>
+                <td>{{ row.route_nm or '' }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    </div>
+
+    <nav id="pagination" class="admin-pagination">
+        {% if result.page > 1 %}
+        <a href="{{ url_for('admin.data_browser', page=result.page-1, **filters) }}">← 이전</a>
+        {% endif %}
+        {% if result.total > result.page * result.size %}
+        <a href="{{ url_for('admin.data_browser', page=result.page+1, **filters) }}">다음 →</a>
+        {% endif %}
+    </nav>
+    {% else %}
+    <p id="no-rows">No rows — 조건에 맞는 데이터가 없습니다.</p>
+    {% endif %}
+{% endif %}
+{% endblock %}
