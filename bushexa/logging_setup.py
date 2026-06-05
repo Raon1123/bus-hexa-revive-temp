@@ -30,12 +30,23 @@ class KSTFormatter(logging.Formatter):
         return dt.isoformat(timespec="seconds")
 
 
-def setup_logging(level: str = "INFO", log_dir: Path | None = None) -> None:
+def setup_logging(
+    level: str = "INFO",
+    log_dir: Path | None = None,
+    filename: str = "bushexa.log",
+) -> None:
     """Configure console (and optionally rotating-file) logging in KST.
 
     Args:
         level: Root/handler log level name (e.g. ``"INFO"``, ``"DEBUG"``).
-        log_dir: If given, also write ``bushexa.log`` (10 MB x 5 backups) there.
+        log_dir: If given, also write a rotating log file (10 MB x 5 backups)
+            into this directory.
+        filename: Name of the log file written inside *log_dir*.  Defaults to
+            ``"bushexa.log"`` (the web-app default).  Pass a role-specific name
+            for daemon processes (e.g. ``"bushexa-crawl.log"``) so that each
+            process writes to its own file — sharing one RotatingFileHandler
+            across processes causes rotation-race issues, and the admin log
+            view (``LOG_SOURCES``) expects per-role filenames.
     """
     handlers: dict[str, dict] = {
         "console": {
@@ -51,7 +62,7 @@ def setup_logging(level: str = "INFO", log_dir: Path | None = None) -> None:
             "class": "logging.handlers.RotatingFileHandler",
             "formatter": "kst",
             "level": level,
-            "filename": str(log_dir / "bushexa.log"),
+            "filename": str(log_dir / filename),
             "maxBytes": 10 * 1024 * 1024,
             "backupCount": 5,
             "encoding": "utf-8",

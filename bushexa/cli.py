@@ -50,9 +50,12 @@ def cmd_crawl_once(args, *, recorder=None) -> int:
     from bushexa.crawler.daemon import build_recorder, crawl_once
     from bushexa.logging_setup import setup_logging
 
-    setup_logging()
+    # config을 먼저 로드해 log_level/log_dir를 확보한 뒤 로깅 설정 —
+    # 역할별 파일(LOG_SOURCES "crawl")로 분리해 회전 경합 방지 + 관리자 로그 뷰 소스 일치.
+    config = _load_config()
+    setup_logging(level=config.log_level, log_dir=config.log_dir, filename="bushexa-crawl.log")
     if recorder is None:
-        recorder = build_recorder(_load_config())
+        recorder = build_recorder(config)
     stats = crawl_once(recorder, args.route, dry_run=args.dry_run)
     print(f"route={stats.route_id} api_ok={stats.api_ok} parsed={stats.parsed_count} "
           f"inserts={stats.inserts} unchanged={stats.skipped_unchanged} "
@@ -70,8 +73,9 @@ def cmd_crawl_loop(args) -> int:
     from bushexa.logging_setup import setup_logging
     from bushexa.services.govtrack_status import GovtrackStatusWriter
 
-    setup_logging()
+    # 역할별 파일(LOG_SOURCES "crawl")로 분리해 회전 경합 방지 + 관리자 로그 뷰 소스 일치.
     config = _load_config()
+    setup_logging(level=config.log_level, log_dir=config.log_dir, filename="bushexa-crawl.log")
     stop = threading.Event()
     # SIGTERM/SIGINT은 메인 스레드에서만 등록 가능 — 데몬 루프는 stop_event를 폴링한다.
     for sig in (signal.SIGTERM, signal.SIGINT):
@@ -92,8 +96,9 @@ def cmd_arrival_loop(args) -> int:
     from bushexa.logging_setup import setup_logging
     from bushexa.services.arrival_status import ArrivalStatusWriter
 
-    setup_logging()
+    # 역할별 파일(LOG_SOURCES "arrival")로 분리해 회전 경합 방지 + 관리자 로그 뷰 소스 일치.
     config = _load_config()
+    setup_logging(level=config.log_level, log_dir=config.log_dir, filename="bushexa-arrival.log")
     stop = threading.Event()
     for sig in (signal.SIGTERM, signal.SIGINT):
         signal.signal(sig, lambda *_a: stop.set())
@@ -111,8 +116,9 @@ def cmd_cache_refresh_loop(args) -> int:
     from bushexa.crawler.cache_refresh import run_cache_refresh_loop
     from bushexa.logging_setup import setup_logging
 
-    setup_logging()
+    # 역할별 파일(LOG_SOURCES "cache")로 분리해 회전 경합 방지 + 관리자 로그 뷰 소스 일치.
     config = _load_config()
+    setup_logging(level=config.log_level, log_dir=config.log_dir, filename="bushexa-cache.log")
     stop = threading.Event()
     for sig in (signal.SIGTERM, signal.SIGINT):
         signal.signal(sig, lambda *_a: stop.set())
@@ -126,8 +132,9 @@ def cmd_crawl_timetable(args) -> int:
     from bushexa.crawler.timetable_crawl import TimetableCrawlError, crawl_all_timetables
     from bushexa.logging_setup import setup_logging
 
-    setup_logging()
+    # 역할별 파일(LOG_SOURCES "crawl")로 분리해 회전 경합 방지 + 관리자 로그 뷰 소스 일치.
     config = _load_config()
+    setup_logging(level=config.log_level, log_dir=config.log_dir, filename="bushexa-crawl.log")
     client = UlsanBisClient(config.api_key)
 
     def _on_progress(ev) -> None:

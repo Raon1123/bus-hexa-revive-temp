@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import logging.handlers
 
 from bushexa.logging_setup import KSTFormatter, setup_logging
 
@@ -55,3 +56,36 @@ def test_setup_logging_writes_file(tmp_path):
         handler.flush()
     log_file = tmp_path / "bushexa.log"
     assert log_file.exists() and log_file.stat().st_size > 0
+
+
+def test_setup_logging_custom_filename(tmp_path):
+    """When filename='bushexa-crawl.log' is supplied, that file is created (not
+    bushexa.log) and the emitted record contains the message text and '+09:00'
+    KST offset from KSTFormatter.
+
+    The RotatingFileHandler is explicitly closed after the test to avoid leaving
+    an open file handle on the tmp_path, which would interfere with cleanup on
+    some platforms.
+    """
+    setup_logging(level="INFO", log_dir=tmp_path, filename="bushexa-crawl.log")
+    logger = logging.getLogger("bushexa")
+    logger.info("crawl-daemon started")
+    # Flush and close all file handlers to ensure the write is complete.
+    handlers_to_close = []
+    for handler in logger.handlers:
+        handler.flush()
+        if isinstance(handler, logging.handlers.RotatingFileHandler):
+            handlers_to_close.append(handler)
+    for handler in handlers_to_close:
+        handler.close()
+        logger.removeHandler(handler)
+
+    crawl_log = tmp_path / "bushexa-crawl.log"
+    default_log = tmp_path / "bushexa.log"
+
+    assert crawl_log.exists(), "bushexa-crawl.log should be created"
+    assert not default_log.exists(), "bushexa.log should NOT be created for filename='bushexa-crawl.log'"
+
+    content = crawl_log.read_text(encoding="utf-8")
+    assert "crawl-daemon started" in content
+    assert "+09:00" in content

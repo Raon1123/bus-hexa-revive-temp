@@ -16,6 +16,7 @@ import time as _time
 from dataclasses import asdict
 
 from bushexa.data.constants import SERACH_STOPS
+from bushexa.services.crawl_settings import CrawlSettingsStore, default_crawl_settings_path
 from bushexa.time_utils import KSTClock
 
 logger = logging.getLogger("bushexa.crawler.arrival_poller")
@@ -31,8 +32,12 @@ def _resolve_poll_seconds(explicit=None) -> float:
 
 def run_arrival_poller(config, *, repo=None, client=None, clock=None, sleep=None,
                        stop_event=None, poll_seconds=None, stops=None,
-                       max_cycles=None, on_cycle=None, status_writer=None) -> int:
+                       max_cycles=None, on_cycle=None, status_writer=None,
+                       settings_store=None) -> int:
     """도착정보 poller 루프. 반환: 수행한 사이클 수. ``stop_event.set()`` 시 현재 사이클 후 종료.
+
+    설정 파일(``crawl_settings.json``)을 매 사이클 재읽으므로 arrival 폴링 주기 변경은
+    다음 사이클부터(최대 현재 주기만큼 지연) 적용된다(ADR-013).
 
     Parameters
     ----------
@@ -45,6 +50,10 @@ def run_arrival_poller(config, *, repo=None, client=None, clock=None, sleep=None
     stop_event = stop_event or threading.Event()
     stops = list(stops) if stops is not None else list(SERACH_STOPS)
     poll_seconds = _resolve_poll_seconds(poll_seconds)
+    if settings_store is None:
+        data_dir = getattr(config, "data_dir", None)
+        if data_dir is not None:
+            settings_store = CrawlSettingsStore(default_crawl_settings_path(data_dir))
 
     if repo is None or client is None:
         from bushexa.api_clients.ulsan_bis import UlsanBisClient
@@ -91,6 +100,6 @@ def run_arrival_poller(config, *, repo=None, client=None, clock=None, sleep=None
         cycles += 1
         if max_cycles is not None and cycles >= max_cycles:
             break
-        sleep(poll_seconds)
+        sleep(settings_store.arrival_poll_seconds(poll_seconds) if settings_store else poll_seconds)
     logger.info("arrival poller 종료(사이클 %d회 수행)", cycles)
     return cycles

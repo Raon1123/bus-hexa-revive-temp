@@ -1,0 +1,77 @@
+{% extends "admin/_admin_base.html" %}
+
+{% block admin_title %}크롤 주기 설정{% endblock %}
+{% block page_title %}크롤 주기 설정{% endblock %}
+
+{% block admin_head %}
+<style>
+    .crawl-settings-form { max-width: 480px; }
+    .crawl-settings-form .field-group { margin-bottom: 1.2em; }
+    .crawl-settings-form label { display: block; font-weight: bold; margin-bottom: 0.3em; }
+    .crawl-settings-form input[type="number"] { width: 8em; }
+    .crawl-settings-form .field-hint { color: #718096; font-size: 0.85em; margin-top: 0.2em; }
+    .crawl-settings-notice {
+        background: #ebf8ff;
+        border: 1px solid #90cdf4;
+        border-radius: 4px;
+        padding: 0.75em 1em;
+        margin-bottom: 1.5em;
+        font-size: 0.9em;
+        color: #2c5282;
+    }
+    .crawl-settings-range { color: #718096; font-size: 0.85em; }
+</style>
+{% endblock %}
+
+{% block content %}
+<h2 id="crawl-settings">크롤러 폴링 주기 설정</h2>
+
+<div class="crawl-settings-notice">
+    <strong>적용 안내:</strong> 데몬은 설정 파일을 매 사이클 재읽으므로,
+    변경 사항은 <strong>다음 사이클부터</strong> 적용됩니다
+    (최대 현재 주기만큼 지연될 수 있습니다).
+</div>
+
+<p class="crawl-settings-range">
+    허용 범위: <strong>{{ min_poll|int }}초 ~ {{ max_poll|int }}초</strong>
+    (빈 값 입력 시 기본값으로 복귀)
+</p>
+
+<form method="post" action="{{ url_for('admin.crawl_settings_save') }}" class="admin-form crawl-settings-form">
+    <input type="hidden" name="csrf_token" value="{{ session['csrf_token'] }}">
+
+    <div class="field-group">
+        <label for="govtrack-poll">govtrack 데몬 주기 (초)</label>
+        <input
+            type="number"
+            id="govtrack-poll"
+            name="govtrack_poll_seconds"
+            value="{{ current.govtrack_poll_seconds if 'govtrack_poll_seconds' in current else '' }}"
+            placeholder="10"
+            min="{{ min_poll|int }}"
+            max="{{ max_poll|int }}"
+            step="1"
+        >
+        <p class="field-hint">기본값: 10초. 현재 저장값: {% if 'govtrack_poll_seconds' in current %}{{ current.govtrack_poll_seconds }}초{% else %}(기본값 사용 중){% endif %}</p>
+    </div>
+
+    <div class="field-group">
+        <label for="arrival-poll">arrival 폴러 주기 (초)</label>
+        <input
+            type="number"
+            id="arrival-poll"
+            name="arrival_poll_seconds"
+            value="{{ current.arrival_poll_seconds if 'arrival_poll_seconds' in current else '' }}"
+            placeholder="7"
+            min="{{ min_poll|int }}"
+            max="{{ max_poll|int }}"
+            step="1"
+        >
+        <p class="field-hint">기본값: 7초. 현재 저장값: {% if 'arrival_poll_seconds' in current %}{{ current.arrival_poll_seconds }}초{% else %}(기본값 사용 중){% endif %}</p>
+    </div>
+
+    <div class="via-actions">
+        <button type="submit" class="btn-primary">저장</button>
+    </div>
+</form>
+{% endblock %}

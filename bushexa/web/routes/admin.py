@@ -61,7 +61,13 @@ from bushexa.services.changelog_editor import ChangelogEditor, default_changelog
 from bushexa.services.govtrack_status import GovtrackStatusReader
 from bushexa.services.holiday_editor import HolidayEditor, default_holidays_path
 from bushexa.services.holiday_service import get_effective_holiday_set
-from bushexa.services.log_reader import LogTailReader, STANDARD_LEVELS
+from bushexa.services.crawl_settings import (
+    CrawlSettingsStore,
+    default_crawl_settings_path,
+    MIN_POLL_SECONDS,
+    MAX_POLL_SECONDS,
+)
+from bushexa.services.log_reader import LogTailReader, LOG_SOURCES, STANDARD_LEVELS
 from bushexa.services.special_timetable import SpecialTimetableService, default_special_path
 from bushexa.services.timetable_crawl import ConflictError, TimetableCrawlJob
 from bushexa.services.timetable_editor import TimetableEditor, ValidationError
@@ -795,13 +801,19 @@ def logs_view() -> str:
     """애플리케이션 로그 tail 뷰 (F04 §4.6, TP-015).
 
     쿼리:
+      ?src=web|crawl|arrival|cache  — 소스 선택 (화이트리스트, 기본 "web").
       ?level=INFO   — 표준 레벨 화이트리스트 검증, 미인식 레벨은 None(전체) 처리.
       ?lines=200    — 정수, 2000 상한 (LogTailReader가 강제).
 
     경로 파라미터 없음 — ?file=... 같은 traversal 파라미터는 무시된다 (S3).
+    src 파라미터도 화이트리스트(LOG_SOURCES 키)에 없으면 "web" 폴백 — traversal 불가.
     파일 부재 시 빈 목록 + "로그 파일이 아직 없습니다" 안내.
     """
     config = current_app.config["BUSHEXA_CONFIG"]
+
+    # src 파라미터 검증 (화이트리스트 — LOG_SOURCES 키만 허용, 이외 "web" 폴백)
+    src_raw = request.args.get("src") or "web"
+    src = src_raw if src_raw in LOG_SOURCES else "web"
 
     # level 파라미터 검증 (화이트리스트)
     level_raw = (request.args.get("level") or "").upper().strip()
@@ -813,8 +825,8 @@ def logs_view() -> str:
     except (ValueError, TypeError):
         lines = 200
 
-    # 고정 경로 — config.log_dir / "bushexa.log" 만 읽음 (path traversal 차단)
-    reader = LogTailReader(config.log_dir)
+    # 소스별 고정 파일명으로 경로 결정 — LOG_SOURCES 화이트리스트 경유로 traversal 불가
+    reader = LogTailReader(config.log_dir, filename=LOG_SOURCES[src])
     raw_lines = reader.tail(lines=lines, level=level)
 
     # 시크릿 마스킹 (S7) — 뷰 레이어에서 적용
@@ -834,6 +846,8 @@ def logs_view() -> str:
         log_lines=log_lines,
         level=level or "",
         lines=lines,
+        src=src,
+        log_sources=LOG_SOURCES,
         log_file_path=str(reader.path),
     )
 
@@ -1353,6 +1367,66 @@ def audit_index() -> str:
     """감사 로그 뷰 — 최신순 500건."""
     entries = _get_audit_log().load(limit=500)
     return render_template("admin/audit.html", entries=entries)
+
+
+# ─────────────────────────────────────────────────
+# 크롤 폴링 주기 설정 — /admin/crawl-settings
+# ─────────────────────────────────────────────────
+
+def _crawl_settings_store() -> CrawlSettingsStore:
+    """현재 앱의 CrawlSettingsStore 인스턴스를 반환한다."""
+    config = current_app.config["BUSHEXA_CONFIG"]
+    return CrawlSettingsStore(default_crawl_settings_path(config.data_dir))
+
+
+@bp.get("/crawl-settings")
+@login_required
+def crawl_settings_index() -> str:
+    """크롤 폴링 주기 설정 뷰.
+
+    현재 저장된 값(없으면 빈 값 + placeholder로 기본값 10/7 표시)과
+    허용 범위(3~600초) 및 '다음 사이클부터 적용' 안내문을 렌더한다.
+    """
+    store = _crawl_settings_store()
+    current = store.load()  # 설정된 필드만 담긴 dict (파일 없으면 {})
+    return render_template(
+        "admin/crawl_settings.html",
+        current=current,
+        min_poll=MIN_POLL_SECONDS,
+        max_poll=MAX_POLL_SECONDS,
+    )
+
+
+@bp.post("/crawl-settings")
+@login_required
+def crawl_settings_save() -> Response:
+    """크롤 폴링 주기 저장 POST.
+
+    빈 문자열 → None(기본값 복귀). 숫자 변환·범위 검증은 store.save에 위임.
+    ValueError 시 error flash 후 GET으로 redirect. 성공 시 audit + success flash + redirect.
+    """
+    store = _crawl_settings_store()
+
+    # 빈 문자열 → None (기본값 복귀). 숫자 변환·범위는 store.save가 검증.
+    govtrack_raw = (request.form.get("govtrack_poll_seconds") or "").strip() or None
+    arrival_raw = (request.form.get("arrival_poll_seconds") or "").strip() or None
+
+    try:
+        saved = store.save(
+            govtrack_poll_seconds=govtrack_raw,
+            arrival_poll_seconds=arrival_raw,
+        )
+    except ValueError as exc:
+        flash(f"입력값 오류: {exc}", "error")
+        return redirect(url_for("admin.crawl_settings_index"))
+
+    _audit(
+        "crawl_settings.save",
+        govtrack=saved.get("govtrack_poll_seconds"),
+        arrival=saved.get("arrival_poll_seconds"),
+    )
+    flash("크롤 주기 설정이 저장되었습니다. 다음 사이클부터 적용됩니다.", "success")
+    return redirect(url_for("admin.crawl_settings_index"))
 
 
 # ─────────────────────────────────────────────────

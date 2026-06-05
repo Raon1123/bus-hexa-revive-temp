@@ -23,6 +23,7 @@ from bushexa.data.constants import ROUTEID, STOP_IDS
 from bushexa.db.connection import create_connection
 from bushexa.db.repo import BusLogRepo
 from bushexa.db.schema import create_schema
+from bushexa.services.crawl_settings import CrawlSettingsStore, default_crawl_settings_path
 from bushexa.time_utils import KSTClock
 
 logger = logging.getLogger("bushexa.crawler.daemon")
@@ -117,11 +118,19 @@ def _in_night_window(now_t, window) -> bool:
 
 def run_daemon(config, *, recorder=None, poll_seconds=10, night_sleep_seconds=60,
                night_window=_NIGHT, clock=None, sleep=None, stop_event=None,
-               max_cycles=None, on_cycle=None) -> int:
-    """govtrack 데몬 루프. 반환: 수행한 사이클 수. ``stop_event.set()`` 시 현재 사이클 완료 후 종료."""
+               max_cycles=None, on_cycle=None, settings_store=None) -> int:
+    """govtrack 데몬 루프. 반환: 수행한 사이클 수. ``stop_event.set()`` 시 현재 사이클 완료 후 종료.
+
+    설정 파일(``crawl_settings.json``)을 매 사이클 재읽으므로 govtrack 폴링 주기 변경은
+    다음 사이클부터(최대 현재 주기만큼 지연) 적용된다(ADR-013).
+    """
     clock = clock or KSTClock()
     sleep = sleep or _time.sleep
     stop_event = stop_event or threading.Event()
+    if settings_store is None:
+        data_dir = getattr(config, "data_dir", None)
+        if data_dir is not None:
+            settings_store = CrawlSettingsStore(default_crawl_settings_path(data_dir))
     if recorder is None:
         recorder = build_recorder(config, clock=clock)
 
@@ -145,7 +154,7 @@ def run_daemon(config, *, recorder=None, poll_seconds=10, night_sleep_seconds=60
         cycles += 1
         if max_cycles is not None and cycles >= max_cycles:
             break
-        sleep(poll_seconds)
+        sleep(settings_store.govtrack_poll_seconds(poll_seconds) if settings_store else poll_seconds)
     logger.info("govtrack 데몬 종료(사이클 %d회 수행)", cycles)
     return cycles
 

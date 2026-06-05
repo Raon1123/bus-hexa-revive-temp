@@ -21,8 +21,16 @@
 {% block content %}
 <h2>애플리케이션 로그</h2>
 
-<!-- 필터 폼 (GET, CSRF 불필요) -->
+<!-- 필터 폼 (GET, CSRF 불필요) — src/level/lines 한 폼에서 관리하여 선택 시 값 유지 -->
 <form method="get" action="{{ url_for('admin.logs_view') }}" class="admin-form admin-filter">
+    <label>소스:
+        <select name="src">
+            <option value="web"     {% if src == 'web'     %}selected{% endif %}>웹 (bushexa.log)</option>
+            <option value="crawl"   {% if src == 'crawl'   %}selected{% endif %}>크롤러 (bushexa-crawl.log)</option>
+            <option value="arrival" {% if src == 'arrival' %}selected{% endif %}>도착 폴러 (bushexa-arrival.log)</option>
+            <option value="cache"   {% if src == 'cache'   %}selected{% endif %}>캐시 갱신 (bushexa-cache.log)</option>
+        </select>
+    </label>
     <label>레벨:
         <select name="level">
             <option value="" {% if not level %}selected{% endif %}>전체</option>

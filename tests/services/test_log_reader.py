@@ -15,7 +15,7 @@ from pathlib import Path
 
 import pytest
 
-from bushexa.services.log_reader import LogTailReader, STANDARD_LEVELS, _MAX_LINES
+from bushexa.services.log_reader import LOG_SOURCES, LogTailReader, STANDARD_LEVELS, _MAX_LINES
 
 # logging_setup 포맷과 동일: "%(asctime)s [%(name)s] %(levelname)s: %(message)s"
 _FMT = "2026-06-01T08:{min:02d}:00+09:00 [bushexa.test] {level}: {msg}"
@@ -137,3 +137,66 @@ def test_missing_log_file_returns_empty(tmp_path):
     result = reader.tail()
 
     assert result == []
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# test_tail_level_filter_keeps_unknown_continuation_lines
+# 2026-06-05 리뷰 #10 회귀 테스트: UNKNOWN(파싱 실패) 라인이 level 필터에서 살아남는지.
+# ─────────────────────────────────────────────────────────────────────────────
+
+def test_tail_level_filter_keeps_unknown_continuation_lines(tmp_path):
+    """level='ERROR' 필터 시 트레이스백 연속 라인(UNKNOWN)이 제거되지 않아야 한다.
+
+    시나리오: ERROR 라인 다음에 트레이스백 연속 라인 2개가 오는 로그 파일.
+    tail(level='ERROR')는 ERROR 라인과 연속 라인(UNKNOWN) 모두를 반환해야 한다.
+
+    연속 라인을 떨어뜨리면 스택트레이스가 통째로 사라지는 문제 방지
+    (2026-06-05 리뷰 #10 회귀 테스트).
+
+    tail()는 최신 우선(reversed)이므로 파일 끝의 연속 라인이 index 0/1,
+    ERROR 라인이 index 2에 위치한다.
+    """
+    log_dir = tmp_path / "logs"
+    log_dir.mkdir()
+    log_file = log_dir / "bushexa.log"
+
+    # 파일에 직접 쓴다 — _FMT 헬퍼는 정규 라인 전용이므로 연속 라인은 raw로 기록.
+    log_content = (
+        '2026-06-05T03:00:00+09:00 [bushexa.crawler] ERROR: something exploded\n'
+        '  File "/app/bushexa/crawler/daemon.py", line 42, in poll\n'
+        'ValueError: boom\n'
+    )
+    log_file.write_text(log_content, encoding="utf-8")
+
+    reader = LogTailReader(log_dir)
+    result = reader.tail(level="ERROR")
+
+    # 3줄 모두 반환 (ERROR 1줄 + UNKNOWN 2줄)
+    assert len(result) == 3, f"Expected 3 lines (1 ERROR + 2 UNKNOWN), got {len(result)}"
+
+    # tail()는 최신 우선 — 연속 라인이 먼저, ERROR가 마지막
+    assert result[0].level == "UNKNOWN"
+    assert "ValueError: boom" in result[0].message
+    assert result[1].level == "UNKNOWN"
+    assert 'File "/app/bushexa/crawler/daemon.py"' in result[1].message
+    assert result[2].level == "ERROR"
+    assert result[2].message == "something exploded"
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# test_log_sources_sanity
+# LOG_SOURCES 키·값 고정 문자열 sanity 체크.
+# ─────────────────────────────────────────────────────────────────────────────
+
+def test_log_sources_sanity():
+    """LOG_SOURCES가 4개의 고정 키와 파일명을 갖는지 sanity 체크한다.
+
+    이 매핑은 관리자 로그 뷰 소스 선택의 화이트리스트이자 CLI 역할별 로그 파일명 계약이다.
+    값이 변경되면 supervisord conf, CLI setup_logging 호출, 관리자 UI가 모두 함께
+    변경돼야 하므로 의도치 않은 수정을 즉시 감지하기 위해 고정값을 명시한다.
+    """
+    assert set(LOG_SOURCES.keys()) == {"web", "crawl", "arrival", "cache"}
+    assert LOG_SOURCES["web"] == "bushexa.log"
+    assert LOG_SOURCES["crawl"] == "bushexa-crawl.log"
+    assert LOG_SOURCES["arrival"] == "bushexa-arrival.log"
+    assert LOG_SOURCES["cache"] == "bushexa-cache.log"
