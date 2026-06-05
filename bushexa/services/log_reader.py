@@ -20,6 +20,16 @@ from pathlib import Path
 # 표준 레벨 집합 (화이트리스트) — 검증에 사용
 STANDARD_LEVELS = {"DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"}
 
+#: 관리자 로그 뷰의 소스 선택 화이트리스트 — URL 파라미터(?src=) 키 → 고정 파일명.
+#: 프로세스(웹/데몬)별 분리 파일(logging_setup 참조). 값이 고정 매핑이므로
+#: 사용자 입력이 경로가 될 수 없다(S3 path traversal 차단 유지).
+LOG_SOURCES = {
+    "web": "bushexa.log",
+    "crawl": "bushexa-crawl.log",      # govtrack 데몬 + crawl-once/crawl-timetable
+    "arrival": "bushexa-arrival.log",  # arrival poller
+    "cache": "bushexa-cache.log",      # cache-refresh 데몬(공휴일·시간표 야간 갱신)
+}
+
 # 레벨 순서 (낮은 숫자 = 낮은 심각도)
 _LEVEL_ORDER = {
     "DEBUG": 10,
@@ -106,9 +116,12 @@ class LogTailReader:
         tail_raw = raw_lines[-cap:] if len(raw_lines) > cap else raw_lines
         result: list[LogLine] = [_parse_line(ln) for ln in reversed(tail_raw)]
 
-        # level 필터 (None이면 전체)
+        # level 필터 (None이면 전체). UNKNOWN(파싱 실패 라인)은 필터와 무관하게 유지 —
+        # 트레이스백 연속 라인("  File ...", "ValueError: ...")이 _LINE_RE에 안 걸리는데,
+        # 이를 떨어뜨리면 ERROR 필터에서 스택트레이스가 통째로 사라진다(2026-06-05 리뷰 #10).
         if level is not None:
             min_val = _level_value(level)
-            result = [ln for ln in result if _level_value(ln.level) >= min_val]
+            result = [ln for ln in result
+                      if ln.level == "UNKNOWN" or _level_value(ln.level) >= min_val]
 
         return result
