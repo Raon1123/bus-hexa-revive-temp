@@ -83,3 +83,15 @@ def no_network(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr(requests, "get", _raise)
     monkeypatch.setattr(requests, "post", _raise)
     return None
+
+
+@pytest.fixture(autouse=True)
+def _reset_board_support_connections():
+    """board_support의 워커 수명 read 연결 캐시를 테스트마다 초기화 (3차 웨이브 감리).
+
+    캐시 키가 database_url이라 여러 테스트가 같은 'sqlite:///:memory:' URL을 쓰면
+    단일 인메모리 DB를 공유해 교차 오염된다. 운영에서는 재사용이 의도(리뷰 #8).
+    """
+    yield
+    from bushexa.services.board_support import _reset_read_connections
+    _reset_read_connections()

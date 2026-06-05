@@ -30,6 +30,7 @@ from bushexa.api_clients.cached_arrival import CachedArrivalClient
 from bushexa.data.timetable import get_timetable, timetable_dir
 from bushexa.db.connection import create_connection
 from bushexa.db.repo_arrival import BusArrivalRepo
+from bushexa.db.schema import create_schema
 from bushexa.services.special_timetable import SpecialTimetableService, default_special_path
 
 log = logging.getLogger("bushexa.services.board_support")
@@ -64,9 +65,29 @@ def get_read_connection(database_url: str):
             _READ_CONN_CACHE.pop(database_url, None)
 
     conn = create_connection(database_url)
+    # 웹이 데몬 부팅 순서에 의존하지 않게 스키마를 멱등 보장(CREATE IF NOT EXISTS).
+    # 라이브 스모크(3차 웨이브 감리)에서 arrival 데몬이 한 번도 안 돈 DB의 /lite가
+    # 'no such table: bus_arrival_cache'로 500 — 데몬만 create_schema를 호출하던 비대칭 제거.
+    create_schema(conn)
     _READ_CONN_CACHE[database_url] = conn
     log.debug("read 연결 신규 생성 및 캐시. url=%s", database_url)
     return conn
+
+
+def _reset_read_connections() -> None:
+    """모듈 캐시를 비운다 — **테스트 격리 전용** (3차 웨이브 감리).
+
+    캐시 키가 database_url이므로, 한 pytest 프로세스에서 여러 테스트가 같은
+    ``sqlite:///:memory:`` URL을 쓰면 단일 인메모리 DB를 공유하게 된다(교차 오염).
+    tests/conftest.py의 autouse fixture가 테스트마다 이 함수를 호출한다.
+    운영 코드에서는 호출하지 말 것 — 연결 재사용(리뷰 #8)이 목적이다.
+    """
+    for conn in _READ_CONN_CACHE.values():
+        try:
+            conn.close()
+        except Exception:  # noqa: BLE001 — 격리 정리 중 오류는 무시
+            pass
+    _READ_CONN_CACHE.clear()
 
 
 def arrival_client(config) -> CachedArrivalClient:

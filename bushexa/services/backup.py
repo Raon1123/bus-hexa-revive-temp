@@ -31,6 +31,9 @@ _FLAT_FILES = frozenset([
     "holidays.json",
     "special_timetables.json",
     "via_overrides.json",
+    # 3차 웨이브: 관리자 편집 설정이므로 백업 대상. 화이트리스트 방식이라
+    # 같은 data_dir의 transient 파일(.lock, timetable_crawl_job.json 등)은 자동 제외.
+    "crawl_settings.json",
 ])
 
 # 특별 시간표 파일은 timetable_dir / special / <edition> / <busno>.json 패턴
