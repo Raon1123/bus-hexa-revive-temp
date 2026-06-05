@@ -13,6 +13,17 @@ from typing import Callable, Literal, Protocol
 from bushexa.data.constants import ROUTEID, STOP_IDS, VIA_STOPS, WEEKDAY_STR
 from bushexa.time_utils import Clock, KSTClock, get_weekday
 
+# ---------------------------------------------------------------------------
+# 리뷰 E4(중복 제거): UNIST를 종점으로 갖는 버스번호 집합
+#
+# ROUTEID는 모듈 임포트 시 고정되는 상수이므로 lazy 함수 대신 모듈 레벨에서 한 번만
+# 계산한다. _build_timetable_rows·_build_live_rows 두 곳의 동일 컴프리헨션 2벌을 대체.
+# ---------------------------------------------------------------------------
+_UNIST_BUSNOS: frozenset[str] = frozenset(
+    b for (b, term, dep, _ids) in ROUTEID.values()
+    if dep == "UNIST" or "UNIST" in term
+)
+
 
 # ---------------------------------------------------------------------------
 # 경유지(via) 문자열 — 모든 행에 경유지가 채워지도록 보장
@@ -135,15 +146,11 @@ def _build_timetable_rows(
     방향("UNIST 방면")은 제외한다(레거시 departure_board.py와 동일). UNIST를 종점으로
     갖지 않고 경유만 하는 513은 양방향 모두 표시한다.
     """
-    # UNIST를 종점(기점/종점)으로 갖는 버스번호 집합
-    unist_busnos = {
-        b for (b, term, dep, _ids) in ROUTEID.values()
-        if dep == "UNIST" or "UNIST" in term
-    }
     rows: list[BoardRow] = []
     for route_id, (busno, terminal, departure, _stop_ids) in ROUTEID.items():
         # UNIST 노선의 'UNIST 도착(=UNIST 방면)' 방향은 출발 게시판에서 제외
-        if busno in unist_busnos and departure != "UNIST":
+        # 리뷰 E4: 모듈 레벨 _UNIST_BUSNOS 사용 (ROUTEID 고정 상수 → lazy 불필요)
+        if busno in _UNIST_BUSNOS and departure != "UNIST":
             continue
         try:
             times = timetable_provider(busno, weekday, departure)
@@ -178,16 +185,13 @@ def _build_live_rows(
     196040234에는 사실상 513만 정차하지만, UNIST 종점 노선의 'UNIST 방면'(도착) 차량이
     라이브에 섞여 들어오면 출발 게시판 취지에 어긋나므로 동일 규칙으로 방어한다.
     """
-    unist_busnos = {
-        b for (b, term, dep, _ids) in ROUTEID.values()
-        if dep == "UNIST" or "UNIST" in term
-    }
     rows: list[BoardRow] = []
     for arrival in arrivals:
         if arrival.route_id not in ROUTEID:
             continue
         busno, terminal, departure, _stop_ids = ROUTEID[arrival.route_id]
-        if busno in unist_busnos and departure != "UNIST":
+        # 리뷰 E4: 모듈 레벨 _UNIST_BUSNOS 사용 (ROUTEID 고정 상수 → lazy 불필요)
+        if busno in _UNIST_BUSNOS and departure != "UNIST":
             continue
         arrival_secs = arrival.arrival_time
         arrival_mins = arrival_secs // 60
@@ -261,7 +265,12 @@ def get_board_data(
         r for r in timetable_rows
         if (r.bus_number, r.terminal) not in live_keys
     ]
-    merged.sort(key=lambda r: r.arrival_minutes)
+    # 리뷰 E5: 이 시점의 merged.sort()는 불필요 — 제거.
+    # 증명: merge_live_rows(:306)가 항상 sorted(rows, key=(arrival_minutes, bus_number))로
+    # 재정렬한다. K1=(arrival_minutes)는 K2=(arrival_minutes, bus_number)의 prefix이므로
+    # K1 사전 정렬 결과와 K2 재정렬 결과는 항상 동일하다. merged의 유일한 소비자가
+    # merge_live_rows이므로 사전 정렬은 완전한 no-op. merge_live_rows를 거치지 않는
+    # merged 경로는 이 함수 내에 없음(is_last_bus는 rows_final 길이 기반).
 
     # 4) FIRST/SECOND 마킹
     ranked = merge_live_rows(merged)
@@ -292,7 +301,8 @@ def merge_live_rows(rows: list[BoardRow]) -> list[BoardRow]:
     Parameters
     ----------
     rows : list[BoardRow]
-        도착시각 오름차순으로 이미 정렬된 BoardRow 목록.
+        BoardRow 목록. 정렬 여부 무관 — 내부에서 (arrival_minutes, bus_number) 기준으로
+        재정렬하므로 호출자가 사전 정렬할 필요 없다(리뷰 E5 사전 정렬 제거).
 
     Returns
     -------

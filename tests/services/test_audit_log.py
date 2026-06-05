@@ -79,3 +79,46 @@ def test_empty_file_returns_empty_list(tmp_path):
     """파일이 없으면 빈 목록을 반환한다."""
     log = AuditLog(tmp_path / "no_file.json")
     assert log.load() == []
+
+
+# ──────────────────────────────────────────────────
+# #7 E-13: 스레드 2개 동시 record 후 둘 다 존재
+# ──────────────────────────────────────────────────
+
+def test_concurrent_record_no_loss(tmp_path):
+    """스레드 2개가 동시에 record()를 호출해도 두 항목이 모두 저장된다 (#7).
+
+    locked_update_json(fcntl.flock) 크로스 프로세스 잠금으로 read-modify-write
+    경쟁 조건을 방지해야 한다.
+
+    독립 출처: 2개 항목 기록 → load()가 2건 이상 반환해야 한다는 사양(#7).
+    """
+    import threading
+
+    path = tmp_path / "audit_concurrent.json"
+    log = AuditLog(path)
+
+    barrier = threading.Barrier(2)
+    errors: list[Exception] = []
+
+    def _record_action(action: str) -> None:
+        try:
+            barrier.wait()  # 두 스레드가 동시에 시작하도록 동기화
+            log.record(action, actor_ip="127.0.0.1")
+        except Exception as exc:
+            errors.append(exc)
+
+    t1 = threading.Thread(target=_record_action, args=("audit.thread1",))
+    t2 = threading.Thread(target=_record_action, args=("audit.thread2",))
+    t1.start()
+    t2.start()
+    t1.join(timeout=5.0)
+    t2.join(timeout=5.0)
+
+    assert not errors, f"스레드 record 중 예외 발생: {errors}"
+
+    entries = log.load(limit=100)
+    actions = {e["action"] for e in entries}
+    assert "audit.thread1" in actions, "스레드1 record가 저장되어야 함"
+    assert "audit.thread2" in actions, "스레드2 record가 저장되어야 함"
+    assert len(entries) == 2, f"두 항목이 모두 존재해야 함, found {len(entries)}"

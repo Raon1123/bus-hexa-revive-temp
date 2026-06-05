@@ -25,6 +25,10 @@ from bushexa.db.repo import LogRow
 
 logger = logging.getLogger("bushexa.crawler.recorder")
 
+# 감사 2-1/2-6: node_ord 역전 허용 범위. 이 값 이하의 역전은 GPS 지터로 간주해 기록 skip.
+# 초과(또는 None) 역전은 종점 회차로 보고 정상 기록한다.
+JITTER_WINDOW: int = 3
+
 
 @dataclass
 class RouteStats:
@@ -40,6 +44,8 @@ class RouteStats:
     skipped_unknown_stop: int = 0
     # H4: 차량별로 격리된 처리 예외 수(관측용). 사이클 total_errors로 집계된다.
     vehicle_errors: int = 0
+    # 감사 2-1/2-6: node_ord 역전(GPS 지터)으로 기록을 skip한 건수(관측용).
+    skipped_reversed: int = 0
 
 
 @dataclass
@@ -55,11 +61,13 @@ class CycleStats:
 
 class GovtrackRecorder:
     def __init__(self, client, state, repo, clock, *, tracked_stops_by_route,
-                 stop_names=None, route_ids=None, alert_hook=None, alert_threshold=5,
-                 passage_sink=None, reconnect=None):
+                 stop_names=None, route_names=None, route_ids=None, alert_hook=None,
+                 alert_threshold=5, passage_sink=None, reconnect=None):
         """``client``: TagoClient(파싱 포함). ``state``: VehicleTimeline. ``repo``: BusLogRepo.
         ``clock``: Clock(ADR-008). ``tracked_stops_by_route``: {route_id: set(node_id)}.
-        ``stop_names``: node_id→명칭(기본 STOP_IDS). ``passage_sink``: LogRow→None (TSV append seam).
+        ``stop_names``: node_id→명칭(기본 STOP_IDS).
+        ``route_names``: route_id→버스번호(기본 None, 주입 시 LogRow.route_nm 채움, 감사 2-3).
+        ``passage_sink``: LogRow→None (TSV append seam).
         ``reconnect``: ()→BusLogRepo (연결 끊김 시 다음 사이클 재연결, H5). ``alert_hook``: (route_id, n)→None.
         """
         self.client = client
@@ -68,6 +76,8 @@ class GovtrackRecorder:
         self.clock = clock
         self.tracked = {rid: set(s) for rid, s in tracked_stops_by_route.items()}
         self.stop_names = STOP_IDS if stop_names is None else stop_names
+        # 감사 2-3: route_id → 버스 번호 매핑. ROUTEID[rid][0] 에 해당.
+        self.route_names: dict[str, str] = {} if route_names is None else dict(route_names)
         self.route_ids = list(route_ids) if route_ids is not None else list(self.tracked)
         self.alert_hook = alert_hook
         self.alert_threshold = alert_threshold
@@ -112,10 +122,41 @@ class GovtrackRecorder:
         self._note_success(route_id)
         stats.parsed_count = len(resp.items)
 
+        # 감사 2-3: 이 노선의 버스 번호(route_nm). ROUTEID[rid][0]에 해당.
+        route_nm = self.route_names.get(route_id)
+
         candidates: list[LogRow] = []
         for loc in resp.items:
             try:
-                changed = self.state.record(route_id, loc.vehicle_no, loc.node_id, ts)
+                # ---- 감사 2-1/2-6: node_ord 순방향 게이트 ----
+                # node_ord가 양쪽 모두 있고 역전 폭이 JITTER_WINDOW 이하이면 GPS 지터로 판단해 skip.
+                # 폭이 JITTER_WINDOW 초과이면 종점 회차로 보고 정상 기록(state 전진).
+                # node_ord가 None이면(울산 BIS fallback 경로) 게이트 통과(기존 동작 유지).
+                new_ord = loc.node_ord
+                prev_ord = self.state.last_node_ord(route_id, loc.vehicle_no)
+                if (
+                    prev_ord is not None
+                    and new_ord is not None
+                    and 0 < (prev_ord - new_ord) <= JITTER_WINDOW
+                ):
+                    # GPS 지터/소역전 — state 전진 없이 skip(감사 2-1)
+                    stats.skipped_reversed += 1
+                    logger.debug(
+                        "route %s vehicle %s node_ord 역전 skip: prev=%d new=%d (지터 추정)",
+                        route_id, loc.vehicle_no, prev_ord, new_ord,
+                    )
+                    continue
+
+                # ---- 감사 2-7: dry_run 상태 격리 ----
+                # dry_run=True이면 state.record를 호출하지 않아 실제 run 사이클이 영향받지 않는다.
+                if dry_run:
+                    prev_node = self.state.last_node(route_id, loc.vehicle_no)
+                    changed = prev_node != loc.node_id
+                else:
+                    changed = self.state.record(
+                        route_id, loc.vehicle_no, loc.node_id, ts, node_ord=new_ord
+                    )
+
                 if not changed:
                     stats.skipped_unchanged += 1
                     continue
@@ -125,8 +166,10 @@ class GovtrackRecorder:
                     continue
                 # H3: STOP_IDS에 없는 nodeid라도 .get→None으로 안전 처리하고 그대로 INSERT한다.
                 stop_name = self.stop_names.get(loc.node_id)
+                # 감사 2-3: route_nm을 LogRow에 채워 DB에 버스 번호를 기록한다.
                 row = LogRow(idx=idx, stop_id=loc.node_id, route_id=route_id,
-                             vehicle_no=loc.vehicle_no, stop_name=stop_name)
+                             vehicle_no=loc.vehicle_no, stop_name=stop_name,
+                             route_nm=route_nm)
                 candidates.append(row)
                 stats.inserts += 1
                 if self.passage_sink is not None and not dry_run:

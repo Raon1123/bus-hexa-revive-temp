@@ -3,17 +3,18 @@
 W10: login/logout/dashboard/password  (login_required 데코레이터 포함)
 W12: /admin/data  + /admin/data.csv   (필터·페이지네이션·CSV)
 W13a: /admin/timetable (목록·편집·저장; TimetableEditor.save 위임, TP-009)
-W13b: /admin/timetable/recrawl (+/<job_id>/stream SSE; TimetableCrawlJob, TP-010)
+W13b: /admin/timetable/recrawl (+/<job_id>/stream SSE; RecrawlJob, TP-010)
 W14: /admin/govtrack/status (JSON) + /admin/govtrack/status/stream (SSE 5초)
 W16: /admin/logs (로그 tail 뷰어, LogTailReader, level/lines 검증, 고정 경로)
 F3: /admin/backup  — 설정 백업/복구 (zip export + import)
 F4: /admin/worker-status  — govtrack + arrival 데몬 상태 대시보드
 F5: /admin/audit  — 관리자 변경 감사 로그
 
-lockout 상태는 현재 app context (current_app.config["_ADMIN_LOCKOUT"])에 보관 —
-테스트마다 새 app을 만들므로 자동 격리. module 전역 dict는 쓰지 않는다.
-재크롤 job도 동일하게 app-scope(current_app.config["_TIMETABLE_CRAWL_JOB"])에 보관 —
-start-POST·stream-GET·conflict가 같은 인스턴스를 공유해야 하고, 테스트는 mock을 주입한다.
+#9: lockout 상태는 <data_dir>/admin_lockout.json(locked_update_json)에 보관 —
+워커 공통 잠금. 기존 인메모리 _ADMIN_LOCKOUT 제거.
+#6: 재크롤 job은 services/recrawl_job.py(RecrawlJob)에 위임 — 잡 메타·진행 JSONL을
+파일로 기록해 어느 워커에서 SSE GET이 들어와도 조회 가능.
+app-scope "_TIMETABLE_CRAWL_JOB" 키는 유지해 테스트 mock 주입 세만틱을 보존.
 
 S5 CSRF 검증은 app.py before_request에서 담당(admin prefix POST 한정).
 이 파일에서 CSRF 토큰을 직접 검증하지 않는다.
@@ -69,7 +70,7 @@ from bushexa.services.crawl_settings import (
 )
 from bushexa.services.log_reader import LogTailReader, LOG_SOURCES, STANDARD_LEVELS
 from bushexa.services.special_timetable import SpecialTimetableService, default_special_path
-from bushexa.services.timetable_crawl import ConflictError, TimetableCrawlJob
+from bushexa.services.recrawl_job import RecrawlJob, ConflictError
 from bushexa.services.timetable_editor import TimetableEditor, ValidationError
 from bushexa.services.via_editor import ViaEditor, default_via_path
 from bushexa.time_utils import KSTClock, is_holiday
@@ -113,59 +114,82 @@ def login_required(view):
 
 
 # ─────────────────────────────────────────────────
-# lockout 헬퍼 — app-scope state
+# lockout 헬퍼 — 파일 기반 크로스 워커 잠금 (#9)
+# <data_dir>/admin_lockout.json: { "<ip>": [locked_until_ts|null, fail_count] }
+# locked_update_json(fcntl.flock)으로 read-modify-write 보호 → 워커 공통.
 # ─────────────────────────────────────────────────
 
-def _lockout_state() -> dict:
-    """현재 앱의 lockout dict 반환. _ADMIN_LOCKOUT 키가 없으면 생성."""
-    return current_app.config.setdefault("_ADMIN_LOCKOUT", {})
+from bushexa import fileio as _fileio
+
+
+def _lockout_path() -> Path:
+    """잠금 상태 저장 JSON 경로."""
+    config = current_app.config["BUSHEXA_CONFIG"]
+    p = Path(config.data_dir)
+    p.mkdir(parents=True, exist_ok=True)
+    return p / "admin_lockout.json"
 
 
 def _is_locked(key: str) -> bool:
-    """IP 가 현재 lockout 상태인지 검사. 만료된 lockout은 자동 해제."""
-    state = _lockout_state()
+    """IP가 현재 lockout 상태인지 검사. 만료된 lockout은 자동 해제 (#9)."""
+    path = _lockout_path()
+    if not path.exists():
+        return False
+    try:
+        import json as _json
+        state = _json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return False
     entry = state.get(key)
     if entry is None:
         return False
     locked_until, _ = entry
     if locked_until is None:
-        # lockout이 아닌 일반 실패 카운트 entry
         return False
     now_ts = KSTClock().now().timestamp()
-    if now_ts >= locked_until:
-        del state[key]
-        return False
-    return True
+    return now_ts < locked_until
 
 
 def _record_fail(key: str) -> int:
-    """실패 횟수 +1. _MAX_FAILS 도달 시 lockout 등록. 현재 누적 실패 수 반환."""
-    state = _lockout_state()
+    """실패 횟수 +1. _MAX_FAILS 도달 시 lockout 등록. 누적 실패 수 반환 (#9).
+
+    locked_update_json(fcntl.flock)으로 크로스 워커 원자적 갱신.
+    """
     now_ts = KSTClock().now().timestamp()
-    entry = state.get(key)
-    if entry is None:
-        fails = 1
-        locked_until = None
-    else:
-        locked_until, fails = entry
-        if locked_until is not None and now_ts >= locked_until:
-            # 만료된 lockout → 초기화
+    result_holder: list[int] = [0]
+
+    def _mutate(state: dict) -> dict:
+        entry = state.get(key)
+        if entry is None:
             fails = 1
             locked_until = None
         else:
-            fails = (fails or 0) + 1
+            locked_until, fails = entry
+            if locked_until is not None and now_ts >= locked_until:
+                # 만료된 lockout → 초기화
+                fails = 1
+                locked_until = None
+            else:
+                fails = (fails or 0) + 1
 
-    if fails >= _MAX_FAILS:
-        locked_until = now_ts + _LOCKOUT_SECS
-    # else: locked_until stays None (not locked, just counting)
+        if fails >= _MAX_FAILS:
+            locked_until = now_ts + _LOCKOUT_SECS
 
-    state[key] = (locked_until, fails)
-    return fails
+        state[key] = [locked_until, fails]
+        result_holder[0] = fails
+        return state
+
+    _fileio.locked_update_json(_lockout_path(), _mutate, default={})
+    return result_holder[0]
 
 
 def _reset_fails(key: str) -> None:
-    state = _lockout_state()
-    state.pop(key, None)
+    """로그인 성공 시 IP 잠금 카운터를 해제한다 (#9)."""
+    def _mutate(state: dict) -> dict:
+        state.pop(key, None)
+        return state
+
+    _fileio.locked_update_json(_lockout_path(), _mutate, default={})
 
 
 def _lockout_key() -> str:
@@ -628,11 +652,18 @@ def _make_crawl_fn():
     return _crawl
 
 
-def _get_crawl_job() -> TimetableCrawlJob:
-    """app-scope 재크롤 job 싱글턴. 테스트는 mock을 미리 주입할 수 있다."""
+def _get_crawl_job() -> RecrawlJob:
+    """app-scope 재크롤 job 싱글턴. 테스트는 mock을 미리 주입할 수 있다.
+
+    #6: RecrawlJob(services/recrawl_job.py) 사용 — 잡 메타·진행 이벤트를 파일에 기록해
+    어느 워커에서 SSE GET이 들어와도 progress를 폴링-tail로 전달한다.
+    config["_TIMETABLE_CRAWL_JOB"] 주입 세만틱 유지 (기존 테스트 mock 호환).
+    """
     job = current_app.config.get("_TIMETABLE_CRAWL_JOB")
     if job is None:
-        job = TimetableCrawlJob(_make_crawl_fn())
+        config = current_app.config["BUSHEXA_CONFIG"]
+        data_dir = Path(config.data_dir)
+        job = RecrawlJob(_make_crawl_fn(), data_dir=data_dir)
         current_app.config["_TIMETABLE_CRAWL_JOB"] = job
     return job
 

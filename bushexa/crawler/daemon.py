@@ -97,10 +97,15 @@ def build_recorder(config, *, repo=None, client=None, state=None, clock=None,
         create_schema(conn)
         return BusLogRepo(conn)
 
+    # 감사 2-3: route_id → 버스 번호 매핑을 ROUTEID에서 추출해 recorder에 주입한다.
+    # ROUTEID[rid][0] = 버스 번호(예: "713"). 의존성 주입으로 테스트 격리 유지.
+    _route_names = {rid: meta[0] for rid, meta in ROUTEID.items()}
+
     recorder = GovtrackRecorder(
         client, state, repo, clock,
         tracked_stops_by_route=tracked_stops_by_route(),
-        stop_names=STOP_IDS, passage_sink=passage_sink, reconnect=_reconnect,
+        stop_names=STOP_IDS, route_names=_route_names,
+        passage_sink=passage_sink, reconnect=_reconnect,
     )
     # H2: 재시작 시 직전 위치 워밍(false-positive 억제). 워밍 실패가 기동을 막지 않게(ADR-013).
     try:
@@ -138,6 +143,13 @@ def run_daemon(config, *, recorder=None, poll_seconds=10, night_sleep_seconds=60
     while not stop_event.is_set():
         now = clock.now()
         if _in_night_window(now.time(), night_window):
+            # 감사 2-8: 야간 창 진입 직전에 state를 영속화한다(sleep 전 호출).
+            # recorder가 None일 수 없는 경로이지만 방어적 체크. 예외는 warning 후 계속(ADR-013).
+            if recorder is not None:
+                try:
+                    recorder.state.persist()
+                except Exception as exc:
+                    logger.warning("야간 창 진입 시 state.persist 실패(무시): %s", exc)
             sleep(night_sleep_seconds)   # H7: 600→60 단축(설정 가능)
             continue
         try:

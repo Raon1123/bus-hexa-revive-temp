@@ -10,10 +10,9 @@ from __future__ import annotations
 
 from flask import Blueprint, current_app, render_template, request
 
-from bushexa.data.timetable import get_timetable, timetable_dir
 from bushexa.domain.busno import get_busno_page_data
+from bushexa.services.board_support import timetable_provider_for
 from bushexa.services.holiday_service import read_effective_holidays
-from bushexa.services.special_timetable import SpecialTimetableService, default_special_path
 from bushexa.time_utils import KSTClock
 
 bp = Blueprint("busno", __name__)
@@ -42,22 +41,13 @@ def busno_page() -> str:
     # 읽기 경로: 외부 API 미호출 — 영속 캐시 + admin 지정만 읽는다(cache-refresh 워커가 갱신).
     holiday_set = read_effective_holidays(config.data_dir)
 
-    # 특별 시간표: 오늘에 배정된 에디션이 있으면 day 미지정 시 해당 에디션 provider 사용
-    tt_dir = timetable_dir()
-    svc = SpecialTimetableService(
-        map_path=default_special_path(config.data_dir),
-        timetable_dir=tt_dir,
-    )
-    date_str = today.strftime("%Y%m%d")
-    edition_id = svc.get_edition_for_date(date_str) if day is None else None
-    if edition_id and svc.edition_exists(edition_id):
-        edition_dir = svc.edition_dir(edition_id)
-        def timetable_provider(busno, weekday, departure, *, dir=edition_dir):
-            try:
-                return get_timetable(busno, weekday, departure, dir=dir)
-            except KeyError:
-                return get_timetable(busno, 0, departure, dir=dir)
+    # 특별 시간표: 오늘에 배정된 에디션이 있으면 day 미지정 시 해당 에디션 provider 사용.
+    # 리뷰 E6: 기존 복제 래퍼를 board_support.timetable_provider_for로 단일화.
+    # day가 명시적으로 지정되면 특별편을 적용하지 않는다(기존 동작 유지).
+    if day is None:
+        timetable_provider = timetable_provider_for(config, today, holiday_set)
     else:
+        from bushexa.data.timetable import get_timetable
         timetable_provider = get_timetable
 
     timetable = get_busno_page_data(

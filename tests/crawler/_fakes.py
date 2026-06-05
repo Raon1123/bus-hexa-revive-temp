@@ -9,8 +9,18 @@ from bushexa.crawler.state import VehicleTimeline
 
 
 def make_response(items, result_code="00"):
-    """(node_id, node_name, vehicle_no) 튜플 목록 → TagoResponse."""
-    locs = [BusLocation(node_id=n, node_name=nm, vehicle_no=v) for n, nm, v in items]
+    """(node_id, node_name, vehicle_no[, node_ord]) 튜플 목록 → TagoResponse.
+
+    3-튜플(기존)과 4-튜플(node_ord 포함) 양쪽 형식을 지원한다(하위호환).
+    """
+    locs = []
+    for item in items:
+        if len(item) == 3:
+            n, nm, v = item
+            locs.append(BusLocation(node_id=n, node_name=nm, vehicle_no=v))
+        else:
+            n, nm, v, ord_ = item
+            locs.append(BusLocation(node_id=n, node_name=nm, vehicle_no=v, node_ord=ord_))
     return TagoResponse(result_code=result_code, total_count=len(locs), items=locs)
 
 
@@ -58,13 +68,16 @@ class FaultyState:
         self.fail_vehicle = fail_vehicle
         self.inner = inner or VehicleTimeline()
 
-    def record(self, route_id, vehicle_no, node_id, ts):
+    def record(self, route_id, vehicle_no, node_id, ts, *, node_ord=None):
         if vehicle_no == self.fail_vehicle:
             raise RuntimeError(f"injected fault for {vehicle_no}")
-        return self.inner.record(route_id, vehicle_no, node_id, ts)
+        return self.inner.record(route_id, vehicle_no, node_id, ts, node_ord=node_ord)
 
     def last_node(self, route_id, vehicle_no):
         return self.inner.last_node(route_id, vehicle_no)
+
+    def last_node_ord(self, route_id, vehicle_no):
+        return self.inner.last_node_ord(route_id, vehicle_no)
 
     def warm_from_repo(self, repo, since):
         return self.inner.warm_from_repo(repo, since)

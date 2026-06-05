@@ -124,15 +124,35 @@ class BusLogRepo:
         self.conn.commit()
 
     def insert_batch(self, rows: Iterable[LogRow]) -> int:
-        """한 트랜잭션으로 묶어 마지막에 1회 commit. 예외 시 rollback(부분 commit 방지, H5)."""
+        """한 트랜잭션으로 묶어 마지막에 1회 commit. 예외 시 rollback(부분 commit 방지, H5).
+
+        감사 2-5: UNIQUE(idx, vehicle_number, stop_id) 인덱스와 함께 멱등 INSERT를 보장한다.
+        SQLite는 ``INSERT OR IGNORE``, PostgreSQL은 ``ON CONFLICT DO NOTHING`` 문법 사용.
+        감사 2-3: route_nm 컬럼도 함께 INSERT한다.
+        """
         ph = self._ph
-        sql = (f"INSERT INTO bus_timelog (idx, stop_id, route_id, vehicle_number, stop_name) "
-               f"VALUES ({ph}, {ph}, {ph}, {ph}, {ph})")
+        # SQLite(placeholder='?') vs PostgreSQL(placeholder='%s') 문법 분기(감사 2-5).
+        if ph == "?":
+            # SQLite: INSERT OR IGNORE
+            sql = (
+                f"INSERT OR IGNORE INTO bus_timelog "
+                f"(idx, stop_id, route_id, route_nm, vehicle_number, stop_name) "
+                f"VALUES ({ph}, {ph}, {ph}, {ph}, {ph}, {ph})"
+            )
+        else:
+            # PostgreSQL: ON CONFLICT DO NOTHING
+            sql = (
+                f"INSERT INTO bus_timelog "
+                f"(idx, stop_id, route_id, route_nm, vehicle_number, stop_name) "
+                f"VALUES ({ph}, {ph}, {ph}, {ph}, {ph}, {ph}) "
+                f"ON CONFLICT (idx, vehicle_number, stop_id) DO NOTHING"
+            )
         cur = self.conn.cursor()
         count = 0
         try:
             for r in rows:
-                cur.execute(sql, (r.idx, r.stop_id, r.route_id, r.vehicle_no, r.stop_name))
+                cur.execute(sql, (r.idx, r.stop_id, r.route_id, r.route_nm,
+                                  r.vehicle_no, r.stop_name))
                 count += 1
             self.conn.commit()
         except Exception:

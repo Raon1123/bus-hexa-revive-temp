@@ -10,10 +10,9 @@ from __future__ import annotations
 
 from flask import Blueprint, current_app, render_template, request
 
-from bushexa.data.timetable import get_timetable, timetable_dir
 from bushexa.domain.unist_timetable import get_full_timetable_data
+from bushexa.services.board_support import timetable_provider_for
 from bushexa.services.holiday_service import read_effective_holidays
-from bushexa.services.special_timetable import SpecialTimetableService, default_special_path
 from bushexa.time_utils import KSTClock, get_weekday
 
 bp = Blueprint("unist_timetable", __name__)
@@ -43,22 +42,13 @@ def timetable_page() -> str:
         except ValueError:
             day = 0  # 범위 오류는 도메인이 0으로 보정
 
-    # 특별 시간표: ?day 미지정(오늘)에 배정된 에디션이 있으면 provider 교체
-    tt_dir = timetable_dir()
-    svc = SpecialTimetableService(
-        map_path=default_special_path(config.data_dir),
-        timetable_dir=tt_dir,
-    )
-    date_str = today.strftime("%Y%m%d")
-    edition_id = svc.get_edition_for_date(date_str) if raw_day is None else None
-    if edition_id and svc.edition_exists(edition_id):
-        edition_dir = svc.edition_dir(edition_id)
-        def timetable_provider(busno, weekday, departure, *, dir=edition_dir):
-            try:
-                return get_timetable(busno, weekday, departure, dir=dir)
-            except KeyError:
-                return get_timetable(busno, 0, departure, dir=dir)
+    # 특별 시간표: ?day 미지정(오늘)에 배정된 에디션이 있으면 provider 교체.
+    # 리뷰 E6: 기존 복제 래퍼를 board_support.timetable_provider_for로 단일화.
+    # raw_day 지정 시 특별편을 적용하지 않는다(기존 동작 유지).
+    if raw_day is None:
+        timetable_provider = timetable_provider_for(config, today, holiday_set)
     else:
+        from bushexa.data.timetable import get_timetable
         timetable_provider = get_timetable
 
     snapshot = get_full_timetable_data(

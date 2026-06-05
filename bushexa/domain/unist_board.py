@@ -132,6 +132,7 @@ def get_unist_board_data(
     *,
     client,
     timetable_provider: Callable[[str, int, str], list[str]],
+    holiday_set: frozenset[str] | set[str] = frozenset(),
     visualize: int = 2,
 ) -> UnistBoardSnapshot:
     """UNIST 버스 카드 그리드 데이터를 반환한다.
@@ -144,6 +145,10 @@ def get_unist_board_data(
         UlsanBisClient 또는 mock. fetch_arrivals(stop_id) 메서드 제공.
     timetable_provider :
         Callable[[busno, weekday, departure], list[str]].
+    holiday_set : frozenset[str] | set[str]
+        공휴일 YYYYMMDD 문자열 집합. get_weekday에 전달해 공휴일 요일 코드를 결정한다.
+        리뷰 #4 수정: 기존 코드는 이 파라미터를 받지 않아 공휴일에도 평일(0) 코드를
+        사용했다(/board·/busno·/timetable은 모두 holiday_set을 전달).
     visualize : int
         카드당 최대 항목 수 (기본 2).
 
@@ -152,7 +157,8 @@ def get_unist_board_data(
     F07 결함 수정: crawl_busstop(live fetch)을 1회만 호출해 모든 카드에 재사용한다.
     """
     now = clock.now()
-    weekday = get_weekday(now, clock=clock)
+    # 리뷰 #4 수정: holiday_set을 get_weekday에 전달해 공휴일에 weekday=2(일/공휴일)를 반환한다.
+    weekday = get_weekday(now, holiday_set, clock=clock)
     now_h, now_m = now.hour, now.minute
 
     # via 정류소 ID (513 노선 경유)

@@ -8,11 +8,12 @@ bushexa 내에서 디스크 파일을 쓰는 **유일한 합법 경로**다. 직
 """
 from __future__ import annotations
 
+import fcntl
 import json
 import logging
 import os
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 _DEFAULT_LOGGER = logging.getLogger("bushexa.fileio")
 
@@ -55,3 +56,66 @@ def atomic_write_json(path, obj: Any, *, ensure_ascii: bool = False, indent: int
     # 직렬화 실패(예: set)는 파일을 만들기 '전'에 발생 → 기존 파일 무손상.
     text = json.dumps(obj, ensure_ascii=ensure_ascii, indent=indent)
     _atomic_write(Path(path), text.encode("utf-8"), logger=logger)
+
+
+_SENTINEL = object()
+
+
+def locked_update_json(
+    path,
+    mutate: Callable[[Any], Any],
+    *,
+    default: Any = _SENTINEL,
+    logger: logging.Logger | None = None,
+) -> None:
+    """fcntl.flock 으로 보호된 read-modify-write → atomic_write_json.
+
+    **Linux 전제** — fcntl.flock는 Linux/macOS POSIX API이며 Windows에서는
+    동작하지 않는다. 배포 환경이 Linux 컨테이너임을 가정하고 사용한다.
+
+    동작 순서:
+      1. ``<path>.lock`` 파일에 LOCK_EX(배타 잠금)를 획득한다.
+      2. ``path``가 존재하면 JSON 파싱; 부재·파손이면 ``default`` 사용.
+         ``default``가 지정되지 않은 상태에서 파일이 없으면 FileNotFoundError.
+      3. ``mutate(obj)``를 호출해 갱신된 객체를 얻는다.
+      4. ``atomic_write_json``으로 저장 후 잠금 해제.
+
+    기존 ``atomic_write_json`` 의미는 불변(이 함수가 내부적으로 호출).
+
+    Parameters
+    ----------
+    path:
+        쓸 JSON 파일 경로.
+    mutate:
+        현재 오브젝트를 받아 갱신된 오브젝트를 반환하는 callable.
+    default:
+        파일 부재·파손 시 초기값. 미지정이면 파일 부재 시 FileNotFoundError.
+    logger:
+        fileio 감사 로거 오버라이드. None이면 기본 로거.
+    """
+    path = Path(path)
+    # 잠금 파일은 대상 파일의 형제 .lock 파일 (부모 디렉터리가 없으면 생성)
+    lock_path = path.with_suffix(path.suffix + ".lock")
+    path.parent.mkdir(parents=True, exist_ok=True)
+
+    with open(lock_path, "w") as lf:
+        fcntl.flock(lf, fcntl.LOCK_EX)
+        try:
+            # 현재 데이터 로드
+            if path.exists():
+                try:
+                    obj = json.loads(path.read_text(encoding="utf-8"))
+                except (OSError, ValueError):
+                    if default is _SENTINEL:
+                        raise
+                    obj = default
+            else:
+                if default is _SENTINEL:
+                    raise FileNotFoundError(f"locked_update_json: 파일 없음: {path}")
+                obj = default
+
+            # mutate 적용 후 원자적 저장
+            updated = mutate(obj)
+            atomic_write_json(path, updated, logger=logger)
+        finally:
+            fcntl.flock(lf, fcntl.LOCK_UN)

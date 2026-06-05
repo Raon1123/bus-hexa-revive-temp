@@ -11,12 +11,10 @@ from __future__ import annotations
 
 from flask import Blueprint, abort, current_app, render_template, request
 
-from bushexa.api_clients.cached_arrival import CachedArrivalClient
 from bushexa.data.constants import SERACH_STOPS, STOP_IDS
-from bushexa.db.connection import create_connection
-from bushexa.db.repo_arrival import BusArrivalRepo
 from bushexa.domain.stops import get_stop_data
 from bushexa.services import stop_cache
+from bushexa.services.board_support import arrival_client
 from bushexa.time_utils import KSTClock
 
 bp = Blueprint("stops", __name__)
@@ -42,14 +40,11 @@ def stops_partial():
     config = current_app.config["BUSHEXA_CONFIG"]
     clock = KSTClock()
     # ADR-010: 라이브 울산 API 대신 arrival poller가 채운 cache(bus_arrival_cache)를 읽는다.
-    conn = create_connection(config.database_url)
-    try:
-        client = CachedArrivalClient(BusArrivalRepo(conn))
+    # 리뷰 #8/E6: 매 요청 새 연결+PRAGMA 대신 워커 수명 재사용 연결 사용.
+    client = arrival_client(config)
 
-        def _fetch(sid: str):
-            return get_stop_data(sid, clock, client=client)
+    def _fetch(sid: str):
+        return get_stop_data(sid, clock, client=client)
 
-        snapshot = stop_cache.get_or_fetch(stop_id, _fetch, clock)
-    finally:
-        conn.close()
+    snapshot = stop_cache.get_or_fetch(stop_id, _fetch, clock)
     return render_template("stops_partial.html", snapshot=snapshot)

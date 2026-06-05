@@ -9,11 +9,11 @@ git diff 없이 전체 코드 대상이므로 아래는 "가장 심각한 상위
 > raise로 변경, crawl 전요일-빈-결과 가드 추가. **#10(로그 UNKNOWN 필터 탈락)도 수정 완료**
 > (2차 웨이브, 회귀 테스트 포함 450 passed). #4~#9는 미수정.
 >
-> **감리 중 신규 발견 (2026-06-05 2차 웨이브):** 모든 admin 템플릿이
-> `csrf_token` hidden 필드를 넣지만(`session['csrf_token']`), **서버측에서 토큰을 생성·검증하는
-> 코드가 bushexa/ 어디에도 없다** — 항상 빈 값으로 렌더되고 POST에서 검증되지 않는 죽은
-> 패턴. 세션 쿠키 SameSite=Lax 기본값이 cross-site POST를 완화하지만, 명시적 CSRF
-> 생성+before_request 검증을 추가하거나 hidden 필드를 제거해 오해를 없애야 한다.
+> ~~감리 중 신규 발견: admin CSRF 검증 부재~~ — **오류 정정(3차 웨이브 감리)**: CSRF는
+> `web/app.py:66-96`에 완전 구현돼 있었다(`_seed_csrf_token` 세션 시딩 + `_csrf_protect`가
+> /admin/ 하위 POST/PUT/PATCH/DELETE에 form `csrf_token` 또는 `X-CSRFToken` 헤더 검증, 400).
+> 2차 웨이브 감리의 grep 출력이 `head`로 잘려 .py 매치를 놓친 검증 실수였다. 잔여 개선
+> 1건만 유효: `provided != expected` 비교를 `hmac.compare_digest`로(타이밍 안전).
 
 ## Top 10 (심각도순)
 

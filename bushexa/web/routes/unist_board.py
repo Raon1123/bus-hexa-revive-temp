@@ -10,31 +10,41 @@ from __future__ import annotations
 
 from flask import Blueprint, current_app, render_template
 
-from bushexa.api_clients.cached_arrival import CachedArrivalClient
-from bushexa.data.timetable import get_timetable
-from bushexa.db.connection import create_connection
-from bushexa.db.repo_arrival import BusArrivalRepo
 from bushexa.domain.unist_board import get_unist_board_data
+from bushexa.services.board_support import arrival_client, timetable_provider_for
+from bushexa.services.holiday_service import read_effective_holidays
 from bushexa.time_utils import KSTClock
 
 bp = Blueprint("unist_board", __name__)
 
 
 def _build_snapshot():
-    """도메인 get_unist_board_data 호출."""
+    """도메인 get_unist_board_data 호출.
+
+    리뷰 #4 수정: holiday_set을 도메인에 전달해 공휴일에 weekday=2를 사용한다.
+    리뷰 #5 수정: bare get_timetable 대신 timetable_provider_for를 통해 특별편 적용.
+    리뷰 E6/#8: arrival_client(board_support)로 워커 수명 재사용 연결 사용.
+    """
     config = current_app.config["BUSHEXA_CONFIG"]
     clock = KSTClock()
+    now = clock.now()
+    today = now.date()
+
+    # 공휴일 집합: 읽기 경로 전용 (외부 API 미호출 — cache-refresh 워커 담당).
+    holiday_set = read_effective_holidays(config.data_dir)
+
+    # 특별편 provider: 리뷰 #5 수정 — 기존 bare get_timetable 대신 edition 래퍼 적용.
+    timetable_provider = timetable_provider_for(config, today, holiday_set)
+
     # ADR-010: 라이브 울산 API 대신 arrival poller가 채운 cache(bus_arrival_cache)를 읽는다.
-    conn = create_connection(config.database_url)
-    try:
-        client = CachedArrivalClient(BusArrivalRepo(conn))
-        return get_unist_board_data(
-            clock,
-            client=client,
-            timetable_provider=get_timetable,
-        )
-    finally:
-        conn.close()
+    # 리뷰 #8/E6: 매 요청 새 연결+PRAGMA 대신 워커 수명 재사용 연결 사용.
+    client = arrival_client(config)
+    return get_unist_board_data(
+        clock,
+        client=client,
+        timetable_provider=timetable_provider,
+        holiday_set=holiday_set,
+    )
 
 
 @bp.route("/unist", methods=["GET"])

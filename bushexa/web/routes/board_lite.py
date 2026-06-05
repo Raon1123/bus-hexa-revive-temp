@@ -12,9 +12,7 @@ from __future__ import annotations
 
 from flask import Blueprint, current_app, render_template
 
-from bushexa.api_clients.cached_arrival import CachedArrivalClient
-from bushexa.db.connection import create_connection
-from bushexa.db.repo_arrival import BusArrivalRepo
+from bushexa.services.board_support import arrival_client
 from bushexa.web.routes.board import _STOP_ID, _build_snapshot
 from bushexa.web.timing import span
 
@@ -25,14 +23,14 @@ _REFRESH_SECONDS = 15
 
 
 def _last_fetched_at() -> str | None:
-    """게시판 정류장 cache의 신선도(staleness) 표시용."""
+    """게시판 정류장 cache의 신선도(staleness) 표시용.
+
+    리뷰 E2/E6: 기존에는 _build_snapshot과 별도의 두 번째 SQLite 연결을 열었다.
+    board_support.arrival_client를 통해 워커 수명 재사용 연결을 공유한다.
+    """
     config = current_app.config["BUSHEXA_CONFIG"]
     with span("lite_fetched_at"):
-        conn = create_connection(config.database_url)
-        try:
-            return CachedArrivalClient(BusArrivalRepo(conn)).last_fetched_at(_STOP_ID)
-        finally:
-            conn.close()
+        return arrival_client(config).last_fetched_at(_STOP_ID)
 
 
 @bp.route("/lite", methods=["GET"])

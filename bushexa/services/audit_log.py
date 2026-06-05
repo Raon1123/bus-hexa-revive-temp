@@ -55,6 +55,8 @@ class AuditLog:
     def record(self, action: str, *, actor_ip: str | None = None, **details) -> None:
         """감사 항목을 1건 추가한다. 실패해도 예외를 전파하지 않는다 (best-effort).
 
+        #7: locked_update_json 경유로 동시 기록 유실 방지(fcntl.flock 크로스 프로세스 잠금).
+
         Parameters
         ----------
         action: str
@@ -65,17 +67,22 @@ class AuditLog:
             추가 컨텍스트 (date, busno, edition_id 등). 직렬화 가능해야 한다.
         """
         try:
-            entries = _load(self.path)
             entry = {
                 "ts": self._now_iso(),
                 "action": action,
                 "actor_ip": actor_ip,
                 **{k: v for k, v in details.items()},
             }
-            entries.append(entry)
-            if len(entries) > self.max_entries:
-                entries = entries[-self.max_entries:]
-            fileio.atomic_write_json(self.path, entries)
+            max_entries = self.max_entries
+
+            def _mutate(entries: list) -> list:
+                entries.append(entry)
+                if len(entries) > max_entries:
+                    entries = entries[-max_entries:]
+                return entries
+
+            # default=[] → 파일 부재·파손 시 빈 리스트로 시작 (크로스 프로세스 잠금 #7)
+            fileio.locked_update_json(self.path, _mutate, default=[])
         except Exception as exc:
             logger.error("audit 기록 실패 (action=%s): %s", action, exc, exc_info=True)
 
