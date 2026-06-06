@@ -47,12 +47,12 @@
             id="govtrack-poll"
             name="govtrack_poll_seconds"
             value="{{ current.govtrack_poll_seconds if 'govtrack_poll_seconds' in current else '' }}"
-            placeholder="10"
+            placeholder="15"
             min="{{ min_poll|int }}"
             max="{{ max_poll|int }}"
             step="1"
         >
-        <p class="field-hint">기본값: 10초. 현재 저장값: {% if 'govtrack_poll_seconds' in current %}{{ current.govtrack_poll_seconds }}초{% else %}(기본값 사용 중){% endif %}</p>
+        <p class="field-hint">기본값: 15초. 현재 저장값: {% if 'govtrack_poll_seconds' in current %}{{ current.govtrack_poll_seconds }}초{% else %}(기본값 사용 중){% endif %}</p>
     </div>
 
     <div class="field-group">

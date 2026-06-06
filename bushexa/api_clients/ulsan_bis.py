@@ -15,7 +15,7 @@ from dataclasses import dataclass
 import requests  # fetch_arrivals의 RequestException 분기(ADR-013)에서 사용
 from bs4 import BeautifulSoup
 
-from bushexa.api_clients._http import get_with_service_key
+from bushexa.api_clients._http import get_with_service_key, resolve_api_timeout
 from bushexa.api_clients.errors import ParseError, UlsanBisError
 
 logger = logging.getLogger("bushexa.api_clients.ulsan_bis")
@@ -122,11 +122,12 @@ def parse_timetable_page(xml_text: str | bytes) -> tuple[list[TimetableRow], int
 
 class UlsanBisClient:
     def __init__(self, api_key: str, *, arrival_url: str = _ARRIVAL_URL,
-                 timetable_url: str = _TIMETABLE_URL, timeout: float = 10.0):
+                 timetable_url: str = _TIMETABLE_URL, timeout: float | None = None):
         self.api_key = api_key
         self.arrival_url = arrival_url
         self.timetable_url = timetable_url
-        self.timeout = timeout
+        # 기본: env BUSHEXA_API_TIMEOUT_SECONDS(=15초) — _http.resolve_api_timeout 참조.
+        self.timeout = resolve_api_timeout(timeout)
 
     def fetch_arrivals(self, stop_id: str, *, page: int = 1, rows: int = 50) -> list[Arrival]:
         params = {"pageNo": page, "numOfRows": rows, "stopid": stop_id}

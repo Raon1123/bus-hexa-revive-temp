@@ -121,7 +121,7 @@ def _in_night_window(now_t, window) -> bool:
     return start <= now_t < end
 
 
-def run_daemon(config, *, recorder=None, poll_seconds=10, night_sleep_seconds=60,
+def run_daemon(config, *, recorder=None, poll_seconds=15, night_sleep_seconds=60,
                night_window=_NIGHT, clock=None, sleep=None, stop_event=None,
                max_cycles=None, on_cycle=None, settings_store=None) -> int:
     """govtrack 데몬 루프. 반환: 수행한 사이클 수. ``stop_event.set()`` 시 현재 사이클 완료 후 종료.

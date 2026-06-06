@@ -16,7 +16,7 @@ import logging
 
 from bs4 import BeautifulSoup
 
-from bushexa.api_clients._http import get_with_service_key
+from bushexa.api_clients._http import get_with_service_key, resolve_api_timeout
 from bushexa.api_clients.errors import HolidayError
 
 logger = logging.getLogger("bushexa.api_clients.holiday")
@@ -62,10 +62,12 @@ def parse_holidays(xml_text: str | bytes) -> list[_dt.date]:
 
 
 class HolidayClient:
-    def __init__(self, api_key: str, *, base_url: str = _HOLIDAY_URL, timeout: float = 10.0):
+    def __init__(self, api_key: str, *, base_url: str = _HOLIDAY_URL,
+                 timeout: float | None = None):
         self.api_key = api_key
         self.base_url = base_url
-        self.timeout = timeout
+        # 기본: env BUSHEXA_API_TIMEOUT_SECONDS(=15초) — _http.resolve_api_timeout 참조.
+        self.timeout = resolve_api_timeout(timeout)
 
     def fetch(self, year: int, month: int) -> list[_dt.date]:
         """해당 월의 공휴일 date 목록. 네트워크 오류·오류 응답은 raise(모듈 docstring 참조)."""

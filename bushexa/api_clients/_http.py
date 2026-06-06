@@ -11,9 +11,21 @@ unquote로 먼저 디코딩하면 Encoding/Decoding 키 양쪽 모두 requests�
 """
 from __future__ import annotations
 
+import os
 from urllib.parse import unquote
 
 import requests
+
+# 울산 API 간헐 무응답·느린 응답 실측(2026-06-05)에 맞춰 기본 15초.
+# env BUSHEXA_API_TIMEOUT_SECONDS로 운영자가 조정한다(예: 10).
+_DEFAULT_TIMEOUT = 15.0
+
+
+def resolve_api_timeout(explicit=None) -> float:
+    """API HTTP timeout 해석: 명시 인자 > env ``BUSHEXA_API_TIMEOUT_SECONDS`` > 15초."""
+    if explicit is not None:
+        return float(explicit)
+    return float(os.environ.get("BUSHEXA_API_TIMEOUT_SECONDS", _DEFAULT_TIMEOUT))
 
 
 def get_with_service_key(url: str, api_key: str, params: dict, *,

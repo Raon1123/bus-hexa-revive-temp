@@ -10,7 +10,8 @@
 * ``init-db``            -> 스키마 생성(--reset 시 bus_timelog 비움)
 * ``crawl-timetable``    -> P2 / F10 (시간표 재크롤)
 
-설계(F09 §4.1)에 맞춰 ``crawl-loop``의 폴링 인자는 ``--poll``(기본 10초)이다. 신호 핸들러는
+설계(F09 §4.1)에 맞춰 ``crawl-loop``의 폴링 인자는 ``--poll``(기본 15초, 2026-06-06 10→15
+상향 — admin 크롤 주기 설정이 런타임 우선)이다. 신호 핸들러는
 메인 스레드에서만 등록하고, 데몬 루프는 stop_event로 graceful 종료한다.
 """
 
@@ -170,8 +171,8 @@ def build_parser() -> argparse.ArgumentParser:
     p_once.add_argument("--dry-run", action="store_true", help="INSERT 없이 결과만 출력")
 
     p_loop = sub.add_parser("crawl-loop", help="Run the govtrack crawl daemon")
-    p_loop.add_argument("--poll", type=float, default=10.0,
-                        help="버스 위치 폴링 간격 초 (default: 10)")
+    p_loop.add_argument("--poll", type=float, default=15.0,
+                        help="버스 위치 폴링 간격 초 (default: 15)")
     p_loop.add_argument("--night-sleep", type=float, default=60.0,
                         help="새벽(01-05시) sleep 초 (default: 60)")
 

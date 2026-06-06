@@ -13,7 +13,7 @@ import logging
 import re
 from dataclasses import dataclass
 
-from bushexa.api_clients._http import get_with_service_key
+from bushexa.api_clients._http import get_with_service_key, resolve_api_timeout
 from bushexa.api_clients.errors import ParseError, TagoError
 from bushexa.data.constants import ULSAN_CITYCODE, ULSAN_PREFIX
 
@@ -121,12 +121,13 @@ def parse_route(resp_json: dict) -> list[RouteStop]:
 class TagoClient:
     def __init__(self, api_key: str, *, base_url: str = _BUSLOC_URL,
                  route_base_url: str = _ROUTE_URL, city_code: int = ULSAN_CITYCODE,
-                 timeout: float = 10.0):
+                 timeout: float | None = None):
         self.api_key = api_key
         self.base_url = base_url
         self.route_base_url = route_base_url
         self.city_code = city_code
-        self.timeout = timeout
+        # 기본: env BUSHEXA_API_TIMEOUT_SECONDS(=15초) — _http.resolve_api_timeout 참조.
+        self.timeout = resolve_api_timeout(timeout)
 
     def _params(self, route_id: str, page: int, rows: int) -> dict:
         # serviceKey(이중 인코딩 방지 포함)는 _http.get_with_service_key가 단일 책임.
