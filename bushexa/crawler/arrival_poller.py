@@ -6,6 +6,12 @@
 
 graceful 종료·sleep 주입 패턴은 govtrack daemon과 동일(테스트 결정성). 정류장별 호출 실패는
 로그만 남기고 다음 정류장으로 계속한다(ADR-013).
+
+병렬화(E4, scatter-fetch/sequential-process): 워커 스레드는 ``fetch_arrivals`` 호출만 수행하고
+결과/예외만 반환한다 — upsert·ok/last_error 집계는 메인 스레드에서 ``stops`` 순서로 순차 처리해
+출력 결정성과 정류장별 격리(ADR-013)를 유지한다. 기본 ``fetch_workers=1``은 executor 없이
+기존 순차 루프 그대로(배포 무변경 — 라이브 게이트 통과 전 운영자가 env로 켠다). DB 쓰기를
+메인 스레드에 묶는 건 sqlite3 기본 ``check_same_thread=True`` 제약이기도 하다.
 """
 from __future__ import annotations
 
@@ -13,6 +19,7 @@ import logging
 import os
 import threading
 import time as _time
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import asdict
 
 from bushexa.data.constants import SERACH_STOPS
@@ -22,6 +29,9 @@ from bushexa.time_utils import KSTClock
 logger = logging.getLogger("bushexa.crawler.arrival_poller")
 
 _DEFAULT_POLL = 7.0  # 권장 5~10초 (ADR-010)
+# E4: fetch 동시성 기본값. 1=기존 순차 루프와 동일(배포 무변경 — 게이트 방식).
+# 라이브 smoke 게이트 통과 전에는 운영자가 env로 켠다(BUSHEXA_ARRIVAL_FETCH_WORKERS=4).
+_DEFAULT_FETCH_WORKERS = 1
 
 
 def _resolve_poll_seconds(explicit=None) -> float:
@@ -30,10 +40,39 @@ def _resolve_poll_seconds(explicit=None) -> float:
     return float(os.environ.get("BUSHEXA_ARRIVAL_POLL_SECONDS", _DEFAULT_POLL))
 
 
+def _resolve_fetch_workers(explicit=None) -> int:
+    if explicit is not None:
+        return max(1, int(explicit))
+    return max(1, int(os.environ.get("BUSHEXA_ARRIVAL_FETCH_WORKERS", _DEFAULT_FETCH_WORKERS)))
+
+
+def _scatter_fetch(client, stops, workers):
+    """``stops`` 순서로 ``(stop_id, arrivals|None, exc|None)``를 yield한다(E4).
+
+    워커는 fetch만 수행하고 공유 상태를 건드리지 않는다 — 예외는 future에 캡처되어
+    호출자에게 값으로 전달된다(정류장별 격리, ADR-013). workers<=1이면 executor 없이
+    기존 순차 호출 그대로다.
+    """
+    if workers <= 1 or len(stops) <= 1:
+        for stop_id in stops:
+            try:
+                yield stop_id, client.fetch_arrivals(stop_id), None
+            except Exception as exc:
+                yield stop_id, None, exc
+        return
+    with ThreadPoolExecutor(max_workers=min(workers, len(stops))) as ex:
+        futures = [(stop_id, ex.submit(client.fetch_arrivals, stop_id)) for stop_id in stops]
+        for stop_id, fut in futures:
+            try:
+                yield stop_id, fut.result(), None
+            except Exception as exc:
+                yield stop_id, None, exc
+
+
 def run_arrival_poller(config, *, repo=None, client=None, clock=None, sleep=None,
                        stop_event=None, poll_seconds=None, stops=None,
                        max_cycles=None, on_cycle=None, status_writer=None,
-                       settings_store=None) -> int:
+                       settings_store=None, fetch_workers=None) -> int:
     """도착정보 poller 루프. 반환: 수행한 사이클 수. ``stop_event.set()`` 시 현재 사이클 후 종료.
 
     설정 파일(``crawl_settings.json``)을 매 사이클 재읽으므로 arrival 폴링 주기 변경은
@@ -44,12 +83,16 @@ def run_arrival_poller(config, *, repo=None, client=None, clock=None, sleep=None
     status_writer : optional
         ArrivalStatusWriter 인스턴스. 각 사이클 결과를 기록한다.
         None이면 기록하지 않는다(기존 동작 유지 — 기존 테스트 무영향).
+    fetch_workers : optional
+        fetch 동시성(E4). 기본 env ``BUSHEXA_ARRIVAL_FETCH_WORKERS``(=1, 순차 —
+        라이브 게이트 통과 전 배포 무변경). >1이면 fetch만 병렬, 처리는 순차.
     """
     clock = clock or KSTClock()
     sleep = sleep or _time.sleep
     stop_event = stop_event or threading.Event()
     stops = list(stops) if stops is not None else list(SERACH_STOPS)
     poll_seconds = _resolve_poll_seconds(poll_seconds)
+    fetch_workers = _resolve_fetch_workers(fetch_workers)
     if settings_store is None:
         data_dir = getattr(config, "data_dir", None)
         if data_dir is not None:
@@ -73,9 +116,11 @@ def run_arrival_poller(config, *, repo=None, client=None, clock=None, sleep=None
         fetched_at = cycle_started.isoformat()
         ok = 0
         last_error: str | None = None
-        for stop_id in stops:
+        # E4: fetch는 분산, upsert·집계는 메인 스레드에서 stops 순서로 순차(결정성 유지).
+        for stop_id, arrivals, fetch_exc in _scatter_fetch(client, stops, fetch_workers):
             try:
-                arrivals = client.fetch_arrivals(stop_id)
+                if fetch_exc is not None:
+                    raise fetch_exc
                 payload = [asdict(a) for a in arrivals]
                 repo.upsert(stop_id, payload, fetched_at)
                 ok += 1

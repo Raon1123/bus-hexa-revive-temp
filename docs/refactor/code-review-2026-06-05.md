@@ -33,6 +33,27 @@ git diff 없이 전체 코드 대상이므로 아래는 "가장 심각한 상위
 >   TAGO→BIS 폴백 순서·사이클 비중첩을 ThreadPool로 옮기려면 별도 설계+라이브 검증이
 >   필요하다. 성능 이득(사이클 1.7–8.5s→최장 1콜)은 유효하므로 API 안정화 후 독립
 >   작업으로 진행할 것. 이로써 본 리뷰의 실행 항목은 전부 종결.
+>
+> **E3/E4 구현 종결 (2026-06-06, 516 passed):** scatter-fetch / sequential-process 설계로
+> 보류 사유였던 3보장을 유지한 채 병렬화.
+> - 워커 스레드는 API fetch만 수행, resp/예외를 값으로 반환(future 캡처) — `state.record`·
+>   `_consec_fail`/`_alerted`·`passage_sink`·`_pending`·DB upsert/insert(sqlite
+>   `check_same_thread` 제약)는 전부 메인 스레드에서 고정 순서(route_ids/stops) 순차 처리
+>   → 노선·정류장별 격리, 출력 결정성, 사이클 비중첩(gather 후 진행) 그대로.
+> - `CompositeLocationClient._arrivals_cached`에 단일 락(check-fetch-store): TAGO 동시
+>   장애로 fallback이 stampede해도 울산 호출이 stop_id당 TTL 내 1회로 직렬화 — 장애 중
+>   울산 QPS가 기존 순차 루프와 동일하게 묶임. TAGO 정상 경로는 무락(병렬 유지).
+> - **기본값 1(게이트 방식, 2026-06-06 운영자 결정)**: env 미설정 시 `fetch_workers=1`
+>   = executor 없이 기존 순차 루프와 동일(fetch 호출 순서까지) → 배포가 행동 무변경.
+>   운영자가 라이브 smoke 시 env `BUSHEXA_GOVTRACK_FETCH_WORKERS=4` /
+>   `BUSHEXA_ARRIVAL_FETCH_WORKERS=4`로 켜고, 게이트 통과 후 기본값 승격을 별도 결정.
+>   recorder 병렬 모드의 통과 시각(idx)은 scatter 시점 1회로 통일(동시 시작이므로 순차
+>   모드의 노선별 시각차보다 정확).
+> - **운영자 게이트(W5 유형, 라이브 smoke — env=4로 켠 상태에서)**: 울산 API 불안정 중
+>   (a) TAGO 장애 시 fallback 수집 지속 (b) 울산 fallback 호출 직렬화(stop_id당 TTL 내
+>   1회) (c) 사이클 시간 단축 실측 (d) **판별 기준: workers=4의 상류(TAGO·울산) 오류율이
+>   workers=1 기준선 이하인가** — 동시 4요청 버스트가 순차 페이싱이 암묵적으로 흡수하던
+>   간헐 장애를 악화시키면 기본값 1 유지. 통과 전 비상시 env 제거로 즉시 순차 복귀.
 
 ## Top 10 (심각도순)
 

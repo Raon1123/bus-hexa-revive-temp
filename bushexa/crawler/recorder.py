@@ -7,6 +7,12 @@ PM-001 회복의 중심. 책임:
   per-vehicle 격리는 오염 행을 batch 밖으로 걸러 batch가 항상 깨끗하게 commit되게 하는 게이트다.
   DB 연결 끊김(OperationalError) 시 다음 사이클 시작 시 재연결한다.
 - alert hook: result_code≠"00" 등 노선별 5사이클 연속 실패 시 1회 alert(H6, 침묵 실패 방지).
+- 병렬화(E3, scatter-fetch/sequential-process): 워커 스레드는 ``fetch_bus_locations``만 수행하고
+  resp/예외만 값으로 반환한다 — state.record·_consec_fail/_alerted·passage_sink·_pending·DB는
+  전부 메인 스레드에서 ``route_ids`` 고정 순서로 순차 처리해 노선별 격리·출력 결정성·사이클
+  비중첩을 그대로 유지한다(보류 사유였던 3보장). 기본 ``fetch_workers=1``은 executor 없이
+  기존 순차 루프와 동일 — 라이브 게이트 통과 전 배포 무변경, 운영자가 env
+  ``BUSHEXA_GOVTRACK_FETCH_WORKERS``로 켠다.
 
 [설계 실현 메모] F09 §4.4의 ``GovtrackRecorder(client, parser, state, ...)``에서 ``parser``는
 P1에서 ``TagoClient.fetch_bus_locations``가 이미 파싱된 ``TagoResponse.items``를 반환하도록
@@ -16,6 +22,8 @@ P1에서 ``TagoClient.fetch_bus_locations``가 이미 파싱된 ``TagoResponse.i
 from __future__ import annotations
 
 import logging
+import os
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from datetime import datetime
 
@@ -28,6 +36,16 @@ logger = logging.getLogger("bushexa.crawler.recorder")
 # 감사 2-1/2-6: node_ord 역전 허용 범위. 이 값 이하의 역전은 GPS 지터로 간주해 기록 skip.
 # 초과(또는 None) 역전은 종점 회차로 보고 정상 기록한다.
 JITTER_WINDOW: int = 3
+
+# E3: fetch 동시성 기본값. 1=기존 순차 루프와 동일(배포 무변경 — 게이트 방식).
+# 라이브 smoke 게이트 통과 전에는 운영자가 env로 켠다(BUSHEXA_GOVTRACK_FETCH_WORKERS=4).
+_DEFAULT_FETCH_WORKERS = 1
+
+
+def _resolve_fetch_workers(explicit=None) -> int:
+    if explicit is not None:
+        return max(1, int(explicit))
+    return max(1, int(os.environ.get("BUSHEXA_GOVTRACK_FETCH_WORKERS", _DEFAULT_FETCH_WORKERS)))
 
 
 @dataclass
@@ -62,13 +80,15 @@ class CycleStats:
 class GovtrackRecorder:
     def __init__(self, client, state, repo, clock, *, tracked_stops_by_route,
                  stop_names=None, route_names=None, route_ids=None, alert_hook=None,
-                 alert_threshold=5, passage_sink=None, reconnect=None):
+                 alert_threshold=5, passage_sink=None, reconnect=None, fetch_workers=None):
         """``client``: TagoClient(파싱 포함). ``state``: VehicleTimeline. ``repo``: BusLogRepo.
         ``clock``: Clock(ADR-008). ``tracked_stops_by_route``: {route_id: set(node_id)}.
         ``stop_names``: node_id→명칭(기본 STOP_IDS).
         ``route_names``: route_id→버스번호(기본 None, 주입 시 LogRow.route_nm 채움, 감사 2-3).
         ``passage_sink``: LogRow→None (TSV append seam).
         ``reconnect``: ()→BusLogRepo (연결 끊김 시 다음 사이클 재연결, H5). ``alert_hook``: (route_id, n)→None.
+        ``fetch_workers``: run_cycle의 fetch 동시성(E3). 기본 env
+        ``BUSHEXA_GOVTRACK_FETCH_WORKERS``(=1, 순차 — 라이브 게이트 통과 전 배포 무변경).
         """
         self.client = client
         self.state = state
@@ -83,6 +103,7 @@ class GovtrackRecorder:
         self.alert_threshold = alert_threshold
         self.passage_sink = passage_sink
         self.reconnect = reconnect
+        self.fetch_workers = _resolve_fetch_workers(fetch_workers)
         self._consec_fail: dict[str, int] = {}
         self._alerted: set[str] = set()
         self._reconnect_pending = False
@@ -107,13 +128,24 @@ class GovtrackRecorder:
     # ---- 단일 노선 (W2a) ------------------------------------------------
     def run_single_route(self, route_id: str, *, dry_run: bool = False) -> tuple[RouteStats, list[LogRow]]:
         """한 노선 1회 폴링. (RouteStats, INSERT 후보 LogRow 목록) 반환. 실제 INSERT는 run_cycle이 batch로 수행."""
+        ts = self.clock.now()
+        try:
+            resp, exc = self.client.fetch_bus_locations(route_id), None
+        except Exception as e:  # TagoError(quota/키)·RequestException 등 노선 단위 실패(H4 데몬·H6)
+            resp, exc = None, e
+        return self._process_route(route_id, resp, exc, ts, dry_run=dry_run)
+
+    def _process_route(self, route_id: str, resp, exc, ts, *,
+                       dry_run: bool = False) -> tuple[RouteStats, list[LogRow]]:
+        """fetch 결과(resp 또는 exc)를 처리해 (RouteStats, 후보) 반환 (E3 분리).
+
+        모든 공유 상태 변이(state.record, _consec_fail/_alerted, passage_sink)는 이 메서드,
+        즉 메인 스레드에서만 일어난다 — 워커 스레드는 fetch만 수행한다.
+        """
         stats = RouteStats(route_id=route_id)
         tracked = self.tracked.get(route_id, set())
-        ts = self.clock.now()
         idx = ts.strftime("%Y%m%d_%H:%M:%S")
-        try:
-            resp = self.client.fetch_bus_locations(route_id)
-        except Exception as exc:  # TagoError(quota/키)·RequestException 등 노선 단위 실패(H4 데몬·H6)
+        if exc is not None:
             stats.api_ok = False
             stats.api_error = str(exc) or type(exc).__name__
             self._note_failure(route_id)
@@ -181,6 +213,34 @@ class GovtrackRecorder:
                              route_id, getattr(loc, "vehicle_no", "?"), exc)
         return stats, candidates
 
+    # ---- fetch 분산 (E3) -------------------------------------------------
+    def _scatter_fetch(self, route_ids):
+        """``route_ids`` 순서로 ``(route_id, ts, resp|None, exc|None)``를 yield한다.
+
+        워커는 ``client.fetch_bus_locations``만 호출하고 self를 변이하지 않는다 — 예외는
+        future에 캡처되어 값으로 반환된다(노선별 격리 유지). fetch_workers<=1이면 executor
+        없이 노선마다 fetch→처리가 교차되는 기존 순차 동작 그대로다(generator라 lazy).
+        """
+        if self.fetch_workers <= 1 or len(route_ids) <= 1:
+            for rid in route_ids:
+                ts = self.clock.now()
+                try:
+                    yield rid, ts, self.client.fetch_bus_locations(rid), None
+                except Exception as exc:
+                    yield rid, ts, None, exc
+            return
+        # 병렬 모드: 모든 fetch가 사실상 동시에 시작되므로 통과 시각(idx)은 scatter 시점 1회로
+        # 통일한다 — 순차 모드의 노선별 시각 차는 직렬 지연의 부산물이었다.
+        ts = self.clock.now()
+        with ThreadPoolExecutor(max_workers=min(self.fetch_workers, len(route_ids))) as ex:
+            futures = [(rid, ex.submit(self.client.fetch_bus_locations, rid))
+                       for rid in route_ids]
+            for rid, fut in futures:
+                try:
+                    yield rid, ts, fut.result(), None
+                except Exception as exc:
+                    yield rid, ts, None, exc
+
     # ---- 사이클 (W2b) ---------------------------------------------------
     def run_cycle(self, *, dry_run: bool = False) -> CycleStats:
         """전 노선 1회 폴링 → 후보를 사이클당 1 트랜잭션으로 batch INSERT(H5)."""
@@ -196,8 +256,9 @@ class GovtrackRecorder:
         # 버리면 그 통과는 영구 유실된다(PM-001 증상). LogRow가 원래 idx를 보존하므로 재시도해도
         # 통과 시각이 정확하다.
         candidates: list[LogRow] = list(self._pending)
-        for route_id in self.route_ids:
-            rstats, rows = self.run_single_route(route_id, dry_run=dry_run)
+        # E3: fetch만 분산, 처리(state/alert/sink)는 route_ids 고정 순서로 메인 스레드 순차.
+        for route_id, ts, resp, exc in self._scatter_fetch(self.route_ids):
+            rstats, rows = self._process_route(route_id, resp, exc, ts, dry_run=dry_run)
             results[route_id] = rstats
             candidates.extend(rows)
 

@@ -19,6 +19,7 @@ API 문서 확인 시 주석 갱신 필요.
 from __future__ import annotations
 
 import logging
+import threading
 import time
 from collections import Counter, defaultdict
 
@@ -91,6 +92,11 @@ class CompositeLocationClient:
         # 감사 2-2: 노선 인지형 이름→node_id 인덱스. route_id → {name → [node_id, ...]}
         self._route_name_idx = _build_route_name_index()
         self._cache: dict[str, tuple[float, list]] = {}
+        # E3: recorder가 노선 fetch를 병렬화하면 TAGO 동시 장애 시 여러 스레드가 동시에
+        # fallback으로 들어온다. check-fetch-store를 단일 락으로 묶어 (a) 캐시 경합 제거
+        # (b) 울산 호출을 직렬화해 장애 중 울산 QPS가 기존 순차 루프와 동일하게 묶이도록
+        # 한다. TAGO 정상 경로(fetch_bus_locations 성공)는 이 락을 지나지 않는다.
+        self._cache_lock = threading.Lock()
 
     # -- public (TagoClient 호환) -------------------------------------------
     def fetch_bus_locations(self, route_id: str, *, page: int = 1, rows: int = 70) -> TagoResponse:
@@ -108,13 +114,14 @@ class CompositeLocationClient:
 
     # -- fallback -----------------------------------------------------------
     def _arrivals_cached(self, stop_id: str) -> list:
-        now = time.monotonic()
-        hit = self._cache.get(stop_id)
-        if hit is not None and (now - hit[0]) < self.cache_ttl:
-            return hit[1]
-        arrivals = self.ulsan.fetch_arrivals(stop_id)  # 울산 클라이언트는 오류 시 [] 반환
-        self._cache[stop_id] = (now, arrivals)
-        return arrivals
+        with self._cache_lock:  # E3: 병렬 fallback에서도 stop_id당 TTL 내 울산 호출 1회 보장
+            now = time.monotonic()
+            hit = self._cache.get(stop_id)
+            if hit is not None and (now - hit[0]) < self.cache_ttl:
+                return hit[1]
+            arrivals = self.ulsan.fetch_arrivals(stop_id)  # 울산 클라이언트는 오류 시 [] 반환
+            self._cache[stop_id] = (now, arrivals)
+            return arrivals
 
     def _resolve_node(self, present_stop: str, route_id: str) -> str | None:
         """present_stop 이름 → node_id 역매핑(감사 2-2: 노선 인지형 우선).
