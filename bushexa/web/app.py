@@ -11,6 +11,7 @@ create_app(config) -> Flask
 
 from __future__ import annotations
 
+import hmac
 import secrets
 import time
 from pathlib import Path
@@ -92,7 +93,11 @@ def create_app(config: AppConfig) -> Flask:
             _req.form.get("csrf_token")
             or _req.headers.get("X-CSRFToken")
         )
-        if not provided or provided != expected:
+        # 타이밍 안전 비교(S5): 단순 != 는 일치 길이에 비례한 비교 시간을 누설한다.
+        # bytes로 인코딩 — compare_digest는 비ASCII str(공격자 제어 폼 값)에 TypeError를
+        # 던지므로 encode 없이는 400 대신 500이 된다.
+        if not provided or not hmac.compare_digest(
+                provided.encode("utf-8"), expected.encode("utf-8")):
             _abort(400)
 
     # --- i18n: language resolution (before_request) ---------------------

@@ -11,6 +11,7 @@ from __future__ import annotations
 
 from flask import Blueprint, current_app, render_template
 
+from bushexa.data.constants import UNIST_VIA_STOP_ID
 from bushexa.domain.board import get_board_data
 from bushexa.services.board_support import arrival_client, timetable_provider_for
 from bushexa.services.holiday_service import read_effective_holidays
@@ -21,8 +22,8 @@ from bushexa.web.timing import span
 # F01 §4.2 (TP-001): URL은 /board 와 /partial/board — url_prefix 사용 안 함
 bp = Blueprint("board", __name__)
 
-# F01 §3.1 / TP-001: 정류소 ID 고정 (UNIST 경유 정류장)
-_STOP_ID = "196040234"
+# F01 §3.1 / TP-001: 정류소 ID 고정 (UNIST 경유 정류장) — constants.py 단일 상수(E7)
+_STOP_ID = UNIST_VIA_STOP_ID
 
 
 def _build_snapshot():

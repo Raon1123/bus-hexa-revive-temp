@@ -13,11 +13,10 @@ from __future__ import annotations
 
 import datetime as _dt
 import logging
-from urllib.parse import unquote
 
-import requests
 from bs4 import BeautifulSoup
 
+from bushexa.api_clients._http import get_with_service_key
 from bushexa.api_clients.errors import HolidayError
 
 logger = logging.getLogger("bushexa.api_clients.holiday")
@@ -70,10 +69,12 @@ class HolidayClient:
 
     def fetch(self, year: int, month: int) -> list[_dt.date]:
         """해당 월의 공휴일 date 목록. 네트워크 오류·오류 응답은 raise(모듈 docstring 참조)."""
-        # 서비스키 이중 인코딩 방지 — tago.py/ulsan_bis.py와 동일(unquote 후 requests가 1회
-        # 인코딩). 이 클라이언트만 빠뜨려 Encoding 키에서 SERVICE_KEY 오류가 나던 회귀 수정.
-        params = {"serviceKey": unquote(self.api_key), "solYear": year,
-                  "solMonth": f"{month:02d}"}
-        resp = requests.get(self.base_url, params=params, timeout=self.timeout)
+        # 서비스키 이중 인코딩 방지는 _http 공용 헬퍼가 보장 — 이 클라이언트만 빠뜨려
+        # Encoding 키에서 SERVICE_KEY 오류가 나던 회귀(C1)의 구조적 재발 방지.
+        resp = get_with_service_key(
+            self.base_url, self.api_key,
+            {"solYear": year, "solMonth": f"{month:02d}"},
+            timeout=self.timeout,
+        )
         check_response(resp.content)
         return parse_holidays(resp.content)

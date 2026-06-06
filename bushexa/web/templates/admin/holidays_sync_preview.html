@@ -5,12 +5,18 @@
 
 {% block content %}
 <h2 id="holidays-sync-preview">{{ year }}년 공휴일 동기화 미리보기</h2>
+{% if source == "offline" %}
+<p><strong>오프라인 계산(법정공휴일)</strong> 결과입니다 — data.go.kr API 실패로 폴백했습니다.
+   정부 지정 임시공휴일은 포함되지 않으니 별도로 수동 등록하세요.
+   확인 후 "<strong>동기화 적용</strong>"을 눌러 저장하세요.</p>
+{% else %}
 <p>data.go.kr에서 조회한 결과입니다. 확인 후 "<strong>동기화 적용</strong>"을 눌러 저장하세요.</p>
+{% endif %}
 
 <section>
     <h3>조회 결과 요약</h3>
     <ul>
-        <li>API에서 조회된 공휴일 날짜: <strong>{{ total_fetched }}건</strong></li>
+        <li>{{ "오프라인 계산" if source == "offline" else "API에서 조회" }}된 공휴일 날짜: <strong>{{ total_fetched }}건</strong></li>
         <li>새로 추가될 날짜: <strong>{{ new_dates | length }}건</strong></li>
         <li>이미 등록된 날짜 (중복, 생략): <strong>{{ dup_dates | length }}건</strong></li>
     </ul>

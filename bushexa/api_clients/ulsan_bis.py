@@ -11,11 +11,11 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from urllib.parse import unquote
 
-import requests
+import requests  # fetch_arrivals의 RequestException 분기(ADR-013)에서 사용
 from bs4 import BeautifulSoup
 
+from bushexa.api_clients._http import get_with_service_key
 from bushexa.api_clients.errors import ParseError, UlsanBisError
 
 logger = logging.getLogger("bushexa.api_clients.ulsan_bis")
@@ -129,9 +129,10 @@ class UlsanBisClient:
         self.timeout = timeout
 
     def fetch_arrivals(self, stop_id: str, *, page: int = 1, rows: int = 50) -> list[Arrival]:
-        params = {"serviceKey": unquote(self.api_key), "pageNo": page, "numOfRows": rows, "stopid": stop_id}
+        params = {"pageNo": page, "numOfRows": rows, "stopid": stop_id}
         try:
-            resp = requests.get(self.arrival_url, params=params, timeout=self.timeout)
+            resp = get_with_service_key(self.arrival_url, self.api_key, params,
+                                        timeout=self.timeout)
         except requests.exceptions.RequestException as exc:
             # ADR-013(의도된 비대칭): tago는 오류를 raise하지만, 도착정보 poller는 5~10초마다
             # 도는 루프이므로 일시적 네트워크 오류를 로그만 남기고 빈 결과로 흘려보내 '계속 돈다'.
@@ -147,9 +148,10 @@ class UlsanBisClient:
 
     def fetch_timetable(self, route_no, day_of_week: int, *, page: int = 1,
                         rows: int = 50) -> list[TimetableRow]:
-        params = {"serviceKey": unquote(self.api_key), "pageNo": page, "numOfRows": rows,
+        params = {"pageNo": page, "numOfRows": rows,
                   "routeNo": route_no, "dayOfWeek": day_of_week}
-        resp = requests.get(self.timetable_url, params=params, timeout=self.timeout)
+        resp = get_with_service_key(self.timetable_url, self.api_key, params,
+                                    timeout=self.timeout)
         check_response(resp.content, http_status=resp.status_code)  # 오류 본문≠빈 시간표
         return parse_timetable(resp.content)
 
@@ -157,8 +159,9 @@ class UlsanBisClient:
                              rows: int = 50) -> tuple[list[TimetableRow], int]:
         """한 페이지의 (행, totalCnt)를 반환. 시간표 크롤은 명시적 작업이므로 네트워크 오류·
         오류 응답은 raise한다(연속 도착 poller와 달리 — ADR-013 의도된 비대칭)."""
-        params = {"serviceKey": unquote(self.api_key), "pageNo": page, "numOfRows": rows,
+        params = {"pageNo": page, "numOfRows": rows,
                   "routeNo": route_no, "dayOfWeek": day_of_week}
-        resp = requests.get(self.timetable_url, params=params, timeout=self.timeout)
+        resp = get_with_service_key(self.timetable_url, self.api_key, params,
+                                    timeout=self.timeout)
         check_response(resp.content, http_status=resp.status_code)  # 오류 본문≠빈 시간표
         return parse_timetable_page(resp.content)

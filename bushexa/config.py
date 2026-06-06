@@ -15,11 +15,10 @@ import secrets
 from dataclasses import dataclass
 from datetime import tzinfo
 from pathlib import Path
-from zoneinfo import ZoneInfo
 
 import yaml
 
-KST = ZoneInfo("Asia/Seoul")
+from bushexa.time_utils import KST  # ADR-008: KST 단일 출처
 
 log = logging.getLogger("bushexa")
 

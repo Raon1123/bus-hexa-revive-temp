@@ -160,3 +160,20 @@ def test_invalid_save_422(authed_client):
 
     # 디스크 원본 무손상.
     assert src.read_bytes() == before, "검증 실패 시 디스크 원본이 보존되어야 함"
+
+
+# ──────────────────────────────────────────────────
+# 재크롤 버튼 위치 — 노선 목록으로 이동 (2026-06-05 사용자 결정)
+# ──────────────────────────────────────────────────
+
+def test_recrawl_section_on_index_not_edit(authed_client):
+    """재크롤 폼(TP-010)은 노선 목록(/admin/timetable)에 노출되고, 개별 노선 편집
+    화면에서는 제거됐는지 검증한다 — 전 노선 일괄 동작이므로 목록이 위치다."""
+    client, _ = authed_client
+
+    index_html = client.get("/admin/timetable").data.decode("utf-8")
+    assert 'id="recrawl-form"' in index_html
+    assert "admin-recrawl.js" in index_html  # POST→SSE 진행표시 JS
+
+    edit_html = client.get("/admin/timetable/713").data.decode("utf-8")
+    assert 'id="recrawl-form"' not in edit_html

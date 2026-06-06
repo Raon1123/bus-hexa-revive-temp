@@ -6,6 +6,24 @@
 {% block content %}
 <h2 id="timetable-index">시간표 편집</h2>
 
+{# ── 수동 재크롤 (TP-010) — 울산 API에서 전 노선 시간표를 즉시 갱신 ── #}
+<section id="recrawl" aria-live="polite">
+    <h3>시간표 수동 갱신 (전 노선 재크롤)</h3>
+    <p>울산 BIS API에서 5개 노선 시간표를 즉시 다시 가져옵니다.
+       실패한 노선은 기존 시간표가 보존됩니다.</p>
+    <form id="recrawl-form"
+          method="post"
+          action="{{ url_for('admin.timetable_recrawl') }}">
+        <input type="hidden" name="csrf_token" value="{{ session['csrf_token'] }}">
+        <label>
+            <input type="checkbox" name="vacation" value="on"> 방학 모드
+        </label>
+        <button type="submit">재크롤 시작</button>
+    </form>
+    <div id="recrawl-progress"></div>
+</section>
+<script src="{{ url_for('static', filename='js/admin-recrawl.js') }}" defer></script>
+
 <p>편집할 노선을 선택하세요.</p>
 <ul class="route-list">
     {% for route in routes %}

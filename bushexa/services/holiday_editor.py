@@ -10,11 +10,10 @@
 """
 from __future__ import annotations
 
-import json
 import re
 from pathlib import Path
 
-from bushexa.fileio import atomic_write_json
+from bushexa.fileio import atomic_write_json, read_json
 
 _DATE_RE = re.compile(r"^\d{8}$")
 
@@ -32,14 +31,7 @@ class HolidayEditor:
 
     def load(self) -> set[str]:
         """저장된 admin 지정 날짜 set 반환. 파일 부재·파손 시 빈 set."""
-        if not self.path.exists():
-            return set()
-        try:
-            data = json.loads(self.path.read_text(encoding="utf-8"))
-        except (ValueError, OSError):
-            return set()
-        if not isinstance(data, list):
-            return set()
+        data = read_json(self.path, [], expect=list)
         return {s for s in data if isinstance(s, str) and _DATE_RE.match(s)}
 
     def save(self, dates: set[str]) -> None:

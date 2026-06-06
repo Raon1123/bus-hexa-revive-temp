@@ -19,11 +19,9 @@ import json
 import zipfile
 from datetime import datetime
 from pathlib import Path, PurePosixPath
-from zoneinfo import ZoneInfo
 
 from bushexa import fileio
-
-_KST = ZoneInfo("Asia/Seoul")
+from bushexa.time_utils import KST as _KST  # ADR-008: KST 단일 출처
 
 # ── 화이트리스트 ──────────────────────────────────────────────────────────────
 # 데이터 루트(data_dir) 아래의 고정 파일

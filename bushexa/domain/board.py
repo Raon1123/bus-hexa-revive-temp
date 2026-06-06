@@ -6,11 +6,12 @@ F01 §4.4 구현: live 도착(UlsanBisClient) + 시간표(timetable_provider)를
 from __future__ import annotations
 
 import datetime
-import re
 from dataclasses import dataclass, replace
 from typing import Callable, Literal, Protocol
 
-from bushexa.data.constants import ROUTEID, STOP_IDS, VIA_STOPS, WEEKDAY_STR
+from bushexa.data.constants import (
+    ROUTEID, STOP_IDS, VIA_STOPS, WEEKDAY_STR, clean_stop_name as _clean_stop_name,
+)
 from bushexa.time_utils import Clock, KSTClock, get_weekday
 
 # ---------------------------------------------------------------------------
@@ -29,12 +30,7 @@ _UNIST_BUSNOS: frozenset[str] = frozenset(
 # 경유지(via) 문자열 — 모든 행에 경유지가 채워지도록 보장
 # ---------------------------------------------------------------------------
 
-_PAREN_RE = re.compile(r"\s*\([^)]*\)")
-
-
-def _clean_stop_name(name: str) -> str:
-    """정류장명에서 괄호 주석((시내)/(UNIST)/(경유)/(기점)/(종점) 등)을 제거."""
-    return _PAREN_RE.sub("", name).strip()
+# 괄호 주석 제거는 data.constants.clean_stop_name 단일 구현 사용(중복 정규식 2벌 제거)
 
 
 def _route_via_string(route_id: str) -> str:

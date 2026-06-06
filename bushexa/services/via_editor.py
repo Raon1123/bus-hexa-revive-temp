@@ -8,10 +8,9 @@
 """
 from __future__ import annotations
 
-import json
 from pathlib import Path
 
-from bushexa.fileio import atomic_write_json
+from bushexa.fileio import atomic_write_json, read_json
 
 
 def default_via_path(data_dir) -> Path:
@@ -27,14 +26,7 @@ class ViaEditor:
 
     def load(self) -> dict[str, dict[str, str]]:
         """override dict 반환. 파일 부재·파손 시 빈 dict(상수 fallback이 적용됨)."""
-        if not self.path.exists():
-            return {}
-        try:
-            data = json.loads(self.path.read_text(encoding="utf-8"))
-        except (ValueError, OSError):
-            return {}
-        if not isinstance(data, dict):
-            return {}
+        data = read_json(self.path, {}, expect=dict)
         # 형태 정규화: busno→{dest:str}
         out: dict[str, dict[str, str]] = {}
         for busno, dests in data.items():

@@ -1,10 +1,14 @@
-"""원자적 파일 쓰기 + 생성/수정 감사 로깅 (ADR-012).
+"""원자적 파일 쓰기 + 생성/수정 감사 로깅 (ADR-012) + 관용적 JSON 읽기.
 
 bushexa 내에서 디스크 파일을 쓰는 **유일한 합법 경로**다. 직접 ``open(..., "w")`` /
 ``json.dump(..., 파일)`` / ``Path.write_*`` 대신 이 헬퍼를 사용한다. 모든 쓰기는
 임시파일 → fsync → 원자적 rename으로 손상을 막고, 생성/수정을 구분해 INFO 로그를
 ``bushexa.fileio`` 로거(= ``logs/bushexa.log`` sink, 관리자 로그 뷰어 F04 §4.6이 읽음)에 남긴다.
 파일 **내용은 절대 로그하지 않는다**(시크릿 유출 방지).
+
+읽기는 ``read_json``이 공용 경로다(리뷰 reuse 항목 — '부재·파손이면 default' 패턴
+~12벌 제각각 구현을 단일화). 파일 부재 시 예외를 던져야 하는 계약(예:
+data/timetable.get_timetable)은 해당 모듈이 직접 읽는다.
 """
 from __future__ import annotations
 
@@ -56,6 +60,33 @@ def atomic_write_json(path, obj: Any, *, ensure_ascii: bool = False, indent: int
     # 직렬화 실패(예: set)는 파일을 만들기 '전'에 발생 → 기존 파일 무손상.
     text = json.dumps(obj, ensure_ascii=ensure_ascii, indent=indent)
     _atomic_write(Path(path), text.encode("utf-8"), logger=logger)
+
+
+def read_json(path, default: Any, *,
+              expect: type | tuple[type, ...] | None = None,
+              warn_label: str | None = None,
+              logger: logging.Logger | None = None) -> Any:
+    """JSON 파일을 읽어 반환. 부재·파손·최상위 형식 불일치 시 ``default``.
+
+    ``warn_label``을 주면 파손·형식 오류를 WARNING으로 남긴다(데몬 상태·설정 등
+    침묵하면 안 되는 경로 — ADR-013 준용). 부재는 정상 초기 상태라 로그하지 않는다.
+    ``expect``는 최상위 타입(list/dict)만 거른다 — 상세 형태 검증·정규화는 호출자 책임.
+    """
+    log = logger or _DEFAULT_LOGGER
+    path = Path(path)
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        return default
+    except (OSError, ValueError) as exc:
+        if warn_label:
+            log.warning("%s 로드 실패(기본값 사용) %s: %s", warn_label, path, exc)
+        return default
+    if expect is not None and not isinstance(data, expect):
+        if warn_label:
+            log.warning("%s 형식 오류(기본값 사용) %s", warn_label, path)
+        return default
+    return data
 
 
 _SENTINEL = object()

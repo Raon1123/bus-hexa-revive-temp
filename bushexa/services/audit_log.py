@@ -10,17 +10,14 @@ max_entries 이상이면 가장 오래된 항목부터 제거(최신 N건 유지
 """
 from __future__ import annotations
 
-import json
 import logging
 from datetime import datetime
 from pathlib import Path
-from zoneinfo import ZoneInfo
 
 from bushexa import fileio
+from bushexa.time_utils import KST as _KST  # ADR-008: KST 단일 출처
 
 logger = logging.getLogger("bushexa.services.audit_log")
-
-_KST = ZoneInfo("Asia/Seoul")
 _DEFAULT_MAX = 1000
 
 
@@ -29,14 +26,7 @@ def default_audit_path(data_dir) -> Path:
 
 
 def _load(path: Path) -> list[dict]:
-    if not path.exists():
-        return []
-    try:
-        data = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, ValueError) as exc:
-        logger.warning("audit 로그 로드 실패(%s): %s", path, exc)
-        return []
-    return data if isinstance(data, list) else []
+    return fileio.read_json(path, [], expect=list, warn_label="audit 로그", logger=logger)
 
 
 class AuditLog:

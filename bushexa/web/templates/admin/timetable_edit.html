@@ -67,18 +67,6 @@
     <button type="submit">저장</button>
 </form>
 
-{# ── 재크롤 (TP-010) ── #}
-<section id="recrawl" aria-live="polite">
-    <h2>시간표 재크롤</h2>
-    <form id="recrawl-form"
-          method="post"
-          action="{{ url_for('admin.timetable_recrawl') }}">
-        <input type="hidden" name="csrf_token" value="{{ session['csrf_token'] }}">
-        <label>
-            <input type="checkbox" name="vacation" value="on"> 방학 모드
-        </label>
-        <button type="submit">재크롤 시작</button>
-    </form>
-    <div id="recrawl-progress"></div>
-</section>
+{# 재크롤(TP-010)은 노선 목록 화면(timetable_index)으로 이동 — 전 노선 일괄 동작이라
+   개별 노선 편집보다 목록이 자연스러운 위치 (2026-06-05 사용자 결정) #}
 {% endblock %}

@@ -9,7 +9,6 @@
 """
 from __future__ import annotations
 
-import json
 import logging
 from dataclasses import dataclass
 from datetime import datetime
@@ -36,24 +35,18 @@ def _iso(value) -> str:
 
 
 def _load(path: Path) -> list[dict]:
-    if not path.exists():
-        return []
-    try:
-        data = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, ValueError) as exc:
-        logger.warning("govtrack 상태 로드 실패(%s), 빈 이력으로 시작: %s", path, exc)
-        return []
-    return data if isinstance(data, list) else []
+    return fileio.read_json(path, [], expect=list, warn_label="govtrack 상태", logger=logger)
 
 
 def _to_status(rec: dict) -> GovtrackStatus:
+    # .get + 기본값: 구버전/부분 스키마 상태파일에서도 관리자 페이지가 500 나지 않게 방어
     return GovtrackStatus(
-        cycle_started_at=rec["cycle_started_at"],
-        total_inserts=rec["total_inserts"],
-        total_errors=rec["total_errors"],
-        committed=rec["committed"],
+        cycle_started_at=rec.get("cycle_started_at", ""),
+        total_inserts=rec.get("total_inserts", 0),
+        total_errors=rec.get("total_errors", 0),
+        committed=rec.get("committed", False),
         route_breakdown=dict(rec.get("route_breakdown", {})),
-        consecutive_failures=rec["consecutive_failures"],
+        consecutive_failures=rec.get("consecutive_failures", 0),
         last_success_at=rec.get("last_success_at"),
     )
 
@@ -71,8 +64,8 @@ class GovtrackStatusWriter:
             consecutive = 0
             last_success = _iso(cyc.cycle_started_at)
         else:
-            consecutive = (prev["consecutive_failures"] if prev else 0) + 1
-            last_success = prev["last_success_at"] if prev else None
+            consecutive = (prev.get("consecutive_failures", 0) if prev else 0) + 1
+            last_success = prev.get("last_success_at") if prev else None
 
         record = {
             "cycle_started_at": _iso(cyc.cycle_started_at),

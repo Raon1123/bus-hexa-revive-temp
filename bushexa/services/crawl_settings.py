@@ -17,11 +17,10 @@ writer는 admin 단 한 곳이므로 audit_log(리뷰 #7)와 같은 lost-update 
 """
 from __future__ import annotations
 
-import json
 import logging
 from pathlib import Path
 
-from bushexa.fileio import atomic_write_json
+from bushexa.fileio import atomic_write_json, read_json
 
 logger = logging.getLogger("bushexa.services.crawl_settings")
 
@@ -58,16 +57,8 @@ class CrawlSettingsStore:
 
     def load(self) -> dict[str, float]:
         """검증을 통과한 필드만 담은 dict. 파일 부재/파손/범위 밖 값은 무시(기본값 폴백)."""
-        if not self.path.exists():
-            return {}
-        try:
-            data = json.loads(self.path.read_text(encoding="utf-8"))
-        except (ValueError, OSError) as exc:
-            logger.warning("크롤 설정 로드 실패(기본값 사용) %s: %s", self.path, exc)
-            return {}
-        if not isinstance(data, dict):
-            logger.warning("크롤 설정 형식 오류(기본값 사용) %s", self.path)
-            return {}
+        data = read_json(self.path, {}, expect=dict,
+                                warn_label="크롤 설정", logger=logger)
         out: dict[str, float] = {}
         for name in FIELDS:
             if name not in data:

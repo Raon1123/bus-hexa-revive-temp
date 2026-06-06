@@ -132,14 +132,7 @@ def _lockout_path() -> Path:
 
 def _is_locked(key: str) -> bool:
     """IP가 현재 lockout 상태인지 검사. 만료된 lockout은 자동 해제 (#9)."""
-    path = _lockout_path()
-    if not path.exists():
-        return False
-    try:
-        import json as _json
-        state = _json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, ValueError):
-        return False
+    state = _fileio.read_json(_lockout_path(), {}, expect=dict)
     entry = state.get(key)
     if entry is None:
         return False
@@ -584,7 +577,7 @@ def timetable_edit(busno: str) -> str:
     )
 
 
-def _parse_timetable_form() -> dict:
+def _parse_timetable_form(scope: str = "") -> dict:
     """폼 → TimetableData 재구성.
 
     와이어 포맷(Designer 미명시 → Executor 결정, 보고 대상):
@@ -592,14 +585,18 @@ def _parse_timetable_form() -> dict:
       hidden `departures__<wd>`(공백 구분 departure 목록),
       그리고 textarea/입력 `times__<wd>__<dep>`(줄바꿈 또는 콤마 구분 HH:MM).
     빈 시각은 제거하되 잘못된 값은 그대로 둬서 validate_timetable이 422로 거른다.
+
+    scope: 특별편 폼처럼 노선별 키가 중첩될 때 ``"__{busno}"``를 전달 —
+    키가 `weekdays__<busno>`/`departures__<busno>__<wd>`/`times__<busno>__<wd>__<dep>`
+    형태가 된다(special_save 복제 루프 제거).
     """
-    weekdays = (request.form.get("weekdays") or "").split()
+    weekdays = (request.form.get(f"weekdays{scope}") or "").split()
     data: dict = {}
     for wd in weekdays:
-        deps = (request.form.get(f"departures__{wd}") or "").split()
+        deps = (request.form.get(f"departures{scope}__{wd}") or "").split()
         data[wd] = {}
         for dep in deps:
-            raw = request.form.get(f"times__{wd}__{dep}", "")
+            raw = request.form.get(f"times{scope}__{wd}__{dep}", "")
             # 줄바꿈·콤마·공백 어느 것으로 구분해도 받아들인다.
             tokens = [t.strip() for t in raw.replace(",", "\n").splitlines()]
             data[wd][dep] = [t for t in tokens if t]
@@ -1014,20 +1011,12 @@ def _load_special_edition_data(ed_dir) -> dict[str, dict]:
 
     파일이 없거나 파손된 노선은 빈 timetable_data로 채운다.
     """
-    import json as _json
     from bushexa.data.timetable import get_busroute_info as _gbi
     busnos, departure_dict = _gbi()
     empty = lambda: {wd: {} for wd, _ in _WEEKDAY_TABS}
     result: dict[str, dict] = {}
     for bn in busnos:
-        p = ed_dir / f"{bn}.json"
-        if p.exists():
-            try:
-                result[bn] = _json.loads(p.read_text(encoding="utf-8"))
-            except (ValueError, OSError):
-                result[bn] = empty()
-        else:
-            result[bn] = empty()
+        result[bn] = _fileio.read_json(ed_dir / f"{bn}.json", empty(), expect=dict)
     return result
 
 
@@ -1095,15 +1084,8 @@ def special_save(edition_id: str) -> Response:
     all_issues = []
     parsed_data: dict[str, dict] = {}  # busno → validated data
     for busno in busnos_raw:
-        weekdays = (request.form.get(f"weekdays__{busno}") or "").split()
-        data: dict = {}
-        for wd in weekdays:
-            deps = (request.form.get(f"departures__{busno}__{wd}") or "").split()
-            data[wd] = {}
-            for dep in deps:
-                raw = request.form.get(f"times__{busno}__{wd}__{dep}", "")
-                tokens = [t.strip() for t in raw.replace(",", "\n").splitlines()]
-                data[wd][dep] = [t for t in tokens if t]
+        # 노선별 키 스코프(__{busno})만 다르고 파싱 규칙은 timetable_save와 동일
+        data = _parse_timetable_form(scope=f"__{busno}")
         issues = validate_timetable(data)
         if issues:
             all_issues.extend(issues)
@@ -1182,6 +1164,26 @@ def _get_holiday_client() -> HolidayClient:
 # F1 — 특별 시간표 "그날 미리보기" /admin/special/preview
 # ─────────────────────────────────────────────────
 
+def _collect_preview_timetable(weekday_code: int, *, dir=None) -> dict:
+    """전 노선·출발지의 적용 시각을 {busno: {departure: [times]}}로 수집(렌더링용).
+
+    _resolve_preview의 특별편/요일 분기 쌍둥이 루프 2벌을 대체. 누락 파일·키는
+    빈 목록으로 흡수해 미리보기가 끊기지 않게 한다.
+    """
+    from bushexa.data.timetable import get_busroute_info, get_timetable
+    busnos, departure_dict = get_busroute_info()
+    timetable: dict = {}
+    for busno in busnos:
+        timetable[busno] = {}
+        for dep in departure_dict.get(busno, []):
+            try:
+                times = get_timetable(busno, weekday_code, dep, dir=dir)
+            except (FileNotFoundError, KeyError):
+                times = []
+            timetable[busno][dep] = times
+    return timetable
+
+
 def _resolve_preview(target_date: date) -> tuple[str, str | None, dict]:
     """날짜 하나에 대해 적용 시간표를 결정하고 (label, edition_id, busno→times) 반환.
 
@@ -1190,27 +1192,14 @@ def _resolve_preview(target_date: date) -> tuple[str, str | None, dict]:
         edition_id — 특별편인 경우 에디션 ID, 아니면 None
         timetable  — {busno: {departure: [times]}} dict (화면 렌더링용)
     """
-    from bushexa.data.timetable import get_busroute_info, get_timetable
-    config = current_app.config["BUSHEXA_CONFIG"]
-
     # 1. 특별편 확인
     svc = _special_svc()
     date_str = target_date.strftime("%Y%m%d")
     edition_id = svc.get_edition_for_date(date_str)
     if edition_id and svc.edition_exists(edition_id):
         label = f"특별편 ({edition_id})"
-        ed_dir = svc.edition_dir(edition_id)
-        busnos, departure_dict = get_busroute_info()
-        timetable: dict = {}
-        for busno in busnos:
-            deps = departure_dict.get(busno, [])
-            timetable[busno] = {}
-            for dep in deps:
-                try:
-                    times = get_timetable(busno, 0, dep, dir=ed_dir)
-                except (FileNotFoundError, KeyError):
-                    times = []
-                timetable[busno][dep] = times
+        # 특별편 데이터는 단일 시간표(요일 구분 없음) — weekday 0으로 조회
+        timetable = _collect_preview_timetable(0, dir=svc.edition_dir(edition_id))
         return label, edition_id, timetable
 
     # 2. 공휴일/요일 분류
@@ -1234,19 +1223,7 @@ def _resolve_preview(target_date: date) -> tuple[str, str | None, dict]:
         _wd_labels = {0: "평일", 1: "토요일", 2: "일요일"}
         label = _wd_labels.get(weekday_code, "평일")
 
-    busnos, departure_dict = get_busroute_info()
-    timetable = {}
-    for busno in busnos:
-        deps = departure_dict.get(busno, [])
-        timetable[busno] = {}
-        for dep in deps:
-            try:
-                times = get_timetable(busno, weekday_code, dep)
-            except (FileNotFoundError, KeyError):
-                times = []
-            timetable[busno][dep] = times
-
-    return label, None, timetable
+    return label, None, _collect_preview_timetable(weekday_code)
 
 
 @bp.get("/special/preview")
@@ -1299,7 +1276,8 @@ def special_preview() -> str:
 def holidays_sync_fetch() -> str:
     """1단계: 연도 입력 → 12개월 API 조회 → 미리보기 렌더링.
 
-    API 실패 시 500 없이 오류 메시지. 성공 시 미리보기 + confirm 폼.
+    API 실패 시 500 없이 오프라인 폴백(``holidays`` 패키지 — 법정공휴일 로컬 계산)으로
+    전환해 미리보기를 제공한다. 폴백 사용 시 source로 표시(임시공휴일은 수동 등록 필요).
     """
     year_raw = (request.form.get("year") or "").strip()
     try:
@@ -1313,6 +1291,7 @@ def holidays_sync_fetch() -> str:
     client = _get_holiday_client()
     fetched: list[str] = []
     fetch_error: str | None = None
+    source = "api"
 
     for month in range(1, 13):
         try:
@@ -1323,8 +1302,18 @@ def holidays_sync_fetch() -> str:
         fetched.extend(d.strftime("%Y%m%d") for d in dates)
 
     if fetch_error:
-        flash(f"공휴일 API 조회 실패: {fetch_error}", "error")
-        return redirect(url_for("admin.holidays_index"))
+        # 오프라인 폴백 — refresh()의 gap-fill과 동일 소스(offline_month_holidays)
+        from bushexa.services.holiday_service import offline_month_holidays
+        try:
+            fetched = [d.strftime("%Y%m%d")
+                       for month in range(1, 13)
+                       for d in offline_month_holidays(year, month)]
+        except Exception:
+            flash(f"공휴일 API 조회 실패(오프라인 폴백도 실패): {fetch_error}", "error")
+            return redirect(url_for("admin.holidays_index"))
+        source = "offline"
+        flash(f"공휴일 API 실패 → 오프라인 계산(법정공휴일)으로 대체했습니다. "
+              f"임시공휴일은 수동 등록이 필요합니다. ({fetch_error})", "warning")
 
     # 기존 등록 날짜와 비교: 신규/중복 분류
     existing = _holiday_editor().load()
@@ -1338,6 +1327,7 @@ def holidays_sync_fetch() -> str:
         new_dates=new_dates,
         dup_dates=dup_dates,
         total_fetched=len(fetched_set),
+        source=source,
     )
 
 
@@ -1611,21 +1601,17 @@ def worker_status() -> str:
     arrival_reader = _get_arrival_reader()
     arrival = arrival_reader.latest()
 
-    govtrack_stale = False
-    if govtrack:
-        diff = _seconds_since(govtrack.cycle_started_at, clock)
-        govtrack_stale = diff is not None and diff > _STALE_SECS
-
-    arrival_stale = False
-    if arrival:
-        diff = _seconds_since(arrival.cycle_started_at, clock)
-        arrival_stale = diff is not None and diff > _STALE_SECS
+    def _is_stale(status) -> bool:
+        if not status:
+            return False
+        diff = _seconds_since(status.cycle_started_at, clock)
+        return diff is not None and diff > _STALE_SECS
 
     return render_template(
         "admin/worker_status.html",
         govtrack=govtrack,
-        govtrack_stale=govtrack_stale,
+        govtrack_stale=_is_stale(govtrack),
         arrival=arrival,
-        arrival_stale=arrival_stale,
+        arrival_stale=_is_stale(arrival),
     )
 

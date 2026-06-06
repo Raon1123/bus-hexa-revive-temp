@@ -10,7 +10,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Callable, Literal
 
-from bushexa.data.constants import ROUTEID, WEEKDAY_STR
+from bushexa.data.constants import ROUTEID, UNIST_VIA_STOP_ID, WEEKDAY_STR
 from bushexa.time_utils import Clock, get_weekday
 
 
@@ -161,13 +161,10 @@ def get_unist_board_data(
     weekday = get_weekday(now, holiday_set, clock=clock)
     now_h, now_m = now.hour, now.minute
 
-    # via 정류소 ID (513 노선 경유)
-    VIA_STOP_ID = "196040234"
-
-    # F07 결함 수정: live 데이터를 1회만 fetch
+    # F07 결함 수정: live 데이터를 1회만 fetch (via 정류소 = constants.UNIST_VIA_STOP_ID, E7)
     bis_error = False
     try:
-        live_buses = client.fetch_arrivals(VIA_STOP_ID)
+        live_buses = client.fetch_arrivals(UNIST_VIA_STOP_ID)
     except Exception:
         live_buses = []
         bis_error = True
@@ -200,8 +197,9 @@ def get_unist_board_data(
                 weekday=weekday,
                 visualize=visualize,
             ))
-        elif busno == "513":
-            # 513 경유 노선 → via 카드 (live 우선)
+        elif UNIST_VIA_STOP_ID in _stops:
+            # via 정류소를 경유하는 노선(현재 513 양방향) → via 카드 (live 우선)
+            # E7: busno "513" 하드코딩 대신 ROUTEID stop_ids 데이터로 분류
             via_cards.append(_build_via_card(
                 busno=busno,
                 departure=departure,

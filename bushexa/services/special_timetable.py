@@ -26,13 +26,12 @@ provider는 요청된 weekday 키를 먼저 시도하고, 없으면 ``"0"``(평�
 """
 from __future__ import annotations
 
-import json
 import re
 import logging
 from pathlib import Path
 from typing import Iterator
 
-from bushexa.fileio import atomic_write_json
+from bushexa.fileio import atomic_write_json, read_json
 
 log = logging.getLogger("bushexa.services.special_timetable")
 
@@ -74,14 +73,7 @@ class SpecialTimetableService:
 
     def load_map(self) -> dict[str, str]:
         """날짜→에디션 매핑 dict 반환. 파일 부재·파손 시 빈 dict."""
-        if not self.map_path.exists():
-            return {}
-        try:
-            data = json.loads(self.map_path.read_text(encoding="utf-8"))
-        except (ValueError, OSError):
-            return {}
-        if not isinstance(data, dict):
-            return {}
+        data = read_json(self.map_path, {}, expect=dict)
         return {
             k: v
             for k, v in data.items()

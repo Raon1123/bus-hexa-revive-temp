@@ -16,7 +16,6 @@ node_ord=None, ts=None으로 해석한다(감사 2-1, 2-9).
 """
 from __future__ import annotations
 
-import json
 import logging
 from datetime import datetime
 from pathlib import Path
@@ -66,14 +65,9 @@ class JSONFileStore:
         self.path = Path(path)
 
     def load(self) -> Snapshot:
-        if not self.path.exists():
-            return {}
-        try:
-            records = json.loads(self.path.read_text(encoding="utf-8"))
-        except (OSError, ValueError) as exc:
-            # 손상 파일에 데몬이 죽지 않도록 빈 상태로 시작하되, 침묵하지 않는다(ADR-013).
-            logger.warning("타임라인 상태 로드 실패(%s), 빈 상태로 시작: %s", self.path, exc)
-            return {}
+        # 손상 파일에 데몬이 죽지 않도록 빈 상태로 시작하되, 침묵하지 않는다(ADR-013).
+        records = fileio.read_json(self.path, [], expect=list,
+                                   warn_label="타임라인 상태", logger=logger)
         out: Snapshot = {}
         for rec in records:
             try:

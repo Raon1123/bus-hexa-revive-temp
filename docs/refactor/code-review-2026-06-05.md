@@ -7,13 +7,32 @@ git diff 없이 전체 코드 대상이므로 아래는 "가장 심각한 상위
 > **수정 현황 (2026-06-05):** #1(holiday unquote+오류검사), #2(캐시 오염), #3(빈 시간표
 > 덮어쓰기)은 같은 날 수정 완료 — `HolidayError`/`UlsanBisError` 도입, fetch 계약을
 > raise로 변경, crawl 전요일-빈-결과 가드 추가. **#10(로그 UNKNOWN 필터 탈락)도 수정 완료**
-> (2차 웨이브, 회귀 테스트 포함 450 passed). #4~#9는 미수정.
+> (2차 웨이브, 회귀 테스트 포함 450 passed). **#4~#9는 3차 웨이브에서 전부 수정 완료**
+> (커밋 6114da3 + 516c55b: board_support 팩토리(#4/#5/#8/E6/D8), recrawl_job 파일
+> 영속+SSE 크로스워커(#6), locked_update_json(#7/#9), get_timetable 캐시(E5), 504 passed).
 >
 > ~~감리 중 신규 발견: admin CSRF 검증 부재~~ — **오류 정정(3차 웨이브 감리)**: CSRF는
 > `web/app.py:66-96`에 완전 구현돼 있었다(`_seed_csrf_token` 세션 시딩 + `_csrf_protect`가
 > /admin/ 하위 POST/PUT/PATCH/DELETE에 form `csrf_token` 또는 `X-CSRFToken` 헤더 검증, 400).
 > 2차 웨이브 감리의 grep 출력이 `head`로 잘려 .py 매치를 놓친 검증 실수였다. 잔여 개선
 > 1건만 유효: `provided != expected` 비교를 `hmac.compare_digest`로(타이밍 안전).
+>
+> **마무리 웨이브 (2026-06-06, 508 passed):** 잔여 항목 일괄 처리.
+> - CSRF 비교를 `hmac.compare_digest`로 교체(app.py).
+> - D7: unist_timetable bus_legend에서 0행 기여 노선 제외.
+> - arrival_status/govtrack_status `rec[키]` → `.get`+기본값(구버전 상태파일 방어, PLAUSIBLE).
+> - reuse 전부: KST 리터럴 4곳→`time_utils.KST`(ADR-008), `_PAREN_RE` 2벌→
+>   `data.constants.clean_stop_name`, `196040234`/`"513"` 하드코딩→`UNIST_VIA_STOP_ID`
+>   상수+stop_ids 데이터 분류(E7), API 클라이언트 serviceKey 보일러플레이트 4벌→
+>   `api_clients/_http.get_with_service_key`(C1 구조적 재발 방지), `fileio.read_json`
+>   추가+12곳 이행, admin `_resolve_preview` 쌍둥이 루프→`_collect_preview_timetable`,
+>   special_save 파싱 복제→`_parse_timetable_form(scope=)`, worker_status stale 2벌→
+>   `_is_stale`, cli.py `_todo` dead code 제거+docstring 현행화.
+> - **E3/E4(recorder·arrival_poller 병렬화)는 의도적 보류**: 울산 API 간헐 무응답이
+>   실측된 상황(2026-06-05 라이브 테스트)에서 순차 루프가 보장하는 노선별 예외 격리·
+>   TAGO→BIS 폴백 순서·사이클 비중첩을 ThreadPool로 옮기려면 별도 설계+라이브 검증이
+>   필요하다. 성능 이득(사이클 1.7–8.5s→최장 1콜)은 유효하므로 API 안정화 후 독립
+>   작업으로 진행할 것. 이로써 본 리뷰의 실행 항목은 전부 종결.
 
 ## Top 10 (심각도순)
 

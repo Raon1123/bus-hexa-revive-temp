@@ -13,11 +13,10 @@ admin이 처음 추가/삭제하면 seed 항목이 그대로 data_dir 로 이관
 """
 from __future__ import annotations
 
-import json
 import re
 from pathlib import Path
 
-from bushexa.fileio import atomic_write_json
+from bushexa.fileio import atomic_write_json, read_json
 
 # info.html 의 기존 항목이 "2024-12-21" 형식이므로 <input type="date">와 동일한 YYYY-MM-DD.
 _DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
@@ -30,11 +29,8 @@ def default_changelog_path(data_dir) -> Path:
 
 def _read(path: Path) -> list[dict] | None:
     """파일을 읽어 검증된 항목 리스트로 반환. 부재·파손·형식불일치 시 None."""
-    try:
-        data = json.loads(path.read_text(encoding="utf-8"))
-    except (ValueError, OSError):
-        return None
-    if not isinstance(data, list):
+    data = read_json(path, None, expect=list)
+    if data is None:
         return None
     rows: list[dict] = []
     for e in data:

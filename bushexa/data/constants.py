@@ -4,6 +4,19 @@ ADR-011: 표출 화면의 정류소 번호(SERACH_STOPS)와 노선 식별(ROUTEI
 여기 고정값이 권위 소스다. stop_id→명칭(STOP_IDS)·노선 정류장 시퀀스는 route API로
 완화(보강) 가능하되, 본 모듈은 항상 동작하는 폴백으로 남는다.
 """
+import re
+
+_PAREN_RE = re.compile(r"\s*\([^)]*\)")
+
+
+def clean_stop_name(name: str) -> str:
+    """정류장명에서 괄호 주석((시내)/(UNIST)/(경유)/(기점)/(종점) 등)을 제거.
+
+    STOP_IDS 명칭 정규화의 단일 구현 — composite_location·domain/board가 공용.
+    """
+    return _PAREN_RE.sub("", name or "").strip()
+
+
 WEEKDAY_STR = {
     0: "평일 (working day)",
     1: "토요일 (Saturday)",
@@ -14,6 +27,10 @@ UNIST_STR = {"713": """울산
 과학            기술원""",
          "743": "과기원",
          "753": "과기원"}
+
+# UNIST 경유 정류소 '울산과학기술원 (경유)' — 보드 실시간 도착 조회의 기준 정류소.
+# web/routes/board.py·domain/unist_board.py가 공용(리뷰 E7: 별개 리터럴 2벌 단일화).
+UNIST_VIA_STOP_ID = "196040234"
 
 # key: route_id, value: (bus number, terminal, departure, stop_ids)
 ROUTEID = {

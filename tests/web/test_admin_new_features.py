@@ -237,8 +237,9 @@ class TestHolidaysSync:
         count = sum(1 for d in saved if d == "20260101")
         assert count == 1
 
-    def test_sync_api_failure_shows_error_no_write(self, authed, app):
-        """API 호출에서 예외 발생 → 오류 메시지, 파일 미변경."""
+    def test_sync_api_failure_falls_back_to_offline_no_write(self, authed, app):
+        """API 호출 예외 → 오프라인 계산(holidays 패키지)으로 폴백해 미리보기를 제공하고
+        source를 표시한다. confirm 전이므로 파일은 미변경(2026-06-05 공휴일 소스 결정)."""
         mock_client = MagicMock()
         mock_client.fetch.side_effect = ConnectionError("API 연결 오류")
         app.config["_HOLIDAY_CLIENT"] = mock_client
@@ -252,9 +253,10 @@ class TestHolidaysSync:
         }, follow_redirects=True)
         assert resp.status_code == 200
         html = resp.data.decode("utf-8")
-        assert "오류" in html or "실패" in html or "error" in html.lower()
+        assert "오프라인" in html  # 폴백 소스 표시
+        assert "20260606" in html or "2026-06-06" in html  # 현충일 — 오프라인 계산 결과
 
-        # 파일 미변경
+        # 파일 미변경 (confirm 단계 전)
         saved = HolidayEditor(default_holidays_path(config.data_dir)).load()
         assert len(saved) == 0
 

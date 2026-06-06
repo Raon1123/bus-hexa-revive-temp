@@ -1,13 +1,14 @@
 """bushexa command-line interface.
 
-P2에서 govtrack 크롤러 명령 본체를 배선한다:
+전 서브커맨드 배선 완료:
 
-* ``serve``            -> P4 (Flask web server) — 아직 stub
-* ``crawl-once``       -> P2 (1회 폴링, --route/--dry-run)
-* ``crawl-loop``       -> P2 (govtrack 데몬, PM-001 수정) --poll/--night-sleep
-* ``arrival-loop``     -> P2 / ADR-010 (울산 도착 캐시 poller) — W9에서 배선
-* ``init-db``          -> 스키마 생성(--reset 시 bus_timelog 비움)
-* ``crawl-timetable``  -> P2 / F10 (시간표 재크롤) — W4에서 배선
+* ``serve``              -> P4/P5 (gunicorn 운영, --dev 시 Werkzeug)
+* ``crawl-once``         -> P2 (1회 폴링, --route/--dry-run)
+* ``crawl-loop``         -> P2 (govtrack 데몬, PM-001 수정) --poll/--night-sleep
+* ``arrival-loop``       -> P2 / ADR-010 (울산 도착 캐시 poller)
+* ``cache-refresh-loop`` -> 유휴 윈도(02–03시) 공휴일·시간표 재크롤 워커
+* ``init-db``            -> 스키마 생성(--reset 시 bus_timelog 비움)
+* ``crawl-timetable``    -> P2 / F10 (시간표 재크롤)
 
 설계(F09 §4.1)에 맞춰 ``crawl-loop``의 폴링 인자는 ``--poll``(기본 10초)이다. 신호 핸들러는
 메인 스레드에서만 등록하고, 데몬 루프는 stop_event로 graceful 종료한다.
@@ -16,12 +17,6 @@ P2에서 govtrack 크롤러 명령 본체를 배선한다:
 from __future__ import annotations
 
 import argparse
-
-
-def _todo(command: str) -> int:
-    """아직 배선되지 않은 서브커맨드(후속 phase)."""
-    print(f"TODO: '{command}' is not implemented yet.")
-    return 0
 
 
 def _load_config():
@@ -271,10 +266,8 @@ def main(argv: list[str] | None = None) -> int:
         "crawl-timetable": cmd_crawl_timetable,
         "serve": cmd_serve,
     }
-    handler = handlers.get(args.command)
-    if handler is not None:
-        return handler(args)
-    return _todo(args.command)
+    # argparse가 required=True + 등록된 subparser만 허용하므로 KeyError 도달 불가
+    return handlers[args.command](args)
 
 
 if __name__ == "__main__":

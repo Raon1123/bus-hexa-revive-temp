@@ -12,9 +12,9 @@ import logging
 import logging.config
 from datetime import datetime
 from pathlib import Path
-from zoneinfo import ZoneInfo
 
-KST = ZoneInfo("Asia/Seoul")
+from bushexa.time_utils import KST  # ADR-008: KST 단일 출처
+
 LOG_FORMAT = "%(asctime)s [%(name)s] %(levelname)s: %(message)s"
 
 _LOGGER_NAMES = ("bushexa", "bushexa.crawler", "bushexa.web")

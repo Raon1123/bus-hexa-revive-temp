@@ -72,6 +72,8 @@ def get_full_timetable_data(
 
     # 시(hour)별 그룹: {hour_str: [(minute_str, busno_str), ...]}
     schedules_by_hour: dict[str, list[tuple[str, str]]] = {}
+    # D7 수정: 실제로 행을 기여한 노선만 범례에 표시(0행 노선 제외)
+    contributing_busnos: set[str] = set()
 
     for busno in sorted_busnos:
         deps = departure_dict.get(busno, [])
@@ -88,6 +90,7 @@ def get_full_timetable_data(
             if hour_str not in schedules_by_hour:
                 schedules_by_hour[hour_str] = []
             schedules_by_hour[hour_str].append((minute_str, busno))
+            contributing_busnos.add(busno)
 
     # hour 오름차순, 각 hour 내 minute 오름차순 정렬
     timetable_rows: list[TimetableHourRow] = []
@@ -107,7 +110,7 @@ def get_full_timetable_data(
         current_time=f"{now_h:02d}:{now_m:02d}",
         weekday_str=weekday_label,
         selected_day=weekday,
-        bus_legend=sorted_busnos,
+        bus_legend=[b for b in sorted_busnos if b in contributing_busnos],
         timetable_rows=timetable_rows,
         is_empty=is_empty,
     )

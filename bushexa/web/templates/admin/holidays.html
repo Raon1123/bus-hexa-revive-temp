@@ -5,7 +5,9 @@
 
 {% block content %}
 <h2 id="holiday-manage">관리자 지정 공휴일 관리</h2>
-<p>여기에 등록한 날짜는 data.go.kr 공휴일 API와 합산되어 <strong>공휴일 스케줄(일·공휴일)</strong>이 적용됩니다.</p>
+<p>여기에 등록한 날짜는 공휴일 캐시(data.go.kr API, 실패 시 오프라인 법정공휴일 계산)와
+   합산되어 <strong>공휴일 스케줄(일·공휴일)</strong>이 적용됩니다.
+   정부 지정 임시공휴일은 여기에 수동으로 등록하세요.</p>
 <p>날짜 형식: <code>YYYYMMDD</code> (예: <code>20261001</code>)</p>
 
 <section>
@@ -24,7 +26,7 @@
         {% endfor %}
     </ul>
     {% else %}
-    <p>등록된 공휴일이 없습니다. data.go.kr API 공휴일만 적용됩니다.</p>
+    <p>등록된 공휴일이 없습니다. 공휴일 캐시(API/오프라인 계산)만 적용됩니다.</p>
     {% endif %}
 </section>
 
@@ -39,8 +41,9 @@
 </section>
 
 <section style="margin-top: 2em; border-top: 1px solid #ccc; padding-top: 1.5em;">
-    <h3>공휴일 API 일괄 동기화</h3>
-    <p>data.go.kr에서 특정 연도의 공휴일을 가져와 등록합니다. 가져온 후 미리보기를 확인하고 적용하세요.</p>
+    <h3>공휴일 일괄 동기화</h3>
+    <p>data.go.kr에서 특정 연도의 공휴일을 가져와 등록합니다(API 실패 시 오프라인
+       법정공휴일 계산으로 자동 대체). 가져온 후 미리보기를 확인하고 적용하세요.</p>
     <form method="post" action="{{ url_for('admin.holidays_sync_fetch') }}">
         <input type="hidden" name="csrf_token" value="{{ session['csrf_token'] }}">
         <label for="sync-year">연도 (예: 2026):</label>

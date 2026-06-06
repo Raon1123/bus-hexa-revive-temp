@@ -14,13 +14,12 @@
 """
 from __future__ import annotations
 
-import json
 import logging
 import re
 from datetime import date
 from pathlib import Path
 
-from bushexa.fileio import atomic_write_json
+from bushexa.fileio import atomic_write_json, read_json
 from bushexa.services.holiday_editor import HolidayEditor, default_holidays_path
 
 log = logging.getLogger("bushexa.services.holiday_service")
@@ -32,6 +31,21 @@ _YM_RE = re.compile(r"^\d{6}$")
 def default_holiday_cache_path(data_dir) -> Path:
     """API 공휴일 캐시 파일 경로 (``<data_dir>/holiday_cache.json``)."""
     return Path(data_dir) / "holiday_cache.json"
+
+
+def offline_month_holidays(year: int, month: int) -> list[date]:
+    """``holidays`` 패키지로 계산한 해당 월의 법정공휴일(설치형, 네트워크 불필요).
+
+    data.go.kr API가 죽었을 때의 폴백 소스. 음력(설·추석·석가탄신일)·대체공휴일·선거일을
+    로컬 계산하지만, 정부가 수시 지정하는 임시공휴일은 알 수 없다 — 그건 admin 수동 지정
+    (``holidays.json``)이 담당한다. 제헌절은 패키지가 공휴일로 잘못 분류하므로 제외한다
+    (2008년부터 비공휴일 — 관공서의 공휴일에 관한 규정).
+    """
+    import holidays as _holidays  # 폴백 경로에서만 필요 — 읽기 경로 import 비용 회피
+
+    kr = _holidays.KR(years=year)
+    return sorted(d for d, name in kr.items()
+                  if d.month == month and "Constitution Day" not in name)
 
 
 def upcoming_months(d: date, count: int = 2) -> list[tuple[int, int]]:
@@ -61,14 +75,7 @@ class HolidayCache:
         self.path = Path(path)
 
     def _load_raw(self) -> dict[str, list[str]]:
-        if not self.path.exists():
-            return {}
-        try:
-            data = json.loads(self.path.read_text(encoding="utf-8"))
-        except (ValueError, OSError):
-            return {}
-        if not isinstance(data, dict):
-            return {}
+        data = read_json(self.path, {}, expect=dict)
         clean: dict[str, list[str]] = {}
         for ym, dates in data.items():
             if isinstance(ym, str) and _YM_RE.match(ym) and isinstance(dates, list):
@@ -87,16 +94,30 @@ class HolidayCache:
         월 단위로 처리: 성공한 월만 갱신하고 실패한 월은 기존 캐시를 보존한다(전체를
         덮어쓰지 않음). 빈 결과(공휴일 없는 달)도 그대로 캐시한다. 반환값은 갱신 후
         전체 공휴일 set.
+
+        API 실패 + 캐시에도 없는 월만 :func:`offline_month_holidays` 로 **gap-fill** 한다.
+        캐시된 월은 오프라인 값으로 덮어쓰지 않는다 — API 결과(임시공휴일 포함 가능)가
+        법정공휴일만 아는 오프라인 계산보다 우선하며, 다음 API 성공 시 오프라인 값도 대체된다.
         """
         raw = self._load_raw()
         changed = False
         for year, month in months:
+            ym = f"{year}{month:02d}"
             try:
                 dates = client.fetch(year, month)
             except Exception as exc:
-                log.warning("공휴일 API 갱신 실패 %d-%02d (기존 캐시 유지): %s", year, month, exc)
-                continue
-            ym = f"{year}{month:02d}"
+                if ym in raw:
+                    log.warning("공휴일 API 갱신 실패 %d-%02d (기존 캐시 유지): %s",
+                                year, month, exc)
+                    continue
+                try:  # 캐시에 없는 월만 오프라인 폴백으로 채움(gap-fill)
+                    dates = offline_month_holidays(year, month)
+                except Exception:
+                    log.error("공휴일 API 실패 %d-%02d + 오프라인 폴백도 실패(월 건너뜀): %s",
+                              year, month, exc, exc_info=True)
+                    continue
+                log.warning("공휴일 API 실패 %d-%02d → 오프라인 폴백 %d건 (다음 API 성공 시 대체): %s",
+                            year, month, len(dates), exc)
             raw[ym] = sorted(d.strftime("%Y%m%d") for d in dates)
             changed = True
             log.info("공휴일 캐시 갱신 %s: %d건", ym, len(raw[ym]))

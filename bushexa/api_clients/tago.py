@@ -12,10 +12,8 @@ from __future__ import annotations
 import logging
 import re
 from dataclasses import dataclass
-from urllib.parse import unquote
 
-import requests
-
+from bushexa.api_clients._http import get_with_service_key
 from bushexa.api_clients.errors import ParseError, TagoError
 from bushexa.data.constants import ULSAN_CITYCODE, ULSAN_PREFIX
 
@@ -131,18 +129,15 @@ class TagoClient:
         self.timeout = timeout
 
     def _params(self, route_id: str, page: int, rows: int) -> dict:
-        # data.go.kr 서비스키 이중 인코딩 방지(레거시 crawl_loc와 동일 결과):
-        # secret/key.txt가 'Encoding 키'(%2B 등 %-인코딩 포함)면 requests가 다시 인코딩해
-        # %25..가 되어 SERVICE_KEY_IS_NOT_REGISTERED_ERROR가 난다. unquote로 먼저 디코딩하면
-        # Encoding/Decoding 키 양쪽 모두 requests가 1회만 인코딩해 올바른 키가 전송된다.
+        # serviceKey(이중 인코딩 방지 포함)는 _http.get_with_service_key가 단일 책임.
         return {
-            "serviceKey": unquote(self.api_key), "pageNo": page, "numOfRows": rows,
+            "pageNo": page, "numOfRows": rows,
             "_type": "json", "cityCode": self.city_code,
             "routeId": ULSAN_PREFIX + route_id,
         }
 
     def _get_json(self, url: str, params: dict) -> dict:
-        resp = requests.get(url, params=params, timeout=self.timeout)
+        resp = get_with_service_key(url, self.api_key, params, timeout=self.timeout)
         text = resp.text or ""
         stripped = text.lstrip()
 

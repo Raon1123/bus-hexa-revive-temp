@@ -19,7 +19,6 @@ API 문서 확인 시 주석 갱신 필요.
 from __future__ import annotations
 
 import logging
-import re
 import time
 from collections import Counter, defaultdict
 
@@ -27,15 +26,9 @@ import requests
 
 from bushexa.api_clients.errors import TagoError
 from bushexa.api_clients.tago import BusLocation, TagoResponse
-from bushexa.data.constants import ROUTEID, STOP_IDS
+from bushexa.data.constants import ROUTEID, STOP_IDS, clean_stop_name as _clean
 
 logger = logging.getLogger("bushexa.api_clients.composite_location")
-
-_PAREN_RE = re.compile(r"\s*\([^)]*\)")
-
-
-def _clean(name: str) -> str:
-    return _PAREN_RE.sub("", name or "").strip()
 
 
 def _build_name_index() -> tuple[dict[str, str], dict[str, str]]:
