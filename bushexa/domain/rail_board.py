@@ -10,7 +10,12 @@ from __future__ import annotations
 import datetime
 from dataclasses import dataclass
 
-from bushexa.data.constants import RAIL_STATIONS, RAIL_STOP_CANDIDATES
+from bushexa.data.constants import (
+    RAIL_SPECIAL_STOPS,
+    RAIL_STATIONS,
+    RAIL_STOP_CANDIDATES,
+    RAIL_STRIP_LAYOUT,
+)
 
 # 이 분 안에 출발하면 "곧 출발"로 깜빡인다.
 SOON_MIN = 10
@@ -21,6 +26,7 @@ class StopMark:
     name: str
     time: str | None      # 도착 "HH:MM"(정차) / None(통과)
     stops: bool
+    special: bool = False  # 예외적 정차(서대구·수원) — 강조
 
 
 @dataclass(frozen=True)
@@ -36,15 +42,29 @@ class BoardTrain:
     soon: bool
     dep_at: datetime.datetime
     connect: bool = False  # 지금 오는 버스로 탈 수 있는 첫 열차
+    specials: tuple[str, ...] = ()  # 예외 정차 배지 i18n 키(서대구 정차·수원 경유)
+
+
+def _strip_candidates(dep_id: str, arr_id: str, stopped: set[str]) -> list[str]:
+    """띠에 그릴 후보역(운행 순서). 갈래가 있으면 열차가 서는 역이 있는 갈래만 붙인다."""
+    layout = RAIL_STRIP_LAYOUT.get((dep_id, arr_id))
+    if not layout:
+        return RAIL_STOP_CANDIDATES.get((dep_id, arr_id), [])
+    branches = layout["branches"]
+    chosen = next((b for b in branches
+                   if any(RAIL_STATIONS.get(c, c) in stopped for c in b)), branches[0])
+    return layout["trunk"] + chosen
 
 
 def _strip(dep_id: str, arr_id: str, stops) -> tuple[StopMark, ...] | None:
     if stops is None:
         return None
     by_name = {s.get("name"): s.get("arr") for s in stops}
-    marks = [StopMark(RAIL_STATIONS.get(cid, cid), by_name.get(RAIL_STATIONS.get(cid, cid)),
-                      RAIL_STATIONS.get(cid, cid) in by_name)
-             for cid in RAIL_STOP_CANDIDATES.get((dep_id, arr_id), [])]
+    marks = []
+    for cid in _strip_candidates(dep_id, arr_id, set(by_name)):
+        name = RAIL_STATIONS.get(cid, cid)
+        marks.append(StopMark(name, by_name.get(name), name in by_name,
+                              special=name in by_name and name in RAIL_SPECIAL_STOPS))
     return tuple(marks)
 
 
@@ -72,6 +92,8 @@ def board_trains(day_entry: dict | None, now: datetime.datetime, dep_id: str, ar
             strip=(_strip(dep_id, arr_id, t.get("stops")) if "stops" in t else None)
             if (dep_id, arr_id) in RAIL_STOP_CANDIDATES else (),   # 중간 정차역 후보가 없는 구간(울산→부산)
             minutes_left=left, soon=left <= SOON_MIN, dep_at=dep,
+            specials=tuple(RAIL_SPECIAL_STOPS[n] for n in RAIL_SPECIAL_STOPS
+                           if any(x.get("name") == n for x in (t.get("stops") or []))),
         ))
     out.sort(key=lambda b: b.dep_at)
     return out, ("suspect" if day_entry.get("suspect") else "ok")

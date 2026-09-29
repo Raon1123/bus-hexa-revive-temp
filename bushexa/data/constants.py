@@ -243,6 +243,18 @@ RAIL_STOP_CANDIDATES = {
                                "NAT050044", "NATH10960", "NATH30326"],
     (RAIL_TAEHWAGANG, RAIL_BUJEON): ["NAT750560", "NAT750329", "NAT750189", "NAT750161", "NAT750106"],
 }
+# 정차역 띠 모양. 서울행은 대전 뒤에서 고속선(오송-천안아산-광명)과 경부 일반선(수원-영등포)으로
+# 갈린다 — 열차가 서는 역이 있는 갈래만 그린다(둘 다 없으면 첫 갈래). 없는 구간은 후보 목록 그대로.
+RAIL_STRIP_LAYOUT = {
+    (RAIL_ULSAN, RAIL_SEOUL): {
+        "trunk": ["NATH13421", "NAT013271", "NAT013189", "NATH12383", "NAT011668"],
+        "branches": [["NAT050044", "NATH10960", "NATH10219"],     # 고속선
+                     ["NAT010415", "NAT010091"]],                  # 수원 경유(일반선)
+    },
+}
+# 예외적인 정차 — 안내판·표에서 강조한다. key: 역명, value: 배지 i18n 키.
+RAIL_SPECIAL_STOPS = {"서대구": "rb.special.seodaegu", "수원": "rb.special.suwon"}
+
 # 정차역 조회는 가까운 날짜만(오늘 포함). 화면은 오늘·내일만 쓴다.
 RAIL_STOP_PATTERN_DAYS = 3
 

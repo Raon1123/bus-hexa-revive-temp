@@ -24,6 +24,7 @@
         </div>
         <div class="rb-meta">
             {% if tr.connect %}<span class="rb-badge rb-badge-bus">🚌 {{ t('rb.connect') }}</span>{% endif %}
+            {% for key in tr.specials %}<span class="rb-badge rb-badge-special">{{ t(key) }}</span>{% endfor %}
             {% if tr.soon %}<span class="rb-badge rb-badge-soon">{{ t('rb.soon') }}</span>
             {% else %}<span class="rb-left">{{ t('rb.left', min=tr.minutes_left) }}</span>{% endif %}
         </div>
@@ -31,7 +32,7 @@
         <ol class="rb-strip" aria-label="{{ t('rb.stops') }}">
             <li class="rb-stop rb-lit rb-end"><b>{{ tr.origin }}</b><i>{{ tr.dep }}</i></li>
             {% for s in tr.strip %}
-            <li class="rb-stop{% if s.stops %} rb-lit{% endif %}"><b>{{ s.name }}</b><i>{{ s.time or '·' }}</i></li>
+            <li class="rb-stop{% if s.stops %} rb-lit{% endif %}{% if s.special %} rb-special{% endif %}"><b>{{ s.name }}</b><i>{{ s.time or '·' }}</i></li>
             {% endfor %}
             <li class="rb-stop rb-lit rb-end"><b>{{ tr.dest }}</b><i>{{ tr.arr }}</i></li>
         </ol>
@@ -61,7 +62,7 @@
         <td><strong>{{ tr.dep }}</strong>{% if tr.connect %} <span class="busan-sub">🚌</span>{% endif %}</td>
         {% if show_dest %}<td>{{ tr.dest }}</td>{% endif %}
         <td>{{ tr.arr }}{% if tr.next_day %}<sup>+1</sup>{% endif %}</td>
-        <td class="busan-sub">{{ tr.grade }}</td>
+        <td class="busan-sub">{{ tr.grade }}{% for key in tr.specials %} <span class="rb-tag-special">{{ t(key) }}</span>{% endfor %}</td>
     </tr>
     {% endfor %}
     </tbody>

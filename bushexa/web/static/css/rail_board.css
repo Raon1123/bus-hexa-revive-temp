@@ -74,3 +74,11 @@
 .rb-toggle { display: inline-flex; border: 1px solid #d0d4dc; border-radius: 999px; overflow: hidden; margin: 0 0 0.5rem; font-size: 0.85rem; }
 .rb-toggle a { padding: 0.25rem 0.75rem; text-decoration: none; color: inherit; }
 .rb-toggle a.active { background: #1f2430; color: #fff; }
+
+/* 예외 정차(서대구 정차·수원 경유) 강조 */
+.rb-badge-special { background: #00bcd4; color: #04262b; }
+.rb-special { color: #4dd0e1; }
+.rb-special::after { background: #4dd0e1; border-color: #4dd0e1; box-shadow: 0 0 7px rgba(77,208,225,.8); }
+.rb-special b { text-decoration: underline; text-underline-offset: 2px; }
+.rb-tag-special { display: inline-block; margin-left: 0.25rem; padding: 0 0.35rem; border-radius: 999px;
+                  background: #e0f7fa; color: #006064; font-size: 0.75rem; font-weight: 700; white-space: nowrap; }

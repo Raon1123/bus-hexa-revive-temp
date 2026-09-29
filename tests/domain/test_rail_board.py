@@ -51,3 +51,20 @@ def test_departed_and_coupled_trains_filtered():
     rows, state = board_trains(day, NOW, RAIL_ULSAN, RAIL_BUSAN)
     assert [r.dep for r in rows] == ["21:49"] and state == "suspect"
     assert board_trains(None, NOW, RAIL_ULSAN, RAIL_BUSAN) == ([], "missing")
+
+
+def test_seoul_strip_draws_only_the_branch_taken_and_flags_exceptions():
+    """서울행 띠는 대전 뒤 갈래 중 선 역이 있는 쪽만 그린다. 수원 경유·서대구 정차는 배지와 강조로 표시한다."""
+    via_suwon = _t("08:43", "11:34", stops=[{"name": "동대구", "arr": "09:06"}, {"name": "대전", "arr": "09:49"},
+                                           {"name": "수원", "arr": "11:00"}, {"name": "영등포", "arr": "11:24"}])
+    via_hsr = _t("07:45", "10:16", stops=[{"name": "서대구", "arr": "08:23"}, {"name": "대전", "arr": "09:05"},
+                                         {"name": "광명", "arr": "09:57"}])
+    now = datetime(2026, 9, 30, 7, 0, tzinfo=KST)
+    rows, _ = board_trains({"trains": [via_suwon, via_hsr]}, now, RAIL_ULSAN, RAIL_SEOUL)
+    hsr, suwon = rows
+    assert [s.name for s in suwon.strip][-2:] == ["수원", "영등포"]
+    assert "오송" not in [s.name for s in suwon.strip]
+    assert [s.name for s in hsr.strip][-3:] == ["오송", "천안아산", "광명"]
+    assert "수원" not in [s.name for s in hsr.strip]
+    assert suwon.specials == ("rb.special.suwon",) and hsr.specials == ("rb.special.seodaegu",)
+    assert [s.name for s in hsr.strip if s.special] == ["서대구"]

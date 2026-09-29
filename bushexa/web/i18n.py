@@ -82,6 +82,8 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
     "rb.stops":             {"ko": "정차역", "en": "Stops"},
     "rb.marquee_direct":    {"ko": "{dest} 직행", "en": "Direct to {dest}"},
     "rb.view":              {"ko": "보기", "en": "View"},
+    "rb.special.seodaegu":  {"ko": "서대구 정차", "en": "Stops at Seodaegu"},
+    "rb.special.suwon":     {"ko": "수원 경유", "en": "Via Suwon"},
     "rb.view.table":        {"ko": "표", "en": "Table"},
     "rb.view.board":        {"ko": "발차 안내판", "en": "Departure board"},
     "rb.no_stops":          {"ko": "정차역 정보 없음", "en": "Stop information unavailable"},
