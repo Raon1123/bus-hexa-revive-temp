@@ -189,6 +189,9 @@ def create_app(config: AppConfig) -> Flask:
     from bushexa.web.routes.unist_timetable import bp as unist_timetable_bp
     app.register_blueprint(unist_timetable_bp)
 
+    from bushexa.web.routes.busan import bp as busan_bp
+    app.register_blueprint(busan_bp)
+
     from bushexa.web.routes.running import bp as running_bp
     app.register_blueprint(running_bp)
 

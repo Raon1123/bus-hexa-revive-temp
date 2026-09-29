@@ -194,6 +194,12 @@ def test_all_ui_routes_200(smoke_client):
             None,
             None,
         ),
+        (
+            "/busan",
+            "부산 가는 길",  # <title>
+            None,
+            None,
+        ),
     ]
 
     for url, marker, mock_target, mock_return in routes_and_markers:
