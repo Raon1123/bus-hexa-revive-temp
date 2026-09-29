@@ -191,20 +191,60 @@ ULSAN_PREFIX = 'USB' # route_id prefix
 # ID 는 TAGO 실응답(2026-09-29 확인): TrainInfo/GetCtyAcctoTrainSttnList(cityCode 26·21),
 # SubwayInfo/GetKwrdFndSubwaySttnList. 수집·저장은 services/rail_timetable 이 담당한다.
 
-# 일반·고속열차(KTX·KTX-이음·ITX-마음·무궁화) 역. key: TAGO nodeid, value: 역명.
+# 일반·고속열차(KTX·KTX-이음·ITX-마음·무궁화) 역 ID.
+RAIL_ULSAN = "NATH13717"        # 울산역(통도사) — 경부고속선
+RAIL_TAEHWAGANG = "NAT750726"
+RAIL_BUSAN = "NAT014445"
+RAIL_BUJEON = "NAT750046"
+RAIL_SEOUL = "NAT010000"
+RAIL_SUSEO = "NATH30000"        # 옛 SRT 계통도 이 API 에서는 KTX 로 나온다
+
+# 역명. 정차역 후보(RAIL_STOP_CANDIDATES)의 역도 모두 여기 있어야 한다.
 RAIL_STATIONS = {
-    "NATH13717": "울산",      # 울산역(통도사) — 경부고속선
-    "NAT750726": "태화강",
-    "NAT014445": "부산",
-    "NAT750046": "부전",
+    RAIL_ULSAN: "울산",
+    RAIL_TAEHWAGANG: "태화강",
+    RAIL_BUSAN: "부산",
+    RAIL_BUJEON: "부전",
+    RAIL_SEOUL: "서울",
+    RAIL_SUSEO: "수서",
+    "NATH13421": "경주",        # 옛 신경주역(2021-12 개칭)
+    "NAT013271": "동대구",
+    "NAT013189": "서대구",
+    "NATH12383": "김천구미",
+    "NAT011668": "대전",
+    "NAT050044": "오송",
+    "NATH10960": "천안아산",
+    "NAT010415": "수원",        # 경부 일반선 경유 편
+    "NATH10219": "광명",
+    "NAT010091": "영등포",      # 경부 일반선 경유 편
+    "NATH30326": "동탄",
+    "NAT750560": "남창",
+    "NAT750329": "기장",
+    "NAT750189": "신해운대",
+    "NAT750161": "센텀",
+    "NAT750106": "동래",
 }
 
-# 날짜별 수집 구간 (출발역, 도착역). 울산역은 부산역만, 태화강역은 부전역만 본다.
-# SRT 는 이 API 응답에 나오지 않는다(2026-09-29 울산→부산 61편 전부 KTX 계열).
+# 날짜별 수집 구간 (출발역, 도착역). 울산역은 부산·서울·수서, 태화강역은 부전만 본다.
+# SRT 는 필요 없다(소유자 결정 2026-09-29).
 RAIL_PAIRS = [
-    ("NATH13717", "NAT014445"),   # 울산 → 부산
-    ("NAT750726", "NAT750046"),   # 태화강 → 부전 (KTX-이음·ITX-마음·무궁화)
+    (RAIL_ULSAN, RAIL_BUSAN),         # 울산 → 부산
+    (RAIL_TAEHWAGANG, RAIL_BUJEON),   # 태화강 → 부전 (KTX-이음·ITX-마음·무궁화)
+    (RAIL_ULSAN, RAIL_SEOUL),         # 울산 → 서울
+    (RAIL_ULSAN, RAIL_SUSEO),         # 울산 → 수서
 ]
+
+# 정차역 후보(운행 순서). API 가 정차역 목록을 주지 않으므로, 같은 출발역·출발시각의 열차가
+# "출발역 → 후보역" 조회에도 나오면 그 역에 선다고 본다(열차번호 대신 시각으로 잇기).
+RAIL_STOP_CANDIDATES = {
+    (RAIL_ULSAN, RAIL_SEOUL): ["NATH13421", "NAT013271", "NAT013189", "NATH12383", "NAT011668",
+                               "NAT050044", "NATH10960", "NAT010415", "NATH10219", "NAT010091"],
+    (RAIL_ULSAN, RAIL_SUSEO): ["NATH13421", "NAT013271", "NAT013189", "NATH12383", "NAT011668",
+                               "NAT050044", "NATH10960", "NATH30326"],
+    (RAIL_TAEHWAGANG, RAIL_BUJEON): ["NAT750560", "NAT750329", "NAT750189", "NAT750161", "NAT750106"],
+}
+# 정차역 조회는 가까운 날짜만(오늘 포함). 화면은 오늘·내일만 쓴다.
+RAIL_STOP_PATTERN_DAYS = 3
 
 # 동해선 광역전철 역. key: TAGO subwayStationId, value: 역명. 노선 ID MTRKRK6.
 METRO_STATIONS = {

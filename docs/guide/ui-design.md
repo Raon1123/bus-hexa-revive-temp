@@ -25,7 +25,7 @@ audience: 화면·템플릿·CSS·노선도를 수정하는 사람·AI 세션
 | 템플릿 | 역할 |
 |---|---|
 | `templates/_base.html` | 공개 셸 — 사이드바(3그룹, `(endpoint, emoji, t(key))` 목록), 탑바 `.lang-switcher`(`?lang=ko|en`), flash, footer. 블록: `title`, `page_title`, `extra_head`, `sidebar_nav`, `sidebar_footer`, `content`, `extra_scripts` |
-| board, busno, running, unist_timetable(+`css/timetable.css`), unist_board, stops, info(+`css/info.css`), busan(+`css/busan.css`) | `_base` 상속 |
+| board, busno, running, unist_timetable(+`css/timetable.css`), unist_board, stops, info(+`css/info.css`), busan(+`css/busan.css`), seoul, `macros/_rail_board.html`(열차 목록: `rail_table` 기본 / `rail_board` 발차 안내판 `?view=board`, `css/rail_board.css`) | `_base` 상속 |
 | `templates/admin/_admin_base.html` | `_base` 상속, 관리자 사이드바 + 로그아웃 POST 폼 + `css/admin.css` |
 | `templates/board_lite.html` | **독립 문서**(상속 없음). `<meta http-equiv="refresh" content="15">`, `<table border=1>`, FIRST/SECOND 는 `*`/`+` 접두 |
 

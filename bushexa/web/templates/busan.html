@@ -1,9 +1,11 @@
 {% extends "_base.html" %}
+{% from "macros/_rail_board.html" import rail_trains, view_toggle with context %}
 
 {% block title %}Bus HeXA — {{ t('busan.title') }}{% endblock %}
 
 {% block extra_head %}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/busan.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/rail_board.css') }}">
 {% endblock %}
 
 {% block content %}
@@ -62,18 +64,8 @@
     <p class="empty-state">{{ t('busan.rail_missing') }}</p>
     {% else %}
         {% if snapshot.ktx_state == 'suspect' %}<div class="info-banner">{{ t('busan.rail_suspect') }}</div>{% endif %}
-        {% if snapshot.ktx_trains %}
-        <table class="timetable busan-table">
-            <thead><tr><th>{{ t('busan.col.dep') }}</th><th>{{ t('busan.col.arr') }}</th><th>{{ t('busan.col.train') }}</th></tr></thead>
-            <tbody>
-            {% for tr in snapshot.ktx_trains %}
-            <tr><td><strong>{{ tr.dep }}</strong></td><td>{{ tr.arr }}</td><td class="busan-sub">{{ tr.grade }}</td></tr>
-            {% endfor %}
-            </tbody>
-        </table>
-        {% else %}
-        <p class="empty-state">{{ t('busan.no_more_trains') }}</p>
-        {% endif %}
+        {{ view_toggle(view) }}
+        {{ rail_trains(boards.ktx, view, limit=6) }}
     {% endif %}
     <p class="busan-note">{{ t('busan.note_513', min=unist_to_station_min, transfer=ktx_transfer_min) }}</p>
 </section>
@@ -134,18 +126,9 @@
     <h3>{{ t('busan.intercity') }}</h3>
     {% if snapshot.intercity_state == 'missing' %}
     <p class="empty-state">{{ t('busan.rail_missing') }}</p>
-    {% elif snapshot.intercity_trains %}
-        {% if snapshot.intercity_state == 'suspect' %}<div class="info-banner">{{ t('busan.rail_suspect') }}</div>{% endif %}
-    <table class="timetable busan-table">
-        <thead><tr><th>{{ t('busan.col.dep') }}</th><th>{{ t('busan.col.arr') }}</th><th>{{ t('busan.col.train') }}</th></tr></thead>
-        <tbody>
-        {% for tr in snapshot.intercity_trains %}
-        <tr><td><strong>{{ tr.dep }}</strong></td><td>{{ tr.arr }}</td><td class="busan-sub">{{ tr.grade }}</td></tr>
-        {% endfor %}
-        </tbody>
-    </table>
     {% else %}
-    <p class="empty-state">{{ t('busan.no_more_trains') }}</p>
+        {% if snapshot.intercity_state == 'suspect' %}<div class="info-banner">{{ t('busan.rail_suspect') }}</div>{% endif %}
+        {{ rail_trains(boards.intercity, view, limit=4) }}
     {% endif %}
 </section>
 

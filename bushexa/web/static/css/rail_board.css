@@ -1,0 +1,76 @@
+/* 역 발차 안내판 — 난카이 난바역 LED 안내판을 본뜸. 판은 라이트/다크 모드 모두 검은 바탕. */
+.rb-board {
+    --rb-bg: #0c0d10; --rb-line: #25272e; --rb-amber: #ffb400; --rb-dim: #4a4d57;
+    --rb-text: #f3f3f3; --rb-sub: #a9adb8;
+    background: var(--rb-bg); color: var(--rb-text); border-radius: 10px;
+    padding: 0.4rem 0.8rem 0.6rem; box-shadow: inset 0 0 0 2px #1b1d23, 0 2px 8px rgba(0,0,0,.25);
+    font-family: var(--font-board, inherit);
+}
+.rb-head, .rb-top {
+    display: grid; grid-template-columns: 4.6rem 5.4rem 1fr 4.2rem; align-items: center; gap: 0.5rem;
+}
+.rb-head { color: var(--rb-sub); font-size: 0.72rem; letter-spacing: .08em; padding: 0.3rem 0; border-bottom: 1px solid var(--rb-line); }
+.rb-head-arr, .rb-arr { text-align: right; }
+.rb-row { padding: 0.55rem 0 0.5rem; border-bottom: 1px solid var(--rb-line); }
+.rb-row:last-child { border-bottom: 0; }
+.rb-time { color: var(--rb-amber); font-size: 1.55rem; font-weight: 700; font-variant-numeric: tabular-nums;
+           letter-spacing: .03em; text-shadow: 0 0 6px rgba(255,180,0,.45); }
+.rb-grade { justify-self: start; padding: 0.12rem 0.45rem; border-radius: 3px; font-weight: 800;
+            font-size: 0.82rem; color: #fff; white-space: nowrap; }
+.rb-g-ktx { background: #1f56c2; }
+.rb-g-sancheon { background: #0f8a8f; }
+.rb-g-eum { background: #2f8f3a; }
+.rb-g-itx { background: #c7322b; }
+.rb-g-mu { background: #e07a10; }
+.rb-dest { font-size: 1.3rem; font-weight: 800; }
+.rb-dest small { font-size: 0.72rem; color: var(--rb-sub); margin-left: 0.2rem; font-weight: 400; }
+.rb-dest[data-dest="수서"] { color: #d8b4ff; }
+.rb-dest[data-dest="서울"] { color: #fff27a; }
+.rb-arr { color: var(--rb-sub); font-variant-numeric: tabular-nums; }
+.rb-arr sup { color: var(--rb-amber); margin-left: 0.1rem; }
+
+.rb-meta { display: flex; gap: 0.4rem; align-items: center; min-height: 1.2rem; margin: 0.15rem 0 0.1rem; font-size: 0.78rem; }
+.rb-left { color: var(--rb-sub); }
+.rb-badge { padding: 0.05rem 0.4rem; border-radius: 999px; font-weight: 700; }
+.rb-badge-bus { background: #1b5e20; color: #c8facc; }
+.rb-badge-soon { background: var(--rb-amber); color: #111; }
+.rb-soon .rb-time { animation: rb-blink 1.1s steps(2, start) infinite; }
+.rb-connect { background: linear-gradient(90deg, rgba(46,125,50,.22), transparent 60%); }
+@keyframes rb-blink { to { visibility: hidden; } }
+
+/* 정차역 띠: 선 위에 점. 불 켜진 역 = 정차 */
+.rb-strip { list-style: none; display: flex; margin: 0.35rem 0 0; padding: 0.9rem 0 0.1rem;
+            overflow-x: auto; position: relative; scrollbar-width: thin; }
+.rb-stop { flex: 1 0 3.3rem; text-align: center; position: relative; color: var(--rb-dim); font-size: 0.72rem; line-height: 1.25; }
+.rb-stop::before { content: ""; position: absolute; top: -0.62rem; left: 0; right: 0; height: 2px; background: var(--rb-dim); }
+.rb-stop:first-child::before { left: 50%; }
+.rb-stop:last-child::before { right: 50%; }
+.rb-stop::after { content: ""; position: absolute; top: -0.9rem; left: 50%; transform: translateX(-50%);
+                  width: 0.5rem; height: 0.5rem; border-radius: 50%; border: 2px solid var(--rb-dim); background: var(--rb-bg); }
+.rb-stop b { display: block; font-weight: 600; white-space: nowrap; }
+.rb-stop i { font-style: normal; font-variant-numeric: tabular-nums; font-size: 0.68rem; }
+.rb-lit { color: var(--rb-amber); }
+.rb-lit::before { background: var(--rb-amber); }
+.rb-lit::after { background: var(--rb-amber); border-color: var(--rb-amber); box-shadow: 0 0 6px rgba(255,180,0,.7); }
+.rb-end b { color: var(--rb-text); }
+
+/* 흐르는 안내 문구 */
+.rb-marquee { overflow: hidden; white-space: nowrap; margin-top: 0.3rem; color: #7ee787; font-size: 0.8rem; }
+.rb-marquee span { display: inline-block; padding-left: 100%; animation: rb-scroll 16s linear infinite; }
+@keyframes rb-scroll { to { transform: translateX(-100%); } }
+@media (prefers-reduced-motion: reduce) {
+    .rb-marquee span { animation: none; padding-left: 0; }
+    .rb-soon .rb-time { animation: none; }
+}
+.rb-nostops, .rb-empty { color: var(--rb-sub); font-size: 0.8rem; margin: 0.3rem 0 0; }
+
+@media (max-width: 600px) {
+    .rb-head, .rb-top { grid-template-columns: 3.9rem auto 1fr 3.6rem; gap: 0.35rem; }
+    .rb-time { font-size: 1.3rem; }
+    .rb-dest { font-size: 1.1rem; }
+}
+
+/* 보기 전환(표 / 발차 안내판) */
+.rb-toggle { display: inline-flex; border: 1px solid #d0d4dc; border-radius: 999px; overflow: hidden; margin: 0 0 0.5rem; font-size: 0.85rem; }
+.rb-toggle a { padding: 0.25rem 0.75rem; text-decoration: none; color: inherit; }
+.rb-toggle a.active { background: #1f2430; color: #fff; }

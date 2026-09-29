@@ -192,6 +192,9 @@ def create_app(config: AppConfig) -> Flask:
     from bushexa.web.routes.busan import bp as busan_bp
     app.register_blueprint(busan_bp)
 
+    from bushexa.web.routes.seoul import bp as seoul_bp
+    app.register_blueprint(seoul_bp)
+
     from bushexa.web.routes.running import bp as running_bp
     app.register_blueprint(running_bp)
 

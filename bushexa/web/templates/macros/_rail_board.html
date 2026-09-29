@@ -1,0 +1,88 @@
+{#
+  열차 목록 두 가지 보기. 기본은 rail_table(표), 선택하면 rail_board(발차 안내판).
+  view_toggle 이 ?view=table|board 링크를 만든다(다른 쿼리 인자는 유지).
+
+  역 발차 안내판(난카이 난바역 스타일) — domain/rail_board.BoardTrain 목록을 그린다.
+  정차역 띠: 불 켜진 역 = 정차, 어두운 역 = 통과. 띠가 None 이면 "정차역 정보 없음".
+  css/rail_board.css 가 필요하다.
+#}
+{% macro rail_board(trains, limit=12) %}
+<div class="rb-board" role="table" aria-label="{{ t('rb.aria') }}">
+    <div class="rb-head" role="row">
+        <span role="columnheader">{{ t('rb.col.dep') }}</span>
+        <span role="columnheader">{{ t('rb.col.type') }}</span>
+        <span role="columnheader">{{ t('rb.col.dest') }}</span>
+        <span role="columnheader" class="rb-head-arr">{{ t('rb.col.arr') }}</span>
+    </div>
+    {% for tr in trains[:limit] %}
+    <div class="rb-row{% if tr.soon %} rb-soon{% endif %}{% if tr.connect %} rb-connect{% endif %}" role="row">
+        <div class="rb-top">
+            <span class="rb-time" role="cell">{{ tr.dep }}</span>
+            <span class="rb-grade {{ 'rb-g-eum' if '이음' in tr.grade else 'rb-g-itx' if 'ITX' in tr.grade else 'rb-g-mu' if '무궁화' in tr.grade else 'rb-g-sancheon' if '산천' in tr.grade else 'rb-g-ktx' }}" role="cell">{{ tr.grade.split('(')[0] }}</span>
+            <span class="rb-dest" role="cell" data-dest="{{ tr.dest }}">{{ tr.dest }}<small>{{ t('rb.bound') }}</small></span>
+            <span class="rb-arr" role="cell">{{ tr.arr }}{% if tr.next_day %}<sup>+1</sup>{% endif %}</span>
+        </div>
+        <div class="rb-meta">
+            {% if tr.connect %}<span class="rb-badge rb-badge-bus">🚌 {{ t('rb.connect') }}</span>{% endif %}
+            {% if tr.soon %}<span class="rb-badge rb-badge-soon">{{ t('rb.soon') }}</span>
+            {% else %}<span class="rb-left">{{ t('rb.left', min=tr.minutes_left) }}</span>{% endif %}
+        </div>
+        {% if tr.strip is not none %}
+        <ol class="rb-strip" aria-label="{{ t('rb.stops') }}">
+            <li class="rb-stop rb-lit rb-end"><b>{{ tr.origin }}</b><i>{{ tr.dep }}</i></li>
+            {% for s in tr.strip %}
+            <li class="rb-stop{% if s.stops %} rb-lit{% endif %}"><b>{{ s.name }}</b><i>{{ s.time or '·' }}</i></li>
+            {% endfor %}
+            <li class="rb-stop rb-lit rb-end"><b>{{ tr.dest }}</b><i>{{ tr.arr }}</i></li>
+        </ol>
+        {% set lit = tr.strip | selectattr('stops') | map(attribute='name') | list %}
+        <div class="rb-marquee" aria-hidden="true"><span>{% if lit %}{{ t('rb.marquee', origin=tr.origin, stops=lit | join(' · '), dest=tr.dest, arr=tr.arr) }}{% else %}{{ t('rb.marquee_direct', origin=tr.origin, dest=tr.dest, arr=tr.arr) }}{% endif %}</span></div>
+        {% else %}
+        <p class="rb-nostops">{{ t('rb.no_stops') }}</p>
+        {% endif %}
+    </div>
+    {% else %}
+    <p class="rb-empty">{{ t('rb.empty') }}</p>
+    {% endfor %}
+</div>
+{% endmacro %}
+
+
+{% macro rail_table(trains, limit=12, show_dest=False) %}
+{% if trains %}
+<table class="timetable busan-table">
+    <thead><tr>
+        <th>{{ t('busan.col.dep') }}</th>{% if show_dest %}<th>{{ t('rb.col.dest') }}</th>{% endif %}
+        <th>{{ t('busan.col.arr') }}</th><th>{{ t('busan.col.train') }}</th>
+    </tr></thead>
+    <tbody>
+    {% for tr in trains[:limit] %}
+    <tr>
+        <td><strong>{{ tr.dep }}</strong>{% if tr.connect %} <span class="busan-sub">🚌</span>{% endif %}</td>
+        {% if show_dest %}<td>{{ tr.dest }}</td>{% endif %}
+        <td>{{ tr.arr }}{% if tr.next_day %}<sup>+1</sup>{% endif %}</td>
+        <td class="busan-sub">{{ tr.grade }}</td>
+    </tr>
+    {% endfor %}
+    </tbody>
+</table>
+{% else %}
+<p class="empty-state">{{ t('rb.empty') }}</p>
+{% endif %}
+{% endmacro %}
+
+
+{% macro rail_trains(trains, view, limit=12, show_dest=False) %}
+{% if view == 'board' %}{{ rail_board(trains, limit) }}{% else %}{{ rail_table(trains, limit, show_dest) }}{% endif %}
+{% endmacro %}
+
+
+{% macro view_toggle(view) %}
+{% set args = request.args.to_dict() %}
+<div class="rb-toggle" role="group" aria-label="{{ t('rb.view') }}">
+    {% for key, label in [('table', t('rb.view.table')), ('board', t('rb.view.board'))] %}
+    {% set _ = args.update({'view': key}) %}
+    <a href="?{{ args | urlencode }}"{% if view == key %} class="active" aria-current="true"{% endif %}>{{ label }}</a>
+    {% endfor %}
+</div>
+{% endmacro %}

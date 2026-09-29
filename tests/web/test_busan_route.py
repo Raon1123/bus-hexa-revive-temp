@@ -63,3 +63,36 @@ def test_busan_page_english_has_no_raw_keys(client):
     html = c.get("/busan?lang=en").data.decode()
     assert "Getting to Busan" in html
     assert "busan." not in html.replace("css/busan.css", "")
+
+
+def test_seoul_page_renders_board_from_rail_store(client):
+    """/seoul 은 rail_timetable.json 의 서울·수서행을 안내판으로 보이고, 데이터가 없으면 안내 문구, en 은 키 노출 없음."""
+    c, data_dir = client
+    resp = c.get("/seoul")
+    assert resp.status_code == 200 and "서울 가는 길" in resp.data.decode()
+    assert "행 열차 시간표를 아직 받지 못했습니다" in resp.data.decode()
+    from bushexa.time_utils import KSTClock
+    today = KSTClock().now().date().isoformat()
+    store = {"version": 1, "metro": {}, "trains": {"pairs": {"NATH13717-NAT010000": {"dates": {today: {
+        "trains": [{"grade": "KTX", "dep": f"{today}T23:58:00+09:00", "arr": f"{today}T23:59:00+09:00",
+                    "stops": [{"name": "동대구", "arr": "23:58"}]}]}}}}}}
+    atomic_write_json(data_dir / "rail_timetable.json", store)
+    html = c.get("/seoul?to=seoul&view=board").data.decode()
+    assert "23:58" in html and "rb-lit" in html
+    en = c.get("/seoul?lang=en&view=board").data.decode()
+    assert "Getting to Seoul" in en and "seoul." not in en and "rb." not in en.replace("rail_board.css", "")
+
+
+def test_rail_view_defaults_to_table_and_board_is_optional(client):
+    """열차 목록 기본 보기는 표이고, ?view=board 일 때만 발차 안내판을 그린다. 전환 링크는 다른 인자를 유지한다."""
+    c, data_dir = client
+    from bushexa.time_utils import KSTClock
+    today = KSTClock().now().date().isoformat()
+    store = {"version": 1, "metro": {}, "trains": {"pairs": {"NATH13717-NAT014445": {"dates": {today: {
+        "trains": [{"grade": "KTX", "dep": f"{today}T23:58:00+09:00", "arr": f"{today}T23:59:00+09:00"}]}}}}}}
+    atomic_write_json(data_dir / "rail_timetable.json", store)
+    table = c.get("/busan").data.decode()
+    assert "rb-board" not in table and "23:58" in table
+    board = c.get("/busan?view=board").data.decode()
+    assert "rb-board" in board and "직행" in board and "무정차" not in board
+    assert "view=table" in c.get("/seoul?to=suseo&view=board").data.decode()

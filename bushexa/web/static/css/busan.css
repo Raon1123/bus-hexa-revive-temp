@@ -10,6 +10,7 @@
     text-decoration: none; color: inherit; font-size: 0.92rem;
 }
 .busan-jump a:hover { background: #f0f2f6; }
+.busan-jump a.active { background: #1f2430; color: #fff; border-color: #1f2430; }
 
 .busan-route {
     border: 1px solid #e0e3ea; border-radius: 10px; margin: 0 0 1.2rem;
@@ -47,3 +48,4 @@
     .busan-table th, .busan-table td { padding: 0.3rem 0.35rem; font-size: 0.85rem; }
     .busan-sub { display: block; margin-left: 0; }
 }
+.busan-table td { white-space: nowrap; }

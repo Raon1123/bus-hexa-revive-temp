@@ -56,7 +56,7 @@ audience: 이 저장소에서 작업하는 사람·AI 세션
 | `db/` | `connection`(SQLite WAL·busy_timeout 5000), `schema`, `repo`(`BusLogRepo`), `repo_arrival` |
 | `crawler/` | `daemon`, `recorder`, `state`, `arrival_poller`, `cache_refresh`, `timetable_crawl`, `parsers` |
 | `data/` | `constants.py`(정적 노선·정류장 메타), `timetable.py`(시간표 로드·검증·캐시) |
-| `domain/` | **순수 뷰모델 빌더** — board, busno, stops, running, unist_board, unist_timetable, busan(+rail_match 시각 매칭). client·clock 주입 |
+| `domain/` | **순수 뷰모델 빌더** — board, busno, stops, running, unist_board, unist_timetable, busan, seoul, rail_board(발차 안내판·정차역 띠), rail_match(동해선 시각 매칭). client·clock 주입 |
 | `services/` | 파일 기반 스토어·에디터 — board_support, holiday_*, special_timetable, via_editor, changelog_editor, crawl_settings, audit_log, auth, backup, recrawl_job, *_status, log_reader, stop_cache, timetable_editor, route_map_ab(노선도 A/B 카운터) |
 | `web/` | Flask 팩토리(`app.py`: CSRF·i18n·Server-Timing), `routes/`, `templates/`, `static/`, `i18n.py`, `route_diagram.py`(노선도 SVG·노선 경로 데이터), `route_lines.py`(노선별 목록 뷰모델) |
 
