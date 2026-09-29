@@ -74,13 +74,13 @@ def test_refresh_preserves_other_months_on_failure(tmp_path):
     client = MagicMock()
     client.fetch.side_effect = RuntimeError("network blocked")
 
-    # 7월 갱신이 실패해도 기존 6월 캐시는 보존되어야 한다
-    # (실패한 7월 자체는 오프라인 폴백으로 gap-fill — 2026-07은 법정공휴일 없음 → 빈 달 캐시)
-    result = cache.refresh(client, [(2026, 7)])
+    # 11월 갱신이 실패해도 기존 6월 캐시는 보존되어야 한다
+    # (실패한 11월 자체는 오프라인 폴백으로 gap-fill — 2026-11은 법정공휴일 없음 → 빈 달 캐시)
+    result = cache.refresh(client, [(2026, 11)])
     assert result == {"20260606"}
     raw = json.loads(p.read_text(encoding="utf-8"))
     assert raw["202606"] == ["20260606"]
-    assert raw.get("202607", []) == []  # 제헌절은 비공휴일이라 제외 → 빈 달
+    assert raw.get("202611", []) == []
 
 
 def test_refresh_partial_success_updates_only_succeeded(tmp_path, monkeypatch):
@@ -140,13 +140,14 @@ def test_refresh_offline_fallback_never_overwrites_cached_month(tmp_path):
     assert raw["202606"] == ["20260606", "20260615"]
 
 
-def test_offline_month_holidays_excludes_constitution_day():
-    """holidays 패키지가 제헌절(7/17)을 공휴일로 잘못 분류하는 것을 제외하는지
-    (2008년부터 비공휴일 — 버스는 평일 운행)."""
+def test_offline_month_holidays_includes_constitution_day():
+    """제헌절(7/17)은 2026년 공휴일 재지정 — 다가오는 연도의 오프라인 폴백에 포함되는지.
+    패키지가 이름을 locale로 번역하므로(en_US 'Constitution Day' / C.UTF-8 '제헌절')
+    locale과 무관하게 같은 결과여야 한다."""
     from bushexa.services.holiday_service import offline_month_holidays
 
-    july = offline_month_holidays(2026, 7)
-    assert datetime.date(2026, 7, 17) not in july
+    july = offline_month_holidays(2027, 7)
+    assert datetime.date(2027, 7, 17) in july
 
 
 # ── read_effective_holidays (읽기 경로, API 미호출) ──────────────────────────
