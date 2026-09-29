@@ -4,8 +4,10 @@ Design: "최소 인프라 + 점진 적용" — no Flask-Babel/gettext, no heavy 
 
 Public API
 ----------
-translate(key, lang) -> str   : a.k.a. t()
-resolve_lang(request) -> str  : reads ?lang= → cookie → default "ko"
+translate(key, lang, **kw) -> str : a.k.a. t(); kw는 str.format 플레이스홀더
+resolve_lang(request) -> str      : ?lang= → cookie → Accept-Language → "ko"
+localize_stop(raw, lang, names)   : 정류소 이름 번역(ADR-014, 렌더 계층 전용)
+lang_url(request, lang) -> str    : 현재 URL의 쿼리를 보존한 채 lang만 교체
 SUPPORTED_LANGS : list[str]
 DEFAULT_LANG     : str
 
@@ -21,6 +23,11 @@ How to extend coverage incrementally
 """
 
 from __future__ import annotations
+
+import re
+from urllib.parse import urlencode
+
+from bushexa.data.constants import clean_stop_name
 
 SUPPORTED_LANGS: list[str] = ["ko", "en"]
 DEFAULT_LANG: str = "ko"
@@ -73,24 +80,43 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
     "board.btn.table":      {"ko": "표",                 "en": "Table"},
     "board.btn.flap":       {"ko": "Split-flap",         "en": "Split-flap"},
 
+    # ── Stop names: parenthetical annotations & direction (ADR-014) ────────
+    # 방향 주석은 목적지 이름으로 표기한다: 시내 → Ulsan, 학교/UNIST → UNIST.
+    "stop.annot.city":      {"ko": "시내",               "en": "Ulsan"},
+    "stop.annot.unist":     {"ko": "UNIST",              "en": "UNIST"},
+    "stop.annot.terminus":  {"ko": "종점",               "en": "Terminus"},
+    "stop.annot.origin":    {"ko": "기점",               "en": "Origin"},
+    "stop.annot.via":       {"ko": "경유",               "en": "Via"},
+    "stop.annot.from_date": {"ko": "{date}부터",          "en": "from {date}"},
+    "dir.towards":          {"ko": "{stop} 방면",         "en": "To {stop}"},
+
     # ── Language switcher UI labels ────────────────────────────────────────
     "lang.ko":              {"ko": "한국어",              "en": "한국어"},
     "lang.en":              {"ko": "English",            "en": "English"},
 }
 
 
-def translate(key: str, lang: str) -> str:
+def translate(key: str, lang: str, **kwargs: object) -> str:
     """Return the translation for *key* in *lang*.
 
     Fallback chain:
       1. requested lang
       2. DEFAULT_LANG ("ko")
       3. the key itself (so untranslated keys are visible, not broken)
+
+    *kwargs* fill ``{name}`` placeholders via ``str.format``. A missing placeholder
+    returns the unformatted template rather than raising (render must not 500).
     """
     entry = TRANSLATIONS.get(key)
     if entry is None:
         return key
-    return entry.get(lang) or entry.get(DEFAULT_LANG) or key
+    text = entry.get(lang) or entry.get(DEFAULT_LANG) or key
+    if kwargs:
+        try:
+            return text.format(**kwargs)
+        except (KeyError, IndexError, ValueError):
+            return text
+    return text
 
 
 # Convenient alias used by templates via context processor.
@@ -103,7 +129,8 @@ def resolve_lang(request) -> str:  # type: ignore[type-arg]
     Resolution order:
       1. ``?lang=`` query parameter (if valid)
       2. ``lang`` cookie
-      3. DEFAULT_LANG ("ko")
+      3. ``Accept-Language`` best match (first visit only — explicit choice wins)
+      4. DEFAULT_LANG ("ko")
     """
     q = request.args.get("lang", "")
     if q in SUPPORTED_LANGS:
@@ -111,4 +138,69 @@ def resolve_lang(request) -> str:  # type: ignore[type-arg]
     cookie = request.cookies.get("lang", "")
     if cookie in SUPPORTED_LANGS:
         return cookie
-    return DEFAULT_LANG
+    return request.accept_languages.best_match(SUPPORTED_LANGS, default=DEFAULT_LANG)
+
+
+def lang_url(request, lang: str) -> str:  # type: ignore[type-arg]
+    """현재 경로 + 기존 쿼리(반복 키 포함)를 보존하고 ``lang``만 교체한 URL."""
+    params = [(k, v) for k, vs in request.args.lists() if k != "lang" for v in vs]
+    params.append(("lang", lang))
+    return f"{request.path}?{urlencode(params)}"
+
+
+# ---------------------------------------------------------------------------
+# Stop names (ADR-014) — 한국어 원문은 도메인·DB에 그대로 두고 렌더 직전에만 번역한다.
+# 사전 자체(StopNames)는 bushexa.services.stop_name_dict 가 관리자 편집 파일에서 로드한다.
+# ---------------------------------------------------------------------------
+
+_ANNOT_KEYS: dict[str, str] = {
+    "시내": "stop.annot.city",
+    "시내방향": "stop.annot.city",
+    "시내 방향": "stop.annot.city",
+    "시내 방면": "stop.annot.city",
+    "UNIST": "stop.annot.unist",
+    "학교": "stop.annot.unist",
+    "종점": "stop.annot.terminus",
+    "기점": "stop.annot.origin",
+    "경유": "stop.annot.via",
+}
+_PAREN_RE = re.compile(r"\(([^)]*)\)")
+_FROM_DATE_RE = re.compile(r"^(\d{1,2}/\d{1,2})\s*부터$")
+_TOWARDS_SUFFIX = "방면"
+_JOIN = " - "
+
+
+def _localize_annotation(part: str, lang: str, names) -> str:
+    part = part.strip()
+    key = _ANNOT_KEYS.get(part)
+    if key:
+        return translate(key, lang)
+    m = _FROM_DATE_RE.match(part)
+    if m:
+        return translate("stop.annot.from_date", lang, date=m.group(1))
+    return names.lookup(part, lang) or part
+
+
+def localize_stop(raw: str, lang: str, names) -> str:
+    """정류소 이름(또는 그 조합)을 *lang*으로 표시할 문자열로 바꾼다.
+
+    - ``ko``(또는 빈 값)는 원문 그대로(비용 0).
+    - ``"천상 - 구영리 - 명촌 (종점)"`` 같은 경유 문자열은 `` - `` 토큰별로 번역.
+    - ``"명촌 (시내) 방면"`` → ``dir.towards``(en ``"To Myeongchon (Ulsan)"``).
+    - ``"진목회관 (시내)"`` → 기준명은 사전, 괄호 주석은 ``stop.annot.*`` 어휘(없으면 사전, 그래도 없으면 원문).
+    - 사전에 없는 기준명은 한국어 원문을 유지한다(깨지지 않는 폴백).
+    """
+    if not raw or lang == DEFAULT_LANG:
+        return raw
+    if _JOIN in raw:
+        return _JOIN.join(localize_stop(tok, lang, names) for tok in raw.split(_JOIN))
+    stripped = raw.strip()
+    if stripped.endswith(_TOWARDS_SUFFIX) and stripped != _TOWARDS_SUFFIX:
+        inner = stripped[: -len(_TOWARDS_SUFFIX)].strip()
+        return translate("dir.towards", lang, stop=localize_stop(inner, lang, names))
+    base = clean_stop_name(stripped)
+    out = names.lookup(base, lang) or base
+    for annot in _PAREN_RE.findall(stripped):
+        parts = [_localize_annotation(p, lang, names) for p in annot.split(",")]
+        out += f" ({', '.join(parts)})"
+    return out

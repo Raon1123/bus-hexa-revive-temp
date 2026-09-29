@@ -66,10 +66,10 @@
                 <span class="topbar-title">{% block page_title %}{{ t('page.default_title') }}{% endblock %}</span>
                 {# ── 언어 전환기 ── #}
                 <nav class="lang-switcher" aria-label="언어 선택">
-                    <a href="{{ request.path }}?lang=ko"
+                    <a href="{{ lang_url('ko') }}"
                        class="lang-btn{% if lang == 'ko' %} lang-active{% endif %}"
                        hx-boost="false">한</a>
-                    <a href="{{ request.path }}?lang=en"
+                    <a href="{{ lang_url('en') }}"
                        class="lang-btn{% if lang == 'en' %} lang-active{% endif %}"
                        hx-boost="false">EN</a>
                 </nav>

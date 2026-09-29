@@ -20,7 +20,8 @@ from flask import Flask, g, redirect, request, session, url_for
 
 from bushexa.config import AppConfig
 from bushexa.logging_setup import setup_logging
-from bushexa.web.i18n import SUPPORTED_LANGS, resolve_lang, translate
+from bushexa.services.stop_name_dict import get_stop_names
+from bushexa.web.i18n import SUPPORTED_LANGS, lang_url, localize_stop, resolve_lang, translate
 from bushexa.web.timing import record, server_timing_header
 
 _HERE = Path(__file__).parent
@@ -109,11 +110,26 @@ def create_app(config: AppConfig) -> Flask:
         g.lang = resolve_lang(request)
 
     # --- i18n: context processor ----------------------------------------
-    # Exposes `lang` and `t(key)` to every template automatically.
+    # Exposes `lang`, `t(key, **kw)` and `lang_url(code)` to every template.
+    # lang_url keeps the current query string (e.g. /busno?bus=713) when switching.
     @app.context_processor
     def _inject_i18n() -> dict:
         lang = getattr(g, "lang", "ko")
-        return {"lang": lang, "t": lambda key: translate(key, lang)}
+        return {
+            "lang": lang,
+            "t": lambda key, **kw: translate(key, lang, **kw),
+            "lang_url": lambda code: lang_url(request, code),
+        }
+
+    # --- i18n: stop-name filter (ADR-014) -------------------------------
+    # {{ name | stop }} — 정류소 이름을 현재 언어로. 사전은 관리자 편집 파일
+    # (<data_dir>/stop_names.json) + 시드이며, mtime 캐시라 다른 워커의 저장도 즉시 반영.
+    @app.template_filter("stop")
+    def _stop_filter(name):
+        lang = getattr(g, "lang", "ko")
+        if lang == "ko" or not name:
+            return name
+        return localize_stop(str(name), lang, get_stop_names(config.data_dir))
 
     # --- i18n: persist lang cookie on valid ?lang= ----------------------
     # Sets a 1-year cookie only when the user explicitly sends ?lang=.
@@ -128,6 +144,9 @@ def create_app(config: AppConfig) -> Flask:
                 samesite="Lax",
                 httponly=False,  # readable by client JS if needed
             )
+        # 같은 URL이 쿠키·Accept-Language에 따라 다른 언어로 렌더되므로 캐시 키에 포함시킨다.
+        response.vary.add("Cookie")
+        response.vary.add("Accept-Language")
         return response
 
     # --- Server-Timing 응답 헤더 (perf 진단) ----------------------------
