@@ -606,83 +606,125 @@ span.c-route {
 .dboard.flap .dboard-row.is-second td { box-shadow: inset 3px 0 0 #33c4ff; }
 .dboard.flap .dboard-empty { color: #4d5f70; }
 
-/* Split-flap 타일: 시각=문자단위, 행선/노선=통째 1개 (splitflap.js가 생성).
+/* Split-flap 모듈: 시각=숫자 자리마다, 행선/노선=통째 1개 (splitflap.js가 생성).
    ※ flap-host는 <td>에 붙으므로 display를 건드리면 table-cell이 깨져 칸이 뭉친다.
-      td는 그대로 table-cell로 두고, 타일(inline-block)이 칸 안에서 가로로 흐르게 한다. */
-.dboard.flap .flap-host { max-width: 100%; perspective: 220px; }
+      td는 그대로 table-cell로 두고, 모듈(inline-block)이 칸 안에서 가로로 흐르게 한다.
+   구조: .fl-size(보이지 않는 목표값 — 모듈 크기 결정) 위에 반쪽 4장을 겹친다.
+     .fl-top / .fl-bot          고정 윗면(다음 값) / 고정 아랫면(현재 값)
+     .fl-leaf-top / .fl-leaf-bot 떨어지는 윗날(현재 값) / 내려앉는 아랫날(다음 값)
+   각 반쪽 안의 .fl-in 은 모듈 전체 높이라서, 반쪽이 overflow:hidden 으로 글자의 위/아래만 보인다. */
+.dboard.flap .flap-host { max-width: 100%; }
+.dboard.flap .flap-sr {   /* 모듈은 aria-hidden — 스크린리더용 값 */
+    position: absolute; width: 1px; height: 1px; overflow: hidden;
+    clip: rect(0 0 0 0); white-space: nowrap;
+}
 .dboard.flap .flap-char {
+    --fpad: 0.1em 0.14em;
+    --flip: 90ms;
+    --face-top: linear-gradient(#343c46, #2a3139);
+    --face-bot: linear-gradient(#232931, #1a1f25);
     display: inline-block;
     vertical-align: middle;
-    min-width: 0.66em;
-    margin: 0 1px;
-    text-align: center;
-    padding: 0.08em 0.13em;
-    color: #ffffff;
-    background: linear-gradient(#2b333d 0 50%, #11161c 50% 100%);
-    border-radius: 3px;
-    box-shadow: inset 0 0 0 1px #000, 0 1px 0 #2b343f;
     position: relative;
-    transform-origin: center center;   /* 중앙(분할선) 기준으로 반 갈려 회전 */
+    min-width: 0.72em;
+    margin: 0 1px;
+    padding: var(--fpad);
+    text-align: center;
+    color: #f3f0e6;                    /* 날개 인쇄 글자: 순백보다 살짝 누런 흰색 */
+    border-radius: 3px;
+    background: #07090c;
+    box-shadow: 0 0 0 1px #000, 0 2px 3px rgba(0,0,0,0.7);   /* 패널 구멍에 박힌 모듈 */
+    perspective: 6em;                  /* 넓은 모듈은 아래에서 늘린다(원근 왜곡을 폭에 맞춤) */
+    line-height: 1.3;
+}
+.dboard.flap .fl-size { visibility: hidden; }
+.dboard.flap .fl-half {
+    position: absolute; left: 0; right: 0;
+    height: 50%;
+    overflow: hidden;
     backface-visibility: hidden;
 }
-/* 행선 통째 타일: 칸(열) 전체 폭으로 고정 → 모든 행 동일 너비(가장 긴 행선 기준).
-   회전 중 다른 행선을 거쳐도 너비가 흔들리지 않는다. 길면 칸 안에서 줄바꿈. */
+.dboard.flap .fl-top { top: 0;    border-radius: 3px 3px 0 0; background: var(--face-top); }
+.dboard.flap .fl-bot { bottom: 0; border-radius: 0 0 3px 3px; background: var(--face-bot); }
+.dboard.flap .fl-in {
+    position: absolute; left: 0; right: 0;
+    height: 200%;                      /* = 모듈 전체 높이 */
+    box-sizing: border-box;
+    padding: var(--fpad);
+    display: flex; align-items: center; justify-content: center;
+    text-align: center;
+}
+.dboard.flap .fl-top .fl-in { top: 0; }
+.dboard.flap .fl-bot .fl-in { bottom: 0; }
+/* 경첩: 반쪽 사이 틈(모듈 안쪽만) + 양옆 축 핀(모듈 가장자리 안쪽의 짧은 금속 막대) */
+.dboard.flap .flap-char::after {
+    content: "";
+    position: absolute; left: 0; right: 0; top: 50%;
+    height: 1px; margin-top: -0.5px;
+    background: rgba(0,0,0,0.75);
+    z-index: 3;
+}
+.dboard.flap .flap-char::before {
+    content: "";
+    position: absolute; left: 0; right: 0; top: 50%;
+    height: 0.2em; margin-top: -0.1em;
+    border-left: 2px solid #5b636d; border-right: 2px solid #5b636d;
+    z-index: 3;
+}
+/* 날개: 넘기는 동안만 보인다. 윗날은 아래 모서리(경첩)를 축으로 앞으로 떨어지며 어두워지고,
+   아랫날은 위 모서리를 축으로 수평에서 내려와 밝아지며 살짝 튕겨 안착한다. */
+.dboard.flap .fl-leaf { visibility: hidden; z-index: 2; }
+.dboard.flap .fl-leaf-top { transform-origin: 50% 100%; }
+.dboard.flap .fl-leaf-bot { transform-origin: 50% 0; transform: rotateX(90deg); }
+.dboard.flap .is-flipping .fl-leaf { visibility: visible; }
+.dboard.flap .is-flipping .fl-leaf-top {
+    animation: flLeafTop calc(var(--flip) / 2) cubic-bezier(0.5, 0, 0.9, 0.5) both;
+}
+.dboard.flap .is-flipping .fl-leaf-bot {
+    animation: flLeafBot calc(var(--flip) / 2) cubic-bezier(0.2, 0.6, 0.4, 1) calc(var(--flip) / 2) both;
+}
+@keyframes flLeafTop {
+    from { transform: rotateX(0deg);   filter: brightness(1); }
+    to   { transform: rotateX(-90deg); filter: brightness(0.45); }
+}
+@keyframes flLeafBot {
+    0%   { transform: rotateX(90deg); filter: brightness(0.5); }
+    75%  { transform: rotateX(0deg);  filter: brightness(1); }
+    88%  { transform: rotateX(9deg); }     /* 멈춤쇠에 부딪혀 살짝 튕김 */
+    100% { transform: rotateX(0deg); }
+}
+/* 행선 통째 모듈: 칸(열) 전체 폭으로 고정 → 모든 행 동일 너비.
+   드럼을 넘기는 중 다른 행선이 나와도 모듈 크기는 목표값(.fl-size) 기준으로 흔들리지 않는다. */
 .dboard.flap .c-dest .flap-char {
-    padding: 0.1em 0.4em;
+    --fpad: 0.14em 0.45em;
+    perspective: 24em;
     white-space: normal;
     width: 100%;
     max-width: 100%;
     box-sizing: border-box;
-    text-align: center;
     line-height: 1.25;
 }
-.dboard.flap .c-time .flap-char { color: #ffffff; font-weight: 700; }               /* 시각, 진하게 */
-/* 노선 flap '블록(타일)' 배경 = 노선색(셀 배경 아님), 숫자는 흰색으로 또렷하게.
-   위/아래 반반 음영으로 split-flap 두 톤 유지(--route 변수 사용) */
+.dboard.flap .c-time .flap-char { font-weight: 700; font-variant-numeric: tabular-nums; }
+/* 노선 모듈 날개 = 노선색. 반쪽마다 --route 를 따로 받는다(splitflap.js) —
+   넘기는 중 윗면은 다음 노선색, 아랫면은 현재 노선색. */
 .dboard.flap .c-route-cell .flap-char {
-    padding: 0.1em 0.5em;
+    --fpad: 0.1em 0.5em;
+    perspective: 10em;
     font-weight: 700;
     color: #ffffff;
-    background: linear-gradient(rgba(255,255,255,0.12) 0 50%, rgba(0,0,0,0.28) 50% 100%), var(--route, #555);
-    /* 1115(4자리) 기준 고정폭: width+box-sizing으로 513~1115 모두 동일 너비 보장.
-       padding:0.1em 0.5em → 좌우 1em 소비. 내용 폭(content area) = width - 1em ≥ 4ch
-       이어야 4자리(1115)가 꽉 찬다. calc(4ch + 1em) = 정확히 4ch content area 보장. */
+    /* 1115(4자리) 기준 고정폭: 좌우 패딩 1em + 내용 4ch → 513~1115 모두 동일 너비 */
     width: calc(4ch + 1em);
     box-sizing: border-box;
-    text-align: center;
     font-variant-numeric: tabular-nums;
-    /* 일반 .flap-char의 min-width:0.66em 재정의 */
     min-width: unset;
 }
-/* 콜론 등 구분자: 플립 없이 고정 */
-.dboard.flap .flap-sep { display: inline-block; padding: 0 0.12em; color: #ffffff; font-weight: 700; }
-.dboard.flap .flap-char::after {  /* 중앙 분할선 */
-    content: "";
-    position: absolute; left: 0; right: 0; top: 50%;
-    height: 1px; background: rgba(0,0,0,0.6);
-}
-.dboard.flap .flap-space { background: transparent; box-shadow: none; min-width: 0.3em; }
-.dboard.flap .flap-space::after { display: none; }
-/* 진짜 split-flap: 중앙(분할선)을 축으로 반 갈려 앞으로 돌아 떨어진다.
-   .flap-host의 perspective + transform-origin:center 와 함께 작동. */
-.dboard.flap .flap-anim { animation: flapIn 0.4s cubic-bezier(0.3, 0.8, 0.4, 1) both; }
-@keyframes flapIn {
-    0%   { transform: rotateX(90deg);  }   /* 날 끝(분할선)만 보임 */
-    60%  { transform: rotateX(-12deg); }   /* 살짝 넘어옴 */
-    100% { transform: rotateX(0deg);   }   /* 평평하게 안착 */
-}
-/* 실제 솔라리 보드처럼 '여러 글자를 거쳐 차르륵 돌다가' 멈춘다.
-   splitflap.js가 글자를 한 칸씩 바꾸며 이 짧은 플립을 매 스텝 다시 재생한다. */
-.dboard.flap .flap-char.flap-step {
-    animation: flapStep 0.15s cubic-bezier(0.25, 0.6, 0.4, 1) both;
-}
-@keyframes flapStep {
-    0%   { transform: rotateX(82deg); }    /* 위에서 떨어지기 직전 */
-    100% { transform: rotateX(0deg);  }    /* 평평하게 안착 */
-}
+/* var(--route)는 선언한 요소에서 풀리므로 --face-* 변수로 넘기지 않고 반쪽에 직접 쓴다. */
+.dboard.flap .c-route-cell .fl-top { background: linear-gradient(rgba(255,255,255,0.16), rgba(255,255,255,0.06)), var(--route, #555); }
+.dboard.flap .c-route-cell .fl-bot { background: linear-gradient(rgba(0,0,0,0.14), rgba(0,0,0,0.30)), var(--route, #555); }
+/* 콜론 등 구분자: 패널에 인쇄된 고정 문자 */
+.dboard.flap .flap-sep { display: inline-block; padding: 0 0.12em; color: #f3f0e6; font-weight: 700; }
 @media (prefers-reduced-motion: reduce) {
-    .dboard.flap .flap-anim,
-    .dboard.flap .flap-char.flap-step { animation: none; }
+    .dboard.flap .is-flipping .fl-leaf { animation: none; visibility: hidden; }
 }
 
 /* 좁은 화면: 현재위치 열 숨김 */
@@ -724,16 +766,16 @@ span.c-route {
     .dboard.table td.c-present { font-size: 0.78rem; }
     .dboard.table .dboard-via { font-size: 0.85rem; }
 
-    /* Split-flap 타일 폰트 및 패딩 축소 — calc(4ch+1em)는 그대로(폰트 크기 조정으로 비례 축소) */
+    /* Split-flap 모듈 폰트 및 패딩 축소 — calc(4ch+1em)는 그대로(폰트 크기 조정으로 비례 축소) */
     .dboard.flap .flap-char {
         font-size: 0.82rem;
-        padding: 0.06em 0.1em;
+        --fpad: 0.06em 0.1em;
         margin: 0 0.5px;
     }
     .dboard.flap .c-time .flap-char { font-size: 0.85rem; }
     .dboard.flap .c-route-cell .flap-char {
         font-size: 0.82rem;
-        padding: 0.08em 0.3em;
+        --fpad: 0.08em 0.3em;
     }
     .dboard.flap .c-dest .flap-char { font-size: 0.82rem; }
 
@@ -819,7 +861,7 @@ span.c-route {
     .dboard.table td.c-time { font-size: 0.88rem; }
     .dboard.flap .flap-char { font-size: 0.76rem; }
     .dboard.flap .c-time .flap-char { font-size: 0.78rem; }
-    .dboard.flap .c-route-cell .flap-char { font-size: 0.76rem; padding: 0.06em 0.25em; }
+    .dboard.flap .c-route-cell .flap-char { font-size: 0.76rem; --fpad: 0.06em 0.25em; }
     .dboard .col-time  { width: 24%; }
     .dboard .col-route { width: 24%; }
     .dboard .col-dest  { width: 52%; }

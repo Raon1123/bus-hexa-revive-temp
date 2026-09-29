@@ -348,6 +348,12 @@ docker compose -f docker/compose.yaml exec app sqlite3 /app/data/bushexa.db '.ta
 ```
 세 프로세스가 같은 SQLite 파일을 공유하므로 동시쓰기는 `PRAGMA busy_timeout`(connection.py)으로 흡수됩니다.
 
+**관리자 비밀번호 초기 설정 / 변경**
+
+- 초기 설정: 첫 배포 직후 `/admin/login` 에 접속하면 로그인 대신 "새 비밀번호 / 확인" 폼이 나옵니다. 8자 이상으로 입력하면 저장되고 곧바로 로그인됩니다. 배포 후 바로 설정하세요.
+- 변경: 로그인한 뒤 `/admin/password` 에서 현재 비밀번호를 확인하고 바꿉니다.
+- 로그인에 5회 실패하면 해당 IP 가 잠시 잠깁니다(HTTP 423). 잠시 뒤 다시 시도하세요.
+
 **울산 BIS 장애 / API quota** — 공공 서비스 특성상 간헐적 다운타임이 있습니다. `crawl-loop` 은 오류 시 재시도하므로 대기하면 자동 복구되며, `BUSHEXA_LOG_LEVEL=DEBUG` 로 상세 로그를 볼 수 있습니다.
 
 **이미지 빌드 실패**
