@@ -5,6 +5,8 @@
 {% block content %}
 <h2>UNIST 출발 버스 현황</h2>
 
+<div class="info-banner">{{ t('board.notice.743') }}</div>
+
 {% if snapshot.bis_error %}
 <div class="error-banner">
     실시간 BIS 정보를 일시적으로 가져오지 못했습니다. 시간표 기반 정보를 표시합니다.
