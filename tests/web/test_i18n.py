@@ -184,3 +184,115 @@ class TestFlaskIntegration:
         html = resp.data.decode("utf-8")
         # lang="en" 이 <html> 태그에 반영되어야 한다
         assert 'lang="en"' in html, "<html lang='en'> 이 없음"
+
+
+# ===========================================================================
+# 4. ADR-014 Phase 0 — 플레이스홀더, Accept-Language, 전환 링크, Vary, 정류소 번역
+# ===========================================================================
+
+from bushexa.services.stop_name_dict import StopNames  # noqa: E402
+from bushexa.web.i18n import lang_url, localize_stop  # noqa: E402
+
+_NAMES = StopNames(
+    aliases={"범서중학교": "범서중학교앞", "울산과학기술원": "UNIST"},
+    langs={"en": {
+        "명촌": "Myeongchon", "진목회관": "Jinmokhoegwan", "구영리": "Guyeong-ri",
+        "범서중학교앞": "Beomseojunghakgyo-ap", "천상": "Cheonsang", "삼남": "Samnam",
+        "울산역": "Ulsanyeok",
+    }},
+)
+
+
+class TestTranslateKwargs:
+    def test_placeholder_filled(self):
+        assert translate("dir.towards", "en", stop="Myeongchon") == "To Myeongchon"
+        assert translate("dir.towards", "ko", stop="명촌") == "명촌 방면"
+
+    def test_missing_placeholder_returns_template(self):
+        assert translate("dir.towards", "en") == "To {stop}"
+        assert translate("dir.towards", "en", other="x") == "To {stop}"
+
+
+class TestAcceptLanguage:
+    @pytest.mark.parametrize("header, expected", [
+        ("en-US,en;q=0.9", "en"),
+        ("ko-KR,ko;q=0.9,en-US;q=0.8", "ko"),
+        ("ja,en;q=0.5", "en"),
+        ("fr", "ko"),
+    ])
+    def test_accept_language_first_visit(self, _app, header, expected):
+        with _app.test_request_context("/", headers={"Accept-Language": header}):
+            from flask import request
+            assert resolve_lang(request) == expected
+
+    def test_cookie_beats_accept_language(self, _app):
+        with _app.test_request_context(
+                "/", headers={"Cookie": "lang=ko", "Accept-Language": "en"}):
+            from flask import request
+            assert resolve_lang(request) == "ko"
+
+
+class TestLangUrl:
+    def test_preserves_query_and_replaces_lang(self, _app):
+        with _app.test_request_context("/busno?bus=713&day=1&lang=ko"):
+            from flask import request
+            url = lang_url(request, "en")
+        assert url.startswith("/busno?")
+        assert "bus=713" in url and "day=1" in url
+        assert url.count("lang=") == 1 and "lang=en" in url
+
+    def test_repeated_keys_kept(self, _app):
+        with _app.test_request_context("/x?a=1&a=2"):
+            from flask import request
+            assert lang_url(request, "ko") == "/x?a=1&a=2&lang=ko"
+
+    def test_switcher_links_keep_query(self, board_app):
+        app, snapshot = board_app
+        with patch("bushexa.web.routes.board.get_board_data", return_value=snapshot):
+            html = app.test_client().get("/board?foo=bar").data.decode("utf-8")
+        assert "/board?foo=bar&amp;lang=en" in html
+        assert "/board?foo=bar&amp;lang=ko" in html
+
+
+class TestVary:
+    def test_vary_includes_cookie_and_accept_language(self, board_app):
+        app, snapshot = board_app
+        with patch("bushexa.web.routes.board.get_board_data", return_value=snapshot):
+            resp = app.test_client().get("/board")
+        vary = resp.headers.get("Vary", "")
+        assert "Cookie" in vary and "Accept-Language" in vary
+
+
+class TestLocalizeStop:
+    @pytest.mark.parametrize("raw, expected", [
+        ("명촌", "Myeongchon"),
+        ("진목회관 (시내)", "Jinmokhoegwan (Ulsan)"),
+        ("진목회관 (UNIST)", "Jinmokhoegwan (UNIST)"),
+        ("명촌 (종점)", "Myeongchon (Terminus)"),
+        ("울산과학기술원 (경유)", "UNIST (Via)"),
+        ("명촌 (시내) 방면", "To Myeongchon (Ulsan)"),
+        ("UNIST 방면", "To UNIST"),
+        ("삼남 (울산역) 방면", "To Samnam (Ulsanyeok)"),
+        ("구영리(범서중학교)", "Guyeong-ri (Beomseojunghakgyo-ap)"),
+        ("구영리(범서중학교, 10/3부터)", "Guyeong-ri (Beomseojunghakgyo-ap, from 10/3)"),
+        ("천상 - 구영리 - 명촌 (종점)", "Cheonsang - Guyeong-ri - Myeongchon (Terminus)"),
+    ])
+    def test_en(self, raw, expected):
+        assert localize_stop(raw, "en", _NAMES) == expected
+
+    def test_unknown_name_keeps_korean(self):
+        assert localize_stop("태화루", "en", _NAMES) == "태화루"
+        assert localize_stop("태화루 (시내)", "en", _NAMES) == "태화루 (Ulsan)"
+
+    @pytest.mark.parametrize("raw", ["진목회관 (시내)", "명촌 (시내) 방면", "천상 - 구영리", ""])
+    def test_ko_is_identity(self, raw):
+        assert localize_stop(raw, "ko", _NAMES) == raw
+
+    def test_stop_filter_uses_request_lang(self, _app):
+        from flask import g, render_template_string
+        with _app.test_request_context("/"):
+            g.lang = "en"
+            assert render_template_string("{{ '범서중 (시내)' | stop }}") == \
+                "Beomseojunghakgyo-ap (Ulsan)"
+            g.lang = "ko"
+            assert render_template_string("{{ '범서중 (시내)' | stop }}") == "범서중 (시내)"
