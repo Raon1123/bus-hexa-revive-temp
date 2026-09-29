@@ -46,9 +46,9 @@ packages = ["bushexa"]
 
 [tool.pytest.ini_options]
 # Confine collection to tests/ so pytest never walks legacy dirs such as
-# postgres-data/ (root-owned PG data) or src/, crawl/, infopages/.
+# postgres-data/ (root-owned PG data) or archive/ (Streamlit 레거시).
 testpaths = ["tests"]
-norecursedirs = ["postgres-data", "_legacy", "src", "crawl", "infopages", ".venv"]
+norecursedirs = ["postgres-data", "_legacy", "archive", ".venv"]
 filterwarnings = [
     # 울산/공휴일 XML을 html.parser로 파싱(legacy와 동일, lxml 의존 회피). 무해한 경고 억제.
     "ignore::bs4.XMLParsedAsHTMLWarning",
