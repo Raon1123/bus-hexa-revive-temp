@@ -38,14 +38,13 @@ def offline_month_holidays(year: int, month: int) -> list[date]:
 
     data.go.kr API가 죽었을 때의 폴백 소스. 음력(설·추석·석가탄신일)·대체공휴일·선거일을
     로컬 계산하지만, 정부가 수시 지정하는 임시공휴일은 알 수 없다 — 그건 admin 수동 지정
-    (``holidays.json``)이 담당한다. 제헌절은 패키지가 공휴일로 잘못 분류하므로 제외한다
-    (2008년부터 비공휴일 — 관공서의 공휴일에 관한 규정).
+    (``holidays.json``)이 담당한다. 제헌절(7/17, 2026년 공휴일 재지정)도 패키지 판단을 따른다.
+    이름은 locale에 따라 번역되므로 이름 문자열로 필터링하지 않는다.
     """
     import holidays as _holidays  # 폴백 경로에서만 필요 — 읽기 경로 import 비용 회피
 
     kr = _holidays.KR(years=year)
-    return sorted(d for d, name in kr.items()
-                  if d.month == month and "Constitution Day" not in name)
+    return sorted(d for d in kr if d.month == month)
 
 
 def upcoming_months(d: date, count: int = 2) -> list[tuple[int, int]]:
