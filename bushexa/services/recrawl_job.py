@@ -37,6 +37,7 @@ from pathlib import Path
 from typing import Any
 
 from bushexa import fileio
+from bushexa.redact import redact_secrets
 
 logger = logging.getLogger("bushexa.services.recrawl_job")
 
@@ -151,6 +152,7 @@ class RecrawlJob:
             "payload": payload,
             "ts": time.time(),
         }, ensure_ascii=False, default=str)
+        line = redact_secrets(line)  # PM-016: 오류 payload에 요청 URL(serviceKey)이 섞일 수 있다
         try:
             with open(self._progress_path, "a", encoding="utf-8") as f:
                 f.write(line + "\n")
@@ -184,7 +186,7 @@ class RecrawlJob:
         """잡 실패 종료 기록."""
         def _mutate(meta: dict) -> dict:
             if meta.get("job_id") == job_id:
-                meta["error"] = str(error)
+                meta["error"] = redact_secrets(str(error))  # PM-016
                 meta["heartbeat"] = time.time()
             return meta
         try:

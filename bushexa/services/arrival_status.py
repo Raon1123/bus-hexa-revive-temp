@@ -13,6 +13,7 @@ from datetime import datetime
 from pathlib import Path
 
 from bushexa import fileio
+from bushexa.redact import redact_secrets
 
 logger = logging.getLogger("bushexa.services.arrival_status")
 
@@ -78,7 +79,8 @@ class ArrivalStatusWriter:
             "stops_total": stops_total,
             "consecutive_errors": consecutive,
             "last_success_at": last_success,
-            "last_error_msg": last_error_msg,
+            # PM-016: 예외 문자열에 요청 URL(serviceKey=…)이 섞일 수 있어 저장 전 가림.
+            "last_error_msg": redact_secrets(last_error_msg) if last_error_msg else last_error_msg,
         }
         history.append(record)
         if len(history) > self.max_history:
