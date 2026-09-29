@@ -333,3 +333,28 @@ def test_dataclass_progress_payload_serialized(tmp_path):
     job = RecrawlJob(crawl, data_dir=tmp_path)
     events = list(job.progress(job.start()))
     assert events == [("progress", {"route": "713", "page": 3}), ("done", None)]
+
+
+def test_error_payload_and_meta_redact_service_key(tmp_path):
+    """재크롤 실패 예외에 요청 URL(serviceKey)이 섞여도 진행 JSONL·메타 파일에는 가려서 저장한다 (PM-016).
+
+    두 파일은 SSE로 관리자 브라우저에 그대로 전달된다.
+    """
+    secret = "AbCd%2BSecretKey%3D%3D"
+
+    def _crawl_with_url_error(*, vacation, on_progress):
+        raise RuntimeError(f"Max retries exceeded with url: /BusTimetable.xo?serviceKey={secret}&routeNo=713")
+
+    job = RecrawlJob(_crawl_with_url_error, data_dir=tmp_path / "data")
+    job_id = job.start(vacation=False)
+    deadline = time.time() + 5
+    while time.time() < deadline:
+        events = list(job.progress(job_id))
+        if events and events[-1][0] == "error":
+            break
+        time.sleep(0.1)
+
+    stored = "".join(p.read_text(encoding="utf-8") for p in (tmp_path / "data").rglob("*") if p.is_file())
+    assert secret not in stored
+    assert "serviceKey=***" in stored
+    assert events[-1][0] == "error" and secret not in str(events[-1][1])  # SSE로 나가는 오류 값

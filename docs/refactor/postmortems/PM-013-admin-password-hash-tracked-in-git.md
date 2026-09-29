@@ -49,7 +49,7 @@ git log --all --oneline -- data/manager_password.txt                 # 이력 �
 
 ## 7. 재발 방지 (Prevention) — **필수**
 
-- [ ] **운영 조치**: 관리자 비밀번호 교체(`/admin/password`). 교체하면 이력의 해시는 무의미해진다. **가장 먼저 할 일.**
+- [ ] **운영 조치**: 관리자 비밀번호 교체(`/admin/password`). 교체하면 이력의 해시는 무의미해진다. **2026-09-29 결정: 다음 배포 단계에서 운영자가 수행**(README.txt 배포 체크리스트에 등재).
 - [ ] **이력 정리**(선택): 저장소가 공개였거나 공개될 예정이면 `git filter-repo` + force-push. 파괴적 작업이므로 소유자 결정 필요.
 - [ ] **회귀 테스트**: 없음. 제안 — `config.py` 가 아는 모든 시크릿 경로에 대해 `git check-ignore` 가 성공하는지 검사하는 테스트(또는 CI 단계).
 - [ ] `.dockerignore` 에 `data/manager_password.txt`, `data/*.json` 런타임 파일 추가 검토.

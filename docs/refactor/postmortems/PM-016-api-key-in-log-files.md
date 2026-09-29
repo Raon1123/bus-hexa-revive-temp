@@ -1,5 +1,5 @@
 ---
-status: draft
+status: fixed
 postmortem_id: PM-016
 severity: high
 discovered: 2026-09-29
@@ -7,18 +7,19 @@ phase: 문서화 조사 (API 활용 조사 중 발견)
 component: bushexa.api_clients.*, bushexa.logging_setup, bushexa.web.routes.admin._mask_secrets
 related: [PM-006, ADR-013, S7, docs/guide/api-usage.md]
 auditor_status: pending
+fix: 2026-09-29 fix/api-key-log-masking
 ---
 
 # PM-016 — data.go.kr 인증키가 요청 URL 째로 로그 파일에 기록되고, 관리자 로그 뷰어가 마스킹하지 못함
 
 > 부검(postmortem)은 **비난이 아니라 재발 방지**를 위한 기록이다. 사람이 아니라 시스템·프로세스의 결함을 본다.
-> **상태: draft — 원인 분석까지 완료, 수정·회귀 테스트 미작성.**
+> **상태: fixed (2026-09-29).** 코드 수정·회귀 테스트 완료. 수정 이전에 기록된 로그 파일 정리는 운영자 작업(§6.2).
 
 ## 1. 요약 (3줄)
 
 - **증상:** `logs/*.log` 에 `serviceKey=<실제 키>` 가 포함된 줄이 수백 건 있다. `/admin/logs` 뷰어도 이를 그대로 보여 준다.
 - **근본 원인:** 인증키가 GET 쿼리스트링으로 전송되므로 (a) `requests` 예외 메시지(`Max retries exceeded with url: ...?serviceKey=...`)를 `logger.error(..., exc)` 로 남길 때, (b) DEBUG 레벨에서 urllib3 가 요청 줄을 찍을 때 키가 기록된다. 뷰어의 `_SECRET_PATTERN` 은 `password|token|secret|api_key|apikey|authorization` 만 다루고 `serviceKey` 를 모른다.
-- **재발 방지(제안):** 로깅 단계에서 `serviceKey=` 값을 지우는 `logging.Filter` 를 모든 핸들러에 부착하고, 뷰어 패턴에 `servicekey` 를 추가하며, urllib3 로거를 WARNING 으로 고정한다.
+- **재발 방지:** 가림 규칙을 `bushexa/redact.py` 한 곳에 두고 **기록 시점**(로그 포매터, 상태·진행 파일)과 **표시 시점**(관리자 로그 뷰어) 모두에 적용했다.
 
 ## 2. 영향 (Impact)
 
@@ -52,27 +53,55 @@ uv run python -c "from bushexa.web.routes.admin import _mask_secrets; print(_mas
 # 기대: serviceKey=**** , 실제: 원문 그대로
 ```
 
-## 6. 해결 (Resolution) — 미적용, 제안
+## 6. 해결 (Resolution)
 
-1. `bushexa/logging_setup.py` 에 `serviceKey=[^&\s)'"]+` 를 치환하는 `logging.Filter` 를 두고 `setup_logging` 이 만드는 모든 핸들러에 부착한다(기록 계층 차단).
-2. `bushexa/web/routes/admin.py` `_SECRET_PATTERN` 에 `servicekey` 추가(표시 계층 이중 방어). 기존 로그 파일에도 효과가 있다.
-3. `logging.getLogger("urllib3").setLevel(logging.WARNING)` 로 DEBUG 요청 줄 차단.
-4. 이미 기록된 로그 파일은 교체·삭제를 운영자가 결정한다. 키가 외부로 복사된 적이 있다면 data.go.kr 에서 키 재발급을 검토한다.
+### 6.1 코드
+
+| 위치 | 변경 |
+|---|---|
+| `bushexa/redact.py` (신규) | `redact_secrets(text)` — `service_?key=<값>` 의 값만 `***` 로 치환(대소문자 무시, 값은 `&`·공백·따옴표·괄호에서 끝). 다른 쿼리 파라미터는 진단용으로 보존 |
+| `bushexa/logging_setup.py` `KSTFormatter.format` | 모든 출력 줄(메시지·예외 트레이스백)에 적용. `setup_logging` 의 모든 핸들러가 이 포매터를 쓰므로 root 로 전파되는 urllib3·requests 로그도 가려진다 |
+| `bushexa/services/arrival_status.py` | `last_error_msg`(관리자 대시보드 표시)를 저장 전 가림 |
+| `bushexa/services/recrawl_job.py` | 진행 JSONL 한 줄 전체와 메타 `error`(둘 다 SSE 로 브라우저 전달)를 저장 전 가림 |
+| `bushexa/web/routes/admin.py` `_mask_secrets` | 표시 시점에 한 번 더 적용(수정 이전 로그 대비) |
+
+- 검토한 대안: `logging.Filter` 로 `record.msg/args` 를 고치는 방식은 예외 트레이스백(`exc_text`)을 놓친다. 포매터 출력 문자열에 적용하는 쪽이 누락 경로가 없다.
+- urllib3 DEBUG 요청 줄은 끄지 않았다. 값이 가려지므로 DEBUG 진단 용도로 남겨 둔다.
+
+### 6.2 수정 이전 로그 파일 정리 (운영자, 배포 시 1회)
+
+기존 로그 파일에는 키가 그대로 남아 있다. 파일이 root 소유이고 실행 중인 프로세스가 열고 있으므로 **멈춘 뒤** 치환하고 다시 시작한다.
+
+```bash
+podman compose -f docker/compose.yaml stop app
+sudo sed -i -E "s/(service_?key=)[^&[:space:]\"'()<>]+/\\1***/Ig" logs/*.log*
+podman compose -f docker/compose.yaml start app
+grep -ic "servicekey=[^*]" logs/*.log*   # 모두 0 이어야 함
+```
+
+키가 로그 밖(메신저·이슈 등)으로 복사된 적이 있으면 data.go.kr 에서 키 재발급을 검토한다.
 
 ## 7. 재발 방지 (Prevention) — **필수**
 
-- [ ] **회귀 테스트**: `tests/unit/test_logging_setup.py` — "requests 예외 메시지에 포함된 serviceKey 가 로그 파일에 기록되지 않는다".
-- [ ] **회귀 테스트**: `tests/web/test_admin_logs.py` — "로그 뷰어가 `?serviceKey=` 쿼리 값을 마스킹한다".
-- [ ] **프로세스**: 새 외부 API·시크릿을 추가할 때 마스킹 패턴 갱신을 체크리스트에 포함(`docs/guide/change-playbooks.md` §3).
+- [x] **회귀 테스트** (수정 전 코드에서 4건 모두 실패 확인):
+  - `tests/unit/test_redact.py` — URL·따옴표·괄호·대소문자 변형에서 값만 가리고 다른 파라미터는 보존한다.
+  - `tests/unit/test_logging_setup.py::test_log_file_never_contains_service_key` — bushexa 로거 메시지, root 로 전파되는 urllib3 DEBUG 줄, 예외 트레이스백 세 경로 모두 로그 파일에 키가 남지 않는다.
+  - `tests/web/test_admin_logs.py::test_masking_service_key_in_request_url` — 수정 이전 로그의 키도 뷰어가 가린다.
+  - `tests/services/test_arrival_status.py::test_last_error_msg_redacts_service_key` — 대시보드용 상태 파일에 키가 저장되지 않는다.
+  - `tests/services/test_recrawl_job.py::test_error_payload_and_meta_redact_service_key` — 재크롤 진행 JSONL·메타·SSE 오류 값에 키가 없다.
+- [x] **코드 가드**: 가림 규칙 단일 출처 `bushexa/redact.py`.
+- [x] **프로세스**: 새 외부 API·시크릿을 추가하면 `redact.py` 패턴을 갱신한다(`docs/guide/change-playbooks.md` §3).
+- [ ] **운영**: 수정 이전 로그 파일 정리(§6.2).
 
 ## 8. 교훈 (Lessons)
 
 - 시크릿 마스킹은 **기록 시점**에 한다. 표시 시점 마스킹은 파일 자체의 노출을 막지 못한다.
+- 로그만이 아니라 `str(exc)` 를 저장하는 모든 곳(상태 파일, SSE 진행 기록)이 기록 지점이다.
 - 예외 객체를 로그에 넣으면 URL·헤더 등 시크릿이 섞일 수 있다. 쿼리스트링 인증을 쓰는 API 는 특히 그렇다.
 - 관련: [PM-006](PM-006-bearer-token-masking-bypass.md)(같은 마스킹 패턴의 키워드 누락), [PM-013](PM-013-admin-password-hash-tracked-in-git.md)(시크릿 위생).
 
 ## 9. 상태
 
-- 수정 커밋: 없음
-- 회귀 테스트: 없음
+- 수정 커밋: fix/api-key-log-masking (2026-09-29)
+- 회귀 테스트: 전체 633 passed
 - Auditor 확인: pending

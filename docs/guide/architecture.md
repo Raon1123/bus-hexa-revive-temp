@@ -48,6 +48,7 @@ audience: 이 저장소에서 작업하는 사람·AI 세션
 | `cli.py`, `__main__.py` | argparse 진입점 (`bushexa = bushexa.cli:main`) |
 | `config.py` | `AppConfig.from_env()` — env 우선, `secret/` 파일 fallback |
 | `fileio.py` | **유일한 파일 쓰기 경로**: `atomic_write_*`, `read_json`, `locked_update_json` |
+| `redact.py` | 시크릿 가림 단일 출처 `redact_secrets()` (serviceKey) |
 | `time_utils.py` | `KST`, `Clock`/`KSTClock`, `get_weekday`(0 평일·1 토·2 일/공휴일) |
 | `logging_setup.py` | KST 포매터 + 역할별 로테이팅 로그 |
 | `api_clients/` | 외부 API 어댑터 — `_http`, `ulsan_bis`, `tago`, `holiday`, `composite_location`, `cached_arrival`, `errors` |
@@ -131,6 +132,7 @@ audience: 이 저장소에서 작업하는 사람·AI 세션
 - CSRF: `/admin/*` 비-GET 전체. 폼 `csrf_token` 또는 `X-CSRFToken` 헤더, `hmac.compare_digest`(bytes 비교). 실패 400. 위치 [web/app.py](../../bushexa/web/app.py).
 - `next` 파라미터는 `_safe_next` 다층 검증([PM-007](../refactor/postmortems/PM-007-admin-login-open-redirect.md)).
 - 로그 뷰어는 시크릿 마스킹(`Bearer` 포함, [PM-006](../refactor/postmortems/PM-006-bearer-token-masking-bypass.md)).
+- API 인증키(`serviceKey=`) 가림: `bushexa/redact.py` 를 로그 포매터(`KSTFormatter`), 상태·진행 파일(`arrival_status`, `recrawl_job`), 로그 뷰어에 적용([PM-016](../refactor/postmortems/PM-016-api-key-in-log-files.md)).
 - CSV 내보내기는 수식 인젝션 방어(repo sanitize).
 
 ## 7. 설정·CLI

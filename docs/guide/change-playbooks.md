@@ -61,7 +61,7 @@ audience: 반복되는 변경 작업을 수행하는 사람·AI 세션
 - [ ] 실패 시 기존 캐시 보존. 빈 결과로 덮어쓰지 않는다.
 - [ ] 일일 호출량을 계산해 [api-usage.md](api-usage.md) §3 표에 추가한다.
 - [ ] 실응답을 키를 지우고 `tests/fixtures/<provider>/` 에 저장. 정상·빈·오류 XML 세 가지 테스트.
-- [ ] 새 시크릿이나 쿼리스트링 인증이면 로그 마스킹(`logging_setup` 필터, `admin._SECRET_PATTERN`)을 갱신한다(PM-016).
+- [ ] 새 시크릿이나 쿼리스트링 인증 형식이면 `bushexa/redact.py` 패턴과 `tests/unit/test_redact.py` 를 갱신한다(PM-016).
 
 ## 4. 설정값(환경변수) 추가
 

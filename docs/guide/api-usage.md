@@ -115,7 +115,7 @@ audience: 크롤러·API 클라이언트를 수정하거나 수집 장애를 진
 | **울산 장애가 "도착 버스 없음"으로 보임** | **미해결** | `fetch_arrivals` 가 오류 시 `[]` 를 반환하고, poller 가 그 `[]` 를 새 `fetched_at` 으로 upsert 하며 성공으로 집계한다. 화면은 신선한 "도착 정보 없음"을 보여 주고 `arrival_status` 도 정상으로 나온다. 권장: 오류 시 upsert 를 건너뛰어 직전 스냅샷과 옛 타임스탬프를 유지하고 실패로 집계 |
 | **이른 아침 TAGO 항목의 필드 누락**(`nodeid`/`nodenm`/`nodeord` 없음, 레거시 덤프 `logs/error_*.json` 다수가 05시대) | **미해결** | `parse_busloc` 가 노선 전체를 `ParseError` 로 실패시키고, 폴백도 발동하지 않는다. 권장: 파서에서 불량 항목만 건너뛰고 로그 |
 | 울산 폴백의 정류장 이름 매칭률이 낮음(`presentstopnm` 이 9자 근처에서 잘려 오는 것으로 관측, `(UNIST)`/`(시내)` 접미사 불일치) | **미해결** | 폴백 시 위치 해석 실패가 많다. 권장: 노선 인덱스 내 접두/정규화 매칭. `presentstopnm` 이 현재 정류장인지 다음 정류장인지도 미확정(recorder 감사 T4) |
-| **요청 URL 에 담긴 API 키가 로그 파일에 기록됨** | **미해결, 보안** | [PM-016](../refactor/postmortems/PM-016-api-key-in-log-files.md) |
+| 요청 URL 에 담긴 API 키가 로그·상태 파일에 기록됨 | 해결(2026-09-29) | `bushexa/redact.py` 를 로그 포매터·상태 파일·로그 뷰어에 적용. 수정 이전 로그는 운영자가 정리([PM-016](../refactor/postmortems/PM-016-api-key-in-log-files.md) §6.2) |
 | 모든 기본 URL 이 `http://` | 미해결 | 키가 평문 전송된다. data.go.kr 은 https 지원, 울산 호스트는 확인 필요 |
 | `BUSHEXA_ARRIVAL_POLL_SECONDS` 가 동작하지 않음 | **미해결** | CLI `arrival-loop --poll` 기본값 7.0 이 항상 명시 인자로 넘어가 env 를 이긴다. 실제로 주기를 바꾸려면 관리자 크롤 설정을 쓴다 |
 | 일일 트래픽 한도 미기록 | 미해결 | 키별 한도를 확인해 이 문서 §1.2 에 적는다. TAGO 개발계정 한도가 낮게 잡혀 있다면 govtrack 만으로 초과할 수 있다(확인 필요) |

@@ -72,7 +72,7 @@ audience: 이 저장소에서 코드를 고치는 모든 사람·AI 세션 — �
 | `.env`, `secret/`, `data/manager_password.txt`, `data/bushexa.db*` 는 절대 커밋하지 않는다. `git add -A`·`git add .` 금지 | 비밀번호 해시가 3개월 넘게 추적·push 됐다 | PM-013 |
 | 시크릿 파일 경로를 바꾸면 같은 커밋에서 `git check-ignore -v <새경로>` 로 확인한다 | `secret/` → `data/` 이사로 ignore 보호가 사라졌다 | PM-013 |
 | 노출된 시크릿은 추적 해제가 아니라 **교체**가 1순위다 | 추적 해제는 이력을 지우지 않는다 | PM-013 |
-| 시크릿 마스킹은 **기록 시점**에. 예외 객체·URL 을 로그에 넣을 때 쿼리스트링 키를 조심한다 | `serviceKey=` 가 로그 파일에 수백 줄, 뷰어 패턴도 `serviceKey` 를 모름(미해결) | PM-016, PM-006 |
+| 시크릿 가림은 **기록 시점**에, 규칙은 `bushexa/redact.py` 한 곳에. `str(exc)` 를 로그·상태 파일·SSE 로 내보내는 모든 곳이 기록 지점이다 | `serviceKey=` 가 로그 파일에 수백 줄 기록됐고 뷰어 패턴도 몰랐다 | PM-016, PM-006 |
 | 마스킹 패턴에 새 키워드를 넣을 때 실제 형태(`Authorization: Bearer x`, `?serviceKey=x`)로 테스트한다 | `\S+` 가 `Bearer` 에서 멈춰 토큰이 노출됐다 | PM-006 |
 | 보안 가드는 단일 조건으로 쓰지 않는다(다층 검증) | `//` 만 막아서 `/\evil.com` 우회 | PM-007 |
 | 관리자 폼은 CSRF 토큰 필수, 비교는 `hmac.compare_digest`(bytes) | 비-ASCII str 비교는 TypeError → 500 | PM-011 §2 |
