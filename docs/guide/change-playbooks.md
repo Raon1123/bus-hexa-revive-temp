@@ -22,7 +22,7 @@ audience: 반복되는 변경 작업을 수행하는 사람·AI 세션
 |---|---|---|
 | 1 | `bushexa/data/constants.py` `VIA_STOPS[노선][종점]` | 게시판 경유지 문구. 관리자 override(`data/via_overrides.json`)가 있으면 그것이 우선하므로 확인 |
 | 2 | `bushexa/data/constants.py` `ROUTEID`, `STOP_IDS`, `SERACH_STOPS` | 정류장이 새로 생기거나 추적 대상이 바뀌는 경우만 |
-| 3 | `bushexa/web/route_diagram.py` `LINE_STOPS`, `STOP_LABEL`, `STOP_LINK` | 노선도(노선별 세로 목록). 정차 지점이 다르면 다른 키, `STOP_LINK` 는 `SERACH_STOPS` 의 UNIST 방면 정류소만(ui-design §6) |
+| 3 | `bushexa/web/route_diagram.py` `NODES`, `LINE_PATHS`, `ROUTE_CHANGES`, `STOP_NOTE` (+ `route_lines.STOP_LABEL`, `constants.ROUTE_MAP_STOP_LINK`) | 노선도(지도·목록 공용 데이터). 정차 지점이 다르면 다른 노드, 선은 가로·세로·45°, 링크 stop_id 는 `SERACH_STOPS` 안(ui-design §6) |
 | 4 | `bushexa/web/templates/info.html` | "For Destination" 표, "For Bus Number" 노선 표, 안내 배너(한/영) |
 | 5 | `data/changelog.json` | `{"date":"YYYY-MM-DD","description":"…"}` 를 **맨 뒤**에 추가(오래된 순). 파일 끝 개행 없음 |
 | 6 | `bushexa/web/i18n.py` + `templates/board.html`·`unist_board.html` | 공지 배너가 필요하면 `board.notice.<id>` 키(ko·en) + `<div class="info-banner">{{ t(...) }}</div>` |
@@ -31,14 +31,14 @@ audience: 반복되는 변경 작업을 수행하는 사람·AI 세션
 
 **2단계: 시행일**
 
-- [ ] 시행일이 미래면 노선도에 날짜 게이트(`VIA_743_BEOMSEO_FROM` 패턴, 이전에는 예고 note)를 두고, 경계일 전후 테스트를 추가한다. 날짜는 KST 로 계산한다.
+- [ ] 시행일이 미래면 `route_diagram.ROUTE_CHANGES` 에 `RouteChange(노선, 시행일, old, new, summary)` 를 추가한다(`LINE_PATHS` 는 새 경로). 목록 예고·`/info` 배너는 자동. 경계일 전후 테스트를 추가한다. 날짜는 KST.
 - [ ] 날짜 게이트가 없는 텍스트(VIA_STOPS, info, 배너)에는 "10/3부터"처럼 시행일을 적는다.
 - [ ] 시행일이 지나 안정되면 게이트와 "부터" 문구를 정리하는 후속 작업을 남긴다.
 
 **3단계: 검증**
 
-- [ ] `uv run python -m pytest tests/web/test_route_diagram.py tests/web/test_info_route.py -q`
-- [ ] 서버를 띄워 `/info` 노선도를 **눈으로** 본다. 정류장 순서·표시명·링크(UNIST → 시간표, 정류장 → 도착 조회)를 확인한다.
+- [ ] `uv run python -m pytest tests/web/test_route_diagram.py tests/web/test_route_map_page.py tests/web/test_info_route.py -q`
+- [ ] 서버를 띄워 `/info` 를 **눈으로** 본다. 지도(`?view=a`): 라벨·번호 pill·철도가 선과 겹치지 않는지, 시행 전 경로도. 목록(`?view=b`): 순서·표시명·링크.
 - [ ] `/board`, `/unist` 배너와 경유지 문구를 확인한다. `?lang=en` 도 본다.
 - [ ] 커밋 메시지에 공지 출처와 시행일을 적는다.
 

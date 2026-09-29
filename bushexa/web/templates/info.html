@@ -13,17 +13,51 @@
 이를 반영한 버스 시간표에 관한 정보를 제공하는 페이지입니다.</p>
 
 <h3>Bus Route Map</h3>
-<p class="route-note">노선별 정류장 순서입니다. <b>UNIST</b>를 누르면 그 노선의 UNIST 출발 시간표,
-밑줄 친 정류장을 누르면 UNIST 방면(돌아오는 방향) 실시간 도착 정보로 이동합니다.
-구영리는 513·743(범서중학교 경유)과 713·753·1115가 서로 다른 길로 지납니다.</p>
+<nav class="route-view-toggle" aria-label="노선도 보기 방식">
+    <a href="?view=a" data-view="a" {% if variant == 'a' %}aria-current="true"{% endif %}>지도로 보기</a>
+    <a href="?view=b" data-view="b" {% if variant == 'b' %}aria-current="true"{% endif %}>목록으로 보기</a>
+</nav>
+{% if upcoming_changes %}
+<div class="info-banner">
+    {% for ch in upcoming_changes %}
+    <div><b>{{ ch.effective.month }}/{{ ch.effective.day }}부터 {{ ch.line }}번</b>: {{ ch.summary }}</div>
+    {% endfor %}
+    <div class="route-note">노선도는 시행일부터 새 경로로 바뀝니다. 목록은 바뀌는 정류장을 미리 표시합니다.</div>
+</div>
+{% endif %}
+
+<div class="route-view" data-view="a" {% if variant != 'a' %}hidden{% endif %}>
+<div class="route-map">
+    <p class="route-note">실제 위치를 참고해 그린 개략 노선도입니다(거리는 정확하지 않음).
+    노선 번호를 누르면 그 노선만 보이고, 정류장을 누르면 서는 노선과 실시간 도착 링크가 나옵니다.
+    검은 점선은 철도(KTX 경부고속선·동해선)입니다.</p>
+    <div class="route-filter" role="toolbar" aria-label="노선 선택">
+        <button type="button" class="route-chip route-chip-all" data-line="" aria-pressed="true">전체</button>
+        {% for ln in route_lines %}
+        <button type="button" class="route-chip" data-line="{{ ln.line }}" style="--route: {{ ln.color }}" aria-pressed="false">
+            <span class="route-chip-no">{{ ln.line }}</span> {{ ln.ends[0] }}–{{ ln.ends[1] }}
+        </button>
+        {% endfor %}
+    </div>
+    <div class="route-diagram-wrap">
+        {{ diagram }}
+    </div>
+    <div class="route-map-panel" aria-live="polite">
+        <p class="route-map-hint">정류장을 누르면 여기에 정보가 나옵니다.</p>
+    </div>
+</div>
+</div>
+
+<div class="route-view" data-view="b" {% if variant != 'b' %}hidden{% endif %}>
+<p class="route-note"><b>UNIST</b>를 누르면 그 노선의 UNIST 출발 시간표, 밑줄 친 정류장을 누르면 실시간 도착 정보로 이동합니다.</p>
 <div class="route-lines">
 {% for ln in route_lines %}
     <section class="route-card route-{{ ln.line }}" style="--route: {{ ln.color }}">
-        <h4 class="route-card-title"><span class="route-badge">{{ ln.line }}</span></h4>
+        <h4 class="route-card-title"><span class="route-badge">{{ ln.line }}</span> {{ ln.ends[0] }} ↔ {{ ln.ends[1] }}</h4>
         <ol class="route-stops">
         {% for s in ln.stops %}
             <li class="{% if s.is_unist %}is-unist{% endif %}{% if s.is_branch %} is-branch{% endif %}{% if s.note %} is-upcoming{% endif %}">
-                {% if s.href %}<a href="{{ s.href }}">{{ s.label }}</a>{% else %}<span>{{ s.label }}</span>{% endif %}
+                {% if s.href %}<a href="{{ s.href }}" data-ab="list_link">{{ s.label }}</a>{% else %}<span>{{ s.label }}</span>{% endif %}
                 {% if s.note %}<small class="route-stop-note">{{ s.note }}</small>{% endif %}
             </li>
         {% endfor %}
@@ -31,6 +65,30 @@
     </section>
 {% endfor %}
 </div>
+</div>
+
+<details class="route-detail">
+<summary>구영리 안 경로 자세히 (BIS 정류장 순서 기준)</summary>
+<p>구영리에는 두 갈래 길이 있습니다. 정류장 순서는 국토부 TAGO 노선 경유 정류장 조회(2026-09-29)와
+울산버스 공지(2026-09-18 인가, 10/3 시행)로 확인했습니다.</p>
+<table class="info-table">
+    <thead><tr><th>노선</th><th>시내 방면</th><th>UNIST·삼남 방면(복편)</th></tr></thead>
+    <tbody>
+        <tr><td>713, 753</td>
+            <td>구영리입구 → 선바위교 → 굿모닝힐 → 우미린1차 → 우미린2차 푸르지오2차 → 범서파출소 → 주공1단지 → 대리 → 구영교</td>
+            <td>구영교 → 대리 → 주공1단지 → 범서파출소 → 우미린2차 푸르지오2차 → 우미린1차 → 굿모닝힐 → 선바위교 → 구영리입구</td></tr>
+        <tr><td>1115</td>
+            <td>천상 → 선바위교 → 우미린2차 푸르지오2차 → 주공1단지 → 굴화주공 (급행, 그 사이 미정차)</td>
+            <td>굴화주공 → 주공1단지 → 우미린2차 푸르지오2차 → 선바위교 → 천상</td></tr>
+        <tr><td>513</td>
+            <td>천상1교사거리 → 구영리입구 → 현대2차 → 일신아파트 → 현대3차 → 한신아파트 → 우미린2차 푸르지오2차 → 범서중학교앞 → 대리 → 구영교</td>
+            <td>구영교 → 대리 → 범서중학교앞 → 현대3차 → 일신아파트 → 현대2차 → 천상1교사거리 (한신·우미린2차 미정차)</td></tr>
+        <tr><td>743 (10/3부터)</td>
+            <td>천상 → 범서초 → 구 점촌교입구 → 천상1교사거리 → 구영리입구 → 현대2차 → 일신아파트 → 현대3차 → 한신아파트 → 우미린2차 푸르지오2차 → 범서중학교앞 → 대리 → 구영교</td>
+            <td>구영교 → 대리 → 범서중학교앞 → 현대3차 → 일신아파트 → 현대2차 → 천상1교사거리 → 구 점촌교입구 → 범서초</td></tr>
+    </tbody>
+</table>
+</details>
 
 <h3>For Destination</h3>
 <table class="info-table">
@@ -38,7 +96,7 @@
         <tr><th>Destination</th><th>Bus Number</th></tr>
     </thead>
     <tbody>
-        <tr><td>울산역 (KTX Ulsan station)</td><td>513</td></tr>
+        <tr><td>울산역 (KTX Ulsan station, 경부고속선)</td><td>513</td></tr>
         <tr><td>구영리 (Guyoung-ri)</td><td>513, 713, 743, 753, 1115</td></tr>
         <tr><td>천상 (Chunsang)</td><td>713, 743, 1115</td></tr>
         <tr><td>삼산 (Samsan, city)</td><td>713, 743, 753, 1115</td></tr>
@@ -48,9 +106,9 @@
         <tr><td>법원 (Ulsan court)</td><td>743</td></tr>
         <tr><td>산단캠</td><td>753</td></tr>
         <tr><td>명촌 (Myungchon)</td><td>713, 743, 753</td></tr>
-        <tr><td>덕하 (Dukha)</td><td>513</td></tr>
+        <tr><td>덕하 (Dukha, 동해선 덕하역)</td><td>513</td></tr>
         <tr><td>시청 (City hall)</td><td>513, 1115</td></tr>
-        <tr><td>태화강역 (Taewhagang station)</td><td>713, 743, 753, 1115</td></tr>
+        <tr><td>태화강역 (Taewhagang station, 동해선)</td><td>713, 743, 753 (1115는 역 앞 태화강역광장 정류장만 지남 / 1115 stops only at Taehwagang Station Plaza)</td></tr>
         <tr><td>현대중공업 (Hyundai Heavy Industries)</td><td>1115</td></tr>
     </tbody>
 </table>
@@ -62,6 +120,7 @@
 <div class="info-banner">
 713번, 743번, 1115번 노선은 천상을 경유하여 구영리를 지나갑니다.
 743번은 2026년 10월 3일부터 구영리에서 513번과 같이 범서중학교를 경유하며, 713·753·1115번과는 구영리 내 경로가 다릅니다.
+1115번은 태화강역(1번 정류소)에 서지 않고 역 앞 태화강역광장 정류장을 지나갑니다. 10월 2일까지는 현대자동차 명촌정문·양정을 거쳐 남목으로 가고, 10월 3일부터는 현대자동차 정류장(명촌정문~성원상떼빌)에 서지 않고, 태화강을 건너 명촌에서 꺾어 강을 따라(아산로) 남목으로 갑니다.
 Buses 713, 743 and 1115 go to Guyoung-ri via Chunsang. From Oct 3, 2026, bus 743 (like 513) passes Beomseo Middle School inside Guyoung-ri, a different route from 713/753/1115.
 </div>
 <table class="info-table">
@@ -73,7 +132,7 @@ Buses 713, 743 and 1115 go to Guyoung-ri via Chunsang. From Oct 3, 2026, bus 743
         <tr><td>713</td><td>UNIST - 천상 - 구영리 - 굴화주공 - 태화루(국가정원) - 성남동 - 삼산 - 태화강역 - 명촌</td></tr>
         <tr><td>743</td><td>UNIST - 천상 - 구영리(범서중학교, 10/3부터) - 굴화주공 - 신복교차로 - 울산대학교 - 법원 - 공업탑 - 삼산 - 태화강역 - 명촌</td></tr>
         <tr><td>753</td><td>UNIST - 구영리 - 굴화주공 - 신복교차로 - 울산대학교 - 산학융합지구캠퍼스 - 공업탑 - 삼산 - 태화강역 - 명촌</td></tr>
-        <tr><td>1115</td><td>UNIST - 천상 - 구영리 - 굴화주공 - 태화루(국가정원) - 시청 - 삼산 - 태화강역 - 염포동 - 남목 - 현대중공업, 울산대학병원 - 일산해수욕장 - 꽃바위</td></tr>
+        <tr><td>1115</td><td>UNIST - 천상 - 구영리 - 굴화주공 - 태화루(국가정원) - 시청 - 삼산 - 태화강역광장(역 정류소 미정차) - 명촌 - 아산로(태화강변) (10/2까지 현대자동차 명촌정문·양정) - 남목 - 현대중공업, 울산대학병원 - 일산해수욕장 - 꽃바위</td></tr>
     </tbody>
 </table>
 
@@ -94,4 +153,8 @@ Buses 713, 743 and 1115 go to Guyoung-ri via Chunsang. From Oct 3, 2026, bus 743
     {% endfor %}
 </ul>
 {% endif %}
+{% endblock %}
+
+{% block extra_scripts %}
+<script src="{{ url_for('static', filename='js/route_map.js') }}" defer></script>
 {% endblock %}

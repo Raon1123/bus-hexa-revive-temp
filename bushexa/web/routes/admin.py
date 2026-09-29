@@ -72,9 +72,10 @@ from bushexa.services.crawl_settings import (
 from bushexa.services.log_reader import LogTailReader, LOG_SOURCES, STANDARD_LEVELS
 from bushexa.services.special_timetable import SpecialTimetableService, default_special_path
 from bushexa.services.recrawl_job import RecrawlJob, ConflictError
+from bushexa.services import route_map_ab
 from bushexa.services.timetable_editor import TimetableEditor, ValidationError
 from bushexa.services.via_editor import ViaEditor, default_via_path
-from bushexa.time_utils import KSTClock, is_holiday
+from bushexa.time_utils import KSTClock, get_now, is_holiday
 
 log = logging.getLogger("bushexa.web.routes.admin")
 
@@ -304,7 +305,9 @@ def logout() -> Response:
 @bp.get("/")
 @login_required
 def dashboard() -> str:
-    return render_template("admin/dashboard.html")
+    config = current_app.config["BUSHEXA_CONFIG"]
+    ab = route_map_ab.summary(route_map_ab.default_path(config.data_dir), get_now().date())
+    return render_template("admin/dashboard.html", route_map_ab=ab)
 
 
 @bp.get("/password")

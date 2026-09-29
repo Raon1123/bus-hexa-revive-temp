@@ -1,28 +1,158 @@
-/* /info 페이지 스타일 — 노선별 정류장 목록 + 정보 테이블/배너. */
+/* /info 페이지 스타일 — 노선도(SVG, 상호작용) + 노선별 정류장 목록 + 정보 테이블/배너. */
 
 /* ── 노선도 ───────────────────────────────────────────────── */
+.route-view-toggle {
+    display: inline-flex;
+    border: 1px solid #1a237e;
+    border-radius: 8px;
+    overflow: hidden;
+    margin: 0 0 0.6rem;
+}
+.route-view-toggle a {
+    padding: 5px 14px;
+    color: #1a237e;
+    background: #fff;
+    text-decoration: none;
+}
+.route-view-toggle a[aria-current="true"] { background: #1a237e; color: #fff; }
+.route-view-toggle a:focus-visible { outline: 3px solid #ff9800; outline-offset: -3px; }
+
 .route-note {
     color: #666;
     font-size: 0.85rem;
     margin: 0.2rem 0 0.6rem;
 }
 
+.route-diagram-wrap {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    border: 1px solid #e5e5e5;
+    border-radius: 10px;
+    background: #fff;
+    padding: 8px 4px;
+}
+
+.route-svg {
+    display: block;
+    width: 100%;
+    min-width: 1650px;   /* 좁은 화면에서는 가로 스크롤 */
+    height: auto;
+}
+
+/* 배경 물(개략): 울산만·동해, 태화강 */
+.route-svg .route-water { fill: #e3eff8; stroke: none; }
+.route-svg .route-river {
+    fill: none;
+    stroke: #d2e5f3;
+    stroke-width: 16;
+    stroke-linejoin: round;
+    stroke-linecap: round;
+}
+.route-svg .route-water-label {
+    font-size: 18px;
+    font-style: italic;
+    letter-spacing: 0.1em;
+    fill: #6f97b5;
+}
+
+/* 공유 정류장 캡슐: 어두운 테두리(route-box) 위에 흰 속(route-box-fill) */
+.route-svg .route-box { stroke: #34404a; fill: none; }
+.route-svg .route-box-fill { stroke: #fff; fill: none; }
+
+.route-svg .route-line {
+    opacity: 0.95;
+}
+
+.route-svg .route-stop {
+    fill: #fff;
+    stroke-width: 3.5;
+}
+
+.route-svg .route-label {
+    font-family: inherit;
+    font-size: 20px;
+    fill: #1f1f1f;
+    font-weight: 700;
+    paint-order: stroke;
+    stroke: #fff;
+    stroke-width: 4px;
+    stroke-linejoin: round;
+}
+
+.route-svg .route-pill-text {
+    font-family: inherit;
+    font-size: 16px;
+    font-weight: 700;
+    fill: #fff;
+}
+
+.route-svg .route-credit {
+    font-size: 15px;
+    fill: #8a8f94;
+}
+
+/* 철도(배경): 검은 선 + 흰 점선 */
+.route-svg .route-rail-base { fill: none; stroke: #3d434b; stroke-width: 5; stroke-linejoin: round; }
+.route-svg .route-rail-dash {
+    fill: none; stroke: #fff; stroke-width: 2.4; stroke-dasharray: 9 9; stroke-linejoin: round;
+}
+.route-svg .route-rail-label { font-size: 15px; font-weight: 700; fill: #3d434b; }
+.route-svg .route-rail-ring { stroke: #3d434b; fill: none; }
+.route-svg .route-rail-ring-c { fill: #3d434b; }
+
+/* 상호작용(static/js/route_map.js) */
+.route-svg .route-station,
+.route-svg .route-pill-btn,
+.route-svg .route-line { cursor: pointer; }
+.route-svg .route-station:focus-visible,
+.route-svg .route-pill-btn:focus-visible { outline: 3px solid #ff9800; outline-offset: 2px; }
+.route-svg .route-station.is-selected .route-box,
+.route-svg .route-station.is-selected .route-stop { stroke: #ff9800; }
+.route-svg .is-dim { opacity: 0.15; transition: opacity .15s; }
+@media (prefers-reduced-motion: reduce) { .route-svg .is-dim { transition: none; } }
+
+.route-filter { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 8px; }
+.route-chip {
+    --route: #34404a;
+    font: inherit; font-size: 0.85rem;
+    border: 1.5px solid var(--route);
+    background: #fff; color: #1f1f1f;
+    border-radius: 999px; padding: 3px 10px; cursor: pointer;
+}
+.route-chip-no { font-weight: 800; color: var(--route); }
+.route-chip[aria-pressed="true"] { background: var(--route); color: #fff; }
+.route-chip[aria-pressed="true"] .route-chip-no { color: #fff; }
+.route-chip:focus-visible { outline: 3px solid #ff9800; outline-offset: 2px; }
+.route-chip-sm { font-weight: 800; color: #fff; background: var(--route); padding: 2px 10px; }
+
+.route-map-panel {
+    margin: 8px 0 1rem;
+    border: 1px solid #e5e5e5; border-radius: 10px; background: #fff;
+    padding: 10px 14px; min-height: 3.2rem;
+}
+.route-map-hint { margin: 0; color: #888; font-size: 0.9rem; }
+.route-map-panel-title { margin: 0 0 6px; font-size: 1.05rem; }
+.route-map-panel-lines { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 6px; }
+.route-map-panel-rail { margin: 4px 0; font-weight: 700; color: #3d434b; }
+.route-map-panel-note { margin: 4px 0; color: #444; }
+.route-map-panel-link { display: inline-block; margin-top: 4px; font-weight: 700; }
+
+/* ── 노선별 정류장 목록(B) ───────────────────────────────── */
 .route-lines {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
     gap: 12px;
+    margin-bottom: 1rem;
 }
-
 .route-card {
     border: 1px solid #e5e5e5;
     border-top: 5px solid var(--route);
     border-radius: 10px;
     background: #fff;
     padding: 8px 14px 12px;
+    min-width: 0;
 }
-
-.route-card-title { margin: 4px 0 8px; }
-
+.route-card-title { margin: 4px 0 8px; font-size: 0.95rem; }
 .route-badge {
     display: inline-block;
     background: var(--route);
@@ -30,22 +160,15 @@
     font-weight: 700;
     border-radius: 6px;
     padding: 2px 12px;
+    margin-right: 4px;
 }
-
-/* 세로 노선: 왼쪽 색선 + 정류장 점 */
 .route-stops {
     list-style: none;
     margin: 0;
     padding: 0 0 0 20px;
     border-left: 4px solid var(--route);
 }
-
-.route-stops li {
-    position: relative;
-    padding: 5px 0;
-    line-height: 1.35;
-}
-
+.route-stops li { position: relative; padding: 5px 0; line-height: 1.35; }
 .route-stops li::before {
     content: "";
     position: absolute;
@@ -57,18 +180,16 @@
     background: #fff;
     border: 3px solid var(--route);
 }
-
 .route-stops li.is-unist { font-weight: 800; font-size: 1.05rem; }
 .route-stops li.is-unist::before { background: var(--route); width: 14px; height: 14px; left: -31px; top: 0.7em; }
 .route-stops li.is-branch { font-style: italic; }
-.route-stops li.is-upcoming { opacity: 0.75; }
+.route-stops li.is-upcoming { opacity: 0.8; }
 .route-stops li a { color: inherit; text-decoration: underline; text-underline-offset: 3px; }
 .route-stops li a:hover, .route-stops li a:focus-visible { color: var(--route); }
-.route-stop-note {
-    margin-left: 6px;
-    color: #b26a00;
-    font-weight: 700;
-}
+.route-stop-note { margin-left: 6px; color: #b26a00; font-weight: 700; }
+
+.route-detail { margin: 0 0 1.2rem; }
+.route-detail summary { cursor: pointer; font-weight: 700; }
 
 /* ── 정보 테이블 ──────────────────────────────────────────── */
 .info-table {

@@ -39,7 +39,7 @@ bushexa/
   data/         constants.py(노선·정류장 ID와 문구의 유일한 출처), timetable.py
   domain/       순수 뷰모델 빌더 (web·db·api 를 import 하지 않음)
   services/     파일 기반 스토어·에디터, board_support(공개 화면 공통 배선)
-  web/          Flask 팩토리·라우트·템플릿·i18n·route_diagram(노선도 뷰모델)
+  web/          Flask 팩토리·라우트·템플릿·i18n·route_diagram(노선도 SVG·경로 데이터)·route_lines(노선별 목록)
 data/           런타임·콘텐츠 파일 (timetable/*.json, changelog.json 은 git 추적)
 archive/        Streamlit 레거시 (수정 대상 아님)
 ```
