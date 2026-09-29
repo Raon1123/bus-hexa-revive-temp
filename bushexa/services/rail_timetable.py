@@ -31,6 +31,7 @@ from bushexa.data.constants import (
     RAIL_PAIRS,
     RAIL_STATIONS,
 )
+from bushexa.domain.rail_match import infer_run_minutes, match_by_time, service_minutes
 from bushexa.fileio import locked_update_json, read_json
 from bushexa.time_utils import Clock, KSTClock, get_weekday
 
@@ -250,3 +251,26 @@ def metro_schedule(store: dict, station_id: str, direction: str,
     if day_type == "02" and not (entry and entry.get("times")):
         entry = schedules.get(metro_key(station_id, direction, METRO_SATURDAY_FALLBACK))
     return entry
+
+
+def metro_trips(store: dict, origin_id: str, dest_id: str, day_type: str,
+                direction: str = "U") -> dict | None:
+    """동해선 ``origin_id`` 출발 → ``dest_id`` 도착 편 목록(시각 매칭, 열차번호 없음).
+
+    반환: ``{"day_type": 실제 쓴 코드, "run_minutes": 추정 소요분|None,
+    "trips": [{"dep", "arr"|None, "end_name"}]}``. 시간표가 없으면 None.
+    도착역 방향으로 가지 않는 편(예: 태화강발 망양행)은 뺀다 — 종착역이 도착역이거나
+    도착역 시간표에 나오는 종착역인 편만 남긴다.
+    """
+    origin = metro_schedule(store, origin_id, direction, day_type)
+    dest = metro_schedule(store, dest_id, direction, day_type)
+    if not origin or not dest or not origin.get("times") or not dest.get("times"):
+        return None
+    reach = {dest_id} | {t.get("end_id") for t in dest["times"]}
+    deps = [t for t in origin["times"] if t.get("dep") and t.get("end_id") in reach]
+    arrs = [t["arr"] for t in dest["times"] if t.get("arr")]
+    run = infer_run_minutes([t["dep"] for t in deps], arrs)
+    arr_by_dep = dict(match_by_time([t["dep"] for t in deps], arrs, run_minutes=run))
+    trips = [{"dep": t["dep"], "arr": arr_by_dep.get(t["dep"]), "end_name": t.get("end_name")}
+             for t in sorted(deps, key=lambda t: service_minutes(t["dep"]))]
+    return {"day_type": origin.get("day_type", day_type), "run_minutes": run, "trips": trips}

@@ -1,6 +1,7 @@
 """철도 시간표 스토어 갱신 규칙 검증. 클라이언트 대역 주입, 네트워크 없음."""
 from __future__ import annotations
 
+import json
 from datetime import date, datetime, timedelta
 
 from bushexa.api_clients.tago_rail import MetroStopTime, Train
@@ -163,3 +164,29 @@ def test_load_missing_store_is_empty(tmp_path):
     """파일이 없으면 빈 스토어 — 화면은 '데이터 없음' 으로 처리할 수 있다."""
     store = load_rail_store(tmp_path / "none.json")
     assert trains_on(store, UL, BS, date(2026, 9, 29)) is None
+
+
+def test_metro_trips_matches_by_time_and_drops_non_busan_trains(tmp_path):
+    """저장된 동해선 시간표로 태화강→벡스코 편을 시각 매칭하고, 부산 방향이 아닌 망양행은 뺀다(평일 45→42편)."""
+    from pathlib import Path
+
+    from bushexa.api_clients.tago_rail import parse_metro_schedule
+    from bushexa.services.rail_timetable import metro_trips
+
+    fx = Path(__file__).parents[1] / "fixtures" / "tago_rail"
+    files = {"MTRKRK6K132": "subway_taehwagang_01U.json", "MTRKRK6K119": "subway_bexco_01U.json",
+             "MTRKRK6K110": "subway_bujeon_01U.json"}
+
+    class _FixtureMetro:
+        def fetch_station_schedule(self, station_id, day_type, direction):
+            if day_type != "01":
+                return []
+            return parse_metro_schedule(json.loads((fx / files[station_id]).read_text(encoding="utf-8")))
+
+    path = tmp_path / "rail.json"
+    refresh_metro(_FixtureMetro(), path, clock=_Clock(TODAY))
+    r = metro_trips(load_rail_store(path), "MTRKRK6K132", "MTRKRK6K119", "01")
+    assert r["run_minutes"] == 55.5 and len(r["trips"]) == 42
+    assert r["trips"][0] == {"dep": "05:36:00", "arr": "06:31:30", "end_name": "부전"}
+    assert all(t["arr"] for t in r["trips"])
+    assert metro_trips(load_rail_store(path), "MTRKRK6K132", "MTRKRK6K119", "03") is None
