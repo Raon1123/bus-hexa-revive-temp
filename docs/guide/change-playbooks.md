@@ -25,21 +25,21 @@ audience: 반복되는 변경 작업을 수행하는 사람·AI 세션
 | 3 | `bushexa/web/route_diagram.py` `NODES`, `LINE_PATHS`, `ROUTE_CHANGES`, `STOP_NOTE` (+ `route_lines.STOP_LABEL`, `constants.ROUTE_MAP_STOP_LINK`) | 노선도(지도·목록 공용 데이터). 정차 지점이 다르면 다른 노드, 선은 가로·세로·45°, 링크 stop_id 는 `SERACH_STOPS` 안(ui-design §6) |
 | 4 | `bushexa/web/templates/info.html` | "For Destination" 표, "For Bus Number" 노선 표, 안내 배너(한/영) |
 | 5 | `data/changelog.json` | `{"date":"YYYY-MM-DD","description":"…"}` 를 **맨 뒤**에 추가(오래된 순). 파일 끝 개행 없음 |
-| 6 | `bushexa/web/i18n.py` + `templates/board.html`·`unist_board.html` | 공지 배너가 필요하면 `board.notice.<id>` 키(ko·en) + `<div class="info-banner">{{ t(...) }}</div>` |
-| 7 | `templates/board_lite.html` | lite 에는 배너가 없다. 중요 공지면 여기도 검토 |
+| 6 | `/admin/notices` (운영 중) 또는 `bushexa/data/notices.seed.json` (배포 기본값) | 공지가 필요하면 **기한형 공지**로 넣는다: 표시 기간(`show_until` 필수 권장), 시행일(`effective_from` → 시행 후 문구), 대상 노선·화면. 문구에 날짜를 박지 말고 `{date}` 를 쓴다. 템플릿·i18n 에 공지 문구를 하드코딩하지 않는다 |
+| 7 | (확인) | 공지는 공통 레이아웃이 모든 공개 화면(`/lite` 포함)에 그린다. 게시판·UNIST·정류소 화면은 공지 영역을 60초마다 갱신. `/admin/notices?at=YYYY-MM-DDTHH:MM` 로 시행 전·후 문구를 미리 본다. 운영 중 편집본이 있으면 seed 변경은 자동 반영되지 않으니 관리 화면의 '기본 공지 가져오기'를 쓴다 |
 | 8 | `data/timetable/<노선>.json` | 시간표가 바뀌면 관리자 재크롤 또는 편집(`/admin/timetable`) |
 
 **2단계: 시행일**
 
 - [ ] 시행일이 미래면 `route_diagram.ROUTE_CHANGES` 에 `RouteChange(노선, 시행일, old, new, summary)` 를 추가한다(`LINE_PATHS` 는 새 경로). 목록 예고·`/info` 배너는 자동. 경계일 전후 테스트를 추가한다. 날짜는 KST.
-- [ ] 날짜 게이트가 없는 텍스트(VIA_STOPS, info, 배너)에는 "10/3부터"처럼 시행일을 적는다.
+- [ ] 공지는 기한형 공지의 `effective_from`(시행일)·`text_after`(시행 후 문구)·`show_until`(표시 종료)로 처리한다. 날짜 게이트가 없는 정적 텍스트(VIA_STOPS, info)에만 "10/3부터"처럼 시행일을 적는다.
 - [ ] 시행일이 지나 안정되면 게이트와 "부터" 문구를 정리하는 후속 작업을 남긴다.
 
 **3단계: 검증**
 
 - [ ] `uv run python -m pytest tests/web/test_route_diagram.py tests/web/test_route_map_page.py tests/web/test_info_route.py -q`
 - [ ] 서버를 띄워 `/info` 를 **눈으로** 본다. 지도(`?view=a`): 라벨·번호 pill·철도가 선과 겹치지 않는지, 시행 전 경로도. 목록(`?view=b`): 순서·표시명·링크.
-- [ ] `/board`, `/unist` 배너와 경유지 문구를 확인한다. `?lang=en` 도 본다.
+- [ ] `/board`, `/unist` 공지와 경유지 문구를 확인한다. `/admin/notices?at=<시행일>T00:00` 으로 시행 후 문구를 미리 본다. `?lang=en` 도 본다.
 - [ ] 커밋 메시지에 공지 출처와 시행일을 적는다.
 
 ## 2. 공개 페이지 추가
@@ -47,6 +47,7 @@ audience: 반복되는 변경 작업을 수행하는 사람·AI 세션
 - [ ] `bushexa/web/routes/<name>.py` 블루프린트 → `web/app.py` 에 `register_blueprint`.
 - [ ] 로직은 `domain/<name>.py` 순수 함수(client·clock 주입). 라우트는 얇게.
 - [ ] 도착정보는 `services/board_support.arrival_client()`, 시간표는 `timetable_provider_for()` 만 쓴다(직접 API·`get_timetable` 호출 금지).
+- [ ] 공지를 받으려면 `services/notices.py` 의 `ENDPOINT_SURFACES`·`SURFACES` 에 endpoint→surface 를 추가한다(HTMX 부분 갱신만 하는 화면이면 `POLL_SURFACES` 에도).
 - [ ] 템플릿은 `_base.html` 상속. 사이드바는 `_base.html` 의 `nav_groups` 에 `(endpoint, 이모지, t('nav.<key>'))` 추가 + i18n 키.
 - [ ] 자동 갱신이 필요하면 조각 템플릿 + `/partial/<name>` 엔드포인트. 전체 페이지는 같은 조각을 include. `outerHTML` 이면 조각이 hx 속성을 포함.
 - [ ] API·캐시 실패 시 오류 배너 + fallback, 500 금지.

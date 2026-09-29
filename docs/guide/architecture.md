@@ -91,13 +91,14 @@ audience: 이 저장소에서 작업하는 사람·AI 세션
 | `rail_timetable.json` `{"trains": {"pairs": {"<출발>-<도착>": {"dates": {"YYYY-MM-DD": {"trains", "suspect"}}}}}, "metro": {"schedules": {"<역>:<U/D>:<01/02/03>": {"times"}}}}` | services/rail_timetable (cache-refresh·`crawl-rail`) | **locked_update_json** | ignore(런타임) |
 | `crawl_settings.json` (폴링 주기 3~600s) | services/crawl_settings | atomic | 미추적 |
 | `route_map_ab.json` `{"YYYY-MM-DD": {event: count}}` (노선도 A/B 노출·전환) | services/route_map_ab | locked | ignore |
+| `notices.json` 기한형 공지 (표시 기간·시행일·대상 화면/노선). 없거나 깨지면 seed `bushexa/data/notices.seed.json` | services/notices, `/admin/notices` | **locked_update_json** | 미추적 |
 | `audit_log.json`, `admin_lockout.json`, `timetable_crawl_job.json` | audit_log, admin, recrawl_job | **locked_update_json** | 미추적 |
 | `govtrack_state.json`, `govtrack_status.json`, `arrival_status.json` | crawler/state, *_status | atomic | 미추적(런타임) |
 | `logs.tsv` | crawler/daemon (FileHandler append) | append | **추적(주의)** |
 | `manager_password.txt` (Argon2id 해시) | services/auth | atomic | **ignore — 절대 커밋 금지** |
 | `bushexa.db*`, `timetable_backup/`, `debug/`(운영 DB 스냅샷) | db, timetable_editor, debug-running | — | ignore |
 
-- 백업 화이트리스트([services/backup.py](../../bushexa/services/backup.py)): `holidays.json`, `special_timetables.json`, `via_overrides.json`, `crawl_settings.json`, `timetable/special/**`.
+- 백업 화이트리스트([services/backup.py](../../bushexa/services/backup.py)): `holidays.json`, `special_timetables.json`, `via_overrides.json`, `crawl_settings.json`, `notices.json`, `timetable/special/**`. `notices.json` 은 복구 때 항목 단위까지 검증한다.
 - `bushexa/web/static/data/changelog.json` 은 **시드(fallback)** 이며 2025-08 이후 갱신되지 않았다. 변경이력은 `data/changelog.json` 을 고친다.
 
 ## 5. 핵심 불변식 (Invariants)

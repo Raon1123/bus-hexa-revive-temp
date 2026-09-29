@@ -98,7 +98,8 @@ audience: 화면·템플릿·CSS·노선도를 수정하는 사람·AI 세션
 - `i18n.py` 의 평면 dict `TRANSLATIONS["section.name"]["ko"|"en"]`. 지원 언어 ko(기본)·en.
 - 언어 결정: `?lang=` → 쿠키 → ko. `?lang=` 이 유효하면 1년 쿠키 저장.
 - 누락 키는 lang → ko → **키 문자열 자체**로 떨어져 화면에 그대로 보인다(누락이 눈에 띄도록).
-- 템플릿: `{{ t('board.notice.743') }}`.
+- 템플릿: `{{ t('board.title') }}`.
+- **공지 문구는 i18n 키로 만들지 않는다.** 기한형 공지(`services/notices.py`, `/admin/notices`)가 ko·en 문구와 표시 기간을 데이터로 가진다.
 - **새 문구 추가 절차:** ko·en 둘 다 넣은 키 추가 → 템플릿 리터럴을 `t()` 로 교체 → `tests/web/test_i18n.py` 통과 확인.
 - 커버리지는 부분적이다(`t()` 호출은 `_base`·`board`·`unist_board` 뿐). 새로 쓰는 공개 화면 문구는 `t()` 로 쓴다.
 - **확장 설계는 ADR-014(draft)** — UI 문자열은 코드 사전, 정류소 이름은 관리자가 편집하는 1:1 사전. 정류소 이름·도메인 f-string·상수 라벨을 번역하려면 먼저 ADR-014 를 읽는다.

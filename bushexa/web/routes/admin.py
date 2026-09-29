@@ -70,6 +70,16 @@ from bushexa.services.crawl_settings import (
     MAX_POLL_SECONDS,
 )
 from bushexa.services.log_reader import LogTailReader, LOG_SOURCES, STANDARD_LEVELS
+from bushexa.services.notices import (
+    KINDS as NOTICE_KINDS,
+    LINK_ENDPOINTS as NOTICE_LINKS,
+    SURFACES as NOTICE_SURFACES,
+    NoticeError,
+    NoticeStore,
+    default_notices_path,
+    parse_when,
+    to_notice,
+)
 from bushexa.services.special_timetable import SpecialTimetableService, default_special_path
 from bushexa.services.recrawl_job import RecrawlJob, ConflictError
 from bushexa.services import route_map_ab
@@ -983,6 +993,146 @@ def changelog_remove() -> Response:
     else:
         flash("변경이력 항목을 제거했습니다.", "success")
     return redirect(url_for("admin.changelog_index"))
+
+
+# ─────────────────────────────────────────────────
+# 기한형 공지 관리 — /admin/notices
+# 편집본은 <data_dir>/notices.json, seed는 bushexa/data/notices.seed.json.
+# ─────────────────────────────────────────────────
+
+def _notice_store() -> NoticeStore:
+    config = current_app.config["BUSHEXA_CONFIG"]
+    return NoticeStore(default_notices_path(config.data_dir))
+
+
+def _notice_from_form(form) -> dict:
+    """폼 → 공지 원시 dict (검증은 NoticeStore.upsert 가 한다)."""
+    return {
+        "id": form.get("id", ""),
+        "kind": form.get("kind", "info"),
+        "routes": form.getlist("routes"),
+        "surfaces": form.getlist("surfaces"),
+        "show_from": form.get("show_from", ""),
+        "show_until": form.get("show_until", ""),
+        "effective_from": form.get("effective_from", ""),
+        "text": {"ko": form.get("text_ko", ""), "en": form.get("text_en", "")},
+        "text_after": {"ko": form.get("text_after_ko", ""), "en": form.get("text_after_en", "")},
+        "link": form.get("link", ""),
+        "priority": form.get("priority", "0"),
+        "enabled": form.get("enabled") == "1",
+    }
+
+
+@bp.get("/notices")
+@login_required
+def notices_index() -> str:
+    """공지 목록(기준 시각별 상태·문구 미리보기) + 추가/수정 폼.
+
+    ``?at=YYYY-MM-DDTHH:MM`` 으로 기준 시각을 바꿔 시행 전/후·만료를 미리 본다.
+    ``?edit=<id>`` 면 해당 공지를 폼에 채운다.
+    """
+    now = KSTClock().now()
+    at_raw = (request.args.get("at") or "").strip()
+    at = now
+    if at_raw:
+        try:
+            at = parse_when(at_raw) or now
+        except NoticeError as exc:
+            flash(str(exc), "error")
+    store = _notice_store()
+    entries = store.load_entries()
+    rows = []
+    for e in entries:
+        n = to_notice(e)
+        rows.append({
+            "entry": e,
+            "status": n.status(at),
+            "phase": n.phase(at),
+            "text_ko": n.render_text(at, "ko"),
+            "text_en": n.render_text(at, "en"),
+        })
+    edit_id = request.args.get("edit")
+    editing = store.get(edit_id) if edit_id else None
+    from bushexa.data.timetable import get_busroute_info as _gbi
+    busnos, _ = _gbi()
+    return render_template(
+        "admin/notices.html",
+        rows=rows, editing=editing, at=at, at_raw=at_raw,
+        health=store.health(), seed_drift=store.seed_drift(),
+        kinds=NOTICE_KINDS, surfaces=NOTICE_SURFACES, link_targets=list(NOTICE_LINKS),
+        busnos=busnos,
+    )
+
+
+@bp.post("/notices/save")
+@login_required
+def notices_save() -> Response:
+    """공지 추가 또는 같은 ID 수정."""
+    original_id = (request.form.get("original_id") or "").strip() or None
+    try:
+        saved = _notice_store().upsert(_notice_from_form(request.form), original_id=original_id)
+    except NoticeError as exc:
+        flash(f"저장하지 못했습니다: {exc}", "error")
+        return redirect(url_for("admin.notices_index", edit=original_id))
+    _audit("notices.save", id=saved["id"], original_id=original_id, kind=saved["kind"],
+           show_until=saved["show_until"], effective_from=saved["effective_from"])
+    flash(f"공지 '{saved['id']}' 를 저장했습니다.", "success")
+    return redirect(url_for("admin.notices_index"))
+
+
+@bp.post("/notices/toggle")
+@login_required
+def notices_toggle() -> Response:
+    """공지 켜기/끄기."""
+    notice_id = request.form.get("id", "")
+    enabled = request.form.get("enabled") == "1"
+    try:
+        ok = _notice_store().set_enabled(notice_id, enabled)
+    except NoticeError as exc:
+        flash(str(exc), "error")
+        return redirect(url_for("admin.notices_index"))
+    if not ok:
+        flash("해당 공지를 찾을 수 없습니다.", "error")
+    else:
+        _audit("notices.toggle", id=notice_id, enabled=enabled)
+        flash(f"공지 '{notice_id}' 를 {'켰습니다' if enabled else '껐습니다'}.", "success")
+    return redirect(url_for("admin.notices_index"))
+
+
+@bp.post("/notices/remove")
+@login_required
+def notices_remove() -> Response:
+    """공지 삭제."""
+    notice_id = request.form.get("id", "")
+    try:
+        ok = _notice_store().remove(notice_id)
+    except NoticeError as exc:
+        flash(str(exc), "error")
+        return redirect(url_for("admin.notices_index"))
+    if not ok:
+        flash("해당 공지를 찾을 수 없습니다.", "error")
+    else:
+        _audit("notices.remove", id=notice_id)
+        flash(f"공지 '{notice_id}' 를 삭제했습니다.", "success")
+    return redirect(url_for("admin.notices_index"))
+
+
+@bp.post("/notices/import-seed")
+@login_required
+def notices_import_seed() -> Response:
+    """배포 이미지의 seed 항목으로 live 공지를 추가/교체."""
+    notice_id = request.form.get("id", "")
+    try:
+        ok = _notice_store().import_seed(notice_id)
+    except NoticeError as exc:
+        flash(str(exc), "error")
+        return redirect(url_for("admin.notices_index"))
+    if not ok:
+        flash("seed 에 해당 공지가 없습니다.", "error")
+    else:
+        _audit("notices.import_seed", id=notice_id)
+        flash(f"seed 의 공지 '{notice_id}' 를 반영했습니다.", "success")
+    return redirect(url_for("admin.notices_index"))
 
 
 # ─────────────────────────────────────────────────

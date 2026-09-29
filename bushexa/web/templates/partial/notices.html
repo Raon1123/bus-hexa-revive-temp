@@ -1,0 +1,26 @@
+{# 기한형 공지 목록 — 데이터: services/notices.py (context processor `notices`).
+   종류별 색은 .notice-{kind} 클래스로만(인라인 style 금지). 텍스트는 autoescape.
+   HTMX 부분 갱신만 하는 화면(notice_poll_surface)은 공지 영역을 60초마다 다시 불러
+   시행일 전환·만료·관리자 끄기를 반영한다. 공지가 없어도 자리(#notice-region)는 남겨 둔다. #}
+{% if notice_poll_surface %}
+<div id="notice-region"
+     hx-get="{{ url_for('notices.notices_partial', surface=notice_poll_surface, lang=lang) }}"
+     hx-trigger="every 60s"
+     hx-swap="outerHTML">
+{% endif %}
+{% if notices %}
+<section class="notice-list" aria-label="{{ t('notice.region') }}">
+    {% for n in notices %}
+    <p class="notice notice-{{ n.kind }}">
+        <strong class="notice-kind">{{ t('notice.kind.' ~ n.kind) }}</strong>
+        {{ n.text }}
+        {% if n.link and n.link in notice_link_endpoints %}
+        <a href="{{ url_for(notice_link_endpoints[n.link]) }}" class="notice-link">{{ t('notice.more') }}</a>
+        {% endif %}
+    </p>
+    {% endfor %}
+</section>
+{% endif %}
+{% if notice_poll_surface %}
+</div>
+{% endif %}

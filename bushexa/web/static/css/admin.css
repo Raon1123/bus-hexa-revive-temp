@@ -180,3 +180,22 @@ body {
     cursor: pointer;
 }
 .admin-logout-btn:hover { background: rgba(255,255,255,0.1); }
+
+/* ── 기한형 공지 관리 (admin/notices.html) ─────────────────────────── */
+.notice-admin-table td { vertical-align: top; }
+.notice-admin-en { color: #555; }
+.notice-admin-actions form { display: inline; margin: 0 0 0 0.3em; }
+.notice-status { font-weight: 600; }
+.notice-admin-table td:nth-child(3),
+.notice-admin-table td:nth-child(4) { white-space: nowrap; }
+.notice-status-active { color: #1b5e20; }
+.notice-status-scheduled { color: #0d47a1; }
+.notice-status-expired,
+.notice-status-disabled { color: #616161; }
+.notice-admin-form-section { margin-top: 2em; border-top: 1px solid #ccc; padding-top: 1em; }
+.notice-admin-form { max-width: 44rem; }
+.notice-admin-form fieldset { border: 1px solid #c5cae9; border-radius: 5px; padding: 0.4em 0.8em; }
+.notice-admin-form fieldset label { font-weight: 400; margin-right: 0.8em; white-space: nowrap; }
+.notice-admin-form textarea { width: 100%; }
+.notice-admin-inline { display: inline; margin-left: 0.3em; }
+.notice-admin-drift { border: 1px solid #f9a825; background: #fff8e1; padding: 0.5em 1em; margin: 1em 0; }

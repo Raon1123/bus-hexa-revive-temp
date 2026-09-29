@@ -1,0 +1,31 @@
+[
+  {
+    "id": "743-beomseo-2026",
+    "kind": "route_change",
+    "routes": [
+      "743"
+    ],
+    "surfaces": [
+      "board",
+      "lite",
+      "unist",
+      "stops",
+      "timetable",
+      "busno"
+    ],
+    "show_from": null,
+    "show_until": "2026-10-31",
+    "effective_from": "2026-10-03",
+    "text": {
+      "ko": "{date}부터 743번은 구영리에서 범서중학교를 경유합니다 (513번과 같은 경로, 713·753·1115번과 다름).",
+      "en": "From {date}, bus 743 passes Beomseo Middle School in Guyoung-ri (same as 513; different from 713/753/1115)."
+    },
+    "text_after": {
+      "ko": "743번은 이제 구영리에서 범서중학교를 경유합니다 ({date} 변경, 513번과 같은 경로, 713·753·1115번과 다름).",
+      "en": "Bus 743 now passes Beomseo Middle School in Guyoung-ri (changed {date}; same as 513, different from 713/753/1115)."
+    },
+    "link": "info",
+    "priority": 0,
+    "enabled": true
+  }
+]
