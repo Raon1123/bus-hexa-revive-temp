@@ -1,0 +1,40 @@
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+
+      - name: Install dependencies (locked)
+        run: uv sync --frozen
+
+      # ADR-008: 기본 계층(unit + integration + simulation). 외부 네트워크·secret 불필요.
+      # 커버리지는 측정만 하고 임계는 강제하지 않는다(ADR-008 "커버리지 목표").
+      - name: Run tests
+        run: >
+          uv run --frozen --with pytest-cov pytest -q
+          --cov=bushexa --cov-report=term-missing:skip-covered
+
+  docker-build:
+    # Dockerfile 회귀(의존성·COPY 경로) 조기 감지 — 이미지 빌드만, 푸시 없음.
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build image
+        run: docker build -f docker/Dockerfile -t bushexa:ci .
