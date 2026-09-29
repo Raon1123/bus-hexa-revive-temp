@@ -11,6 +11,10 @@
     #govtrack-card.warning { border-color: #e53e3e; background: #fff5f5; }
     .govtrack-ok { color: #2f855a; }
     .govtrack-fail { color: #c53030; }
+    #route-map-ab { border: 1px solid #ccc; padding: 1em; border-radius: 4px; margin: 1em 0; }
+    #route-map-ab table { border-collapse: collapse; margin-top: .5em; }
+    #route-map-ab th, #route-map-ab td { border: 1px solid #e0e0e0; padding: .3em .6em; text-align: left; }
+    #route-map-ab td.num { text-align: right; font-variant-numeric: tabular-nums; }
 </style>
 {% endblock %}
 
@@ -23,6 +27,39 @@
     <div id="govtrack-status-content">
         <p>상태를 로드 중입니다...</p>
     </div>
+</section>
+
+<!-- /info 노선도 A/B 테스트 (services/route_map_ab) -->
+<section id="route-map-ab">
+    <h2>노선도 A/B 테스트</h2>
+    <p>첫 방문에 A(지도)·B(노선별 목록) 중 하나를 무작위로 보여 주고 쿠키로 유지합니다.
+       노출은 화면을 보여 준 횟수, 전환은 그 화면에서 다른 쪽으로 넘어간 횟수입니다. 전환율이 높을수록 그 화면을 떠난 사람이 많습니다.</p>
+    <table>
+        <thead><tr><th>방식</th>
+            <th>노출 (최근 {{ route_map_ab.days }}일)</th><th>전환</th><th>전환율</th>
+            <th>노출 (전체)</th><th>전환</th><th>전환율</th></tr></thead>
+        <tbody>
+        {% for a in route_map_ab.arms %}
+            <tr><td>{{ a.name }}</td>
+            {% for span in (a.recent, a.total) %}
+                <td class="num">{{ span.views }}</td><td class="num">{{ span.switches }}</td>
+                <td class="num">{% if span.rate is not none %}{{ '%.1f' % (span.rate * 100) }}%{% else %}–{% endif %}</td>
+            {% endfor %}</tr>
+        {% endfor %}
+        </tbody>
+    </table>
+    <details>
+        <summary>이벤트별 합계</summary>
+        <table>
+            <thead><tr><th>방식</th><th>이벤트</th><th>최근 {{ route_map_ab.days }}일</th><th>전체</th></tr></thead>
+            <tbody>
+            {% for r in route_map_ab.rows %}
+                <tr><td>{{ r.variant }}</td><td>{{ r.desc }} <code>{{ r.event }}</code></td>
+                    <td class="num">{{ r.recent }}</td><td class="num">{{ r.total }}</td></tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </details>
 </section>
 {% endblock %}
 

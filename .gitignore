@@ -24,3 +24,6 @@ data/manager_password.txt
 
 # local prod DB snapshots for debugging (never commit)
 data/debug/
+
+# 노선도 A/B 카운터(런타임 데이터)
+data/route_map_ab.json*
