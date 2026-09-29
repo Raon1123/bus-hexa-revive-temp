@@ -67,8 +67,8 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
 
     # ── Board page ─────────────────────────────────────────────────────────
     "board.title":          {"ko": "UNIST 출발안내",      "en": "UNIST Departures"},
-    "board.notice.743":    {"ko": "743번은 구영리에서 범서중학교를 경유합니다 (513번과 같은 경로, 713·753·1115번과 다름). 자세한 경로는 정보 페이지의 노선도를 확인하세요.",
-                            "en": "Bus 743 passes Beomseo Middle School in Guyoung-ri (same as 513; different from 713/753/1115). See the route map on the Info page."},
+    "board.notice.743":    {"ko": "10월 3일부터 743번은 구영리에서 범서중학교를 경유합니다 (513번과 같은 경로, 713·753·1115번과 다름). 자세한 경로는 정보 페이지의 노선도를 확인하세요.",
+                            "en": "From Oct 3, bus 743 passes Beomseo Middle School in Guyoung-ri (same as 513; different from 713/753/1115). See the route map on the Info page."},
     "board.page_title":     {"ko": "출발 게시판",          "en": "Departure Board"},
     "board.btn.table":      {"ko": "표",                 "en": "Table"},
     "board.btn.flap":       {"ko": "Split-flap",         "en": "Split-flap"},

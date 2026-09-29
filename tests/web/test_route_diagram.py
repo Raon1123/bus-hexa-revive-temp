@@ -69,3 +69,15 @@ def test_shared_box():
     # UNIST(5개)·삼산·태화강역 등 공유박스가 있어야 하고, 노선 수보다 박스가 적어야 함
     n_boxes = svg.count("route-box")
     assert n_boxes >= 5, f"공유박스가 너무 적음: {n_boxes}"
+
+
+def test_743_beomseo_only_from_oct3():
+    """743의 범서중 경유는 2026-10-03부터 노선도에 반영된다(그 전에는 513만 범서중)."""
+    from datetime import date
+
+    from bushexa.web.route_diagram import render_route_diagram
+
+    before = str(render_route_diagram(date(2026, 10, 2)))
+    after = str(render_route_diagram(date(2026, 10, 3)))
+    assert before.count('class="route-stop"') + 1 == after.count('class="route-stop"')
+    assert 'class="route-box"' in after
