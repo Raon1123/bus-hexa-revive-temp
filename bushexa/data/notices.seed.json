@@ -27,5 +27,34 @@
     "link": "info",
     "priority": 0,
     "enabled": true
+  },
+  {
+    "id": "1115-asanro-2026",
+    "kind": "route_change",
+    "routes": [
+      "1115"
+    ],
+    "surfaces": [
+      "board",
+      "lite",
+      "unist",
+      "stops",
+      "timetable",
+      "busno"
+    ],
+    "show_from": null,
+    "show_until": "2026-10-31",
+    "effective_from": "2026-10-03",
+    "text": {
+      "ko": "{date}부터 1115번은 현대자동차 정류장(명촌정문~성원상떼빌)에 서지 않고, 명촌에서 태화강을 따라(아산로) 남목으로 갑니다.",
+      "en": "From {date}, bus 1115 no longer stops at the Hyundai Motor stops (Myeongchon Gate to Seongwon Sangtteville); it runs along the Taehwa River (Asan-ro) from Myeongchon to Nammok."
+    },
+    "text_after": {
+      "ko": "1115번은 이제 현대자동차 정류장(명촌정문~성원상떼빌)에 서지 않고, 명촌에서 태화강을 따라(아산로) 남목으로 갑니다 ({date} 변경).",
+      "en": "Bus 1115 no longer stops at the Hyundai Motor stops (Myeongchon Gate to Seongwon Sangtteville); it runs along the Taehwa River (Asan-ro) from Myeongchon to Nammok (changed {date})."
+    },
+    "link": "info",
+    "priority": 0,
+    "enabled": true
   }
 ]

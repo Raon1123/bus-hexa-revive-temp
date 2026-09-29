@@ -109,6 +109,26 @@ def test_busno_filter_follows_the_bus_actually_shown(app, url):
     assert "범서중학교" in _html(app.test_client(), "/busno?bus=743")   # 대조군
 
 
+def test_seed_1115_notice_switches_and_filters_by_route(app):
+    client = app.test_client()
+    with freeze_time("2026-10-02T12:00:00+09:00"):
+        before = _html(client, "/busno?bus=1115")
+        other = _html(client, "/busno?bus=713")
+    with freeze_time("2026-10-04T12:00:00+09:00"):
+        after = _html(client, "/busno?bus=1115")
+    assert "10월 3일부터 1115번은 현대자동차 정류장(명촌정문~성원상떼빌)에 서지 않고" in before
+    assert "1115번은 이제 현대자동차 정류장" in after and "(10월 3일 변경)" in after
+    assert "10월 3일부터" not in after
+    assert "아산로" not in other                                   # 713 화면엔 1115 공지 없음
+
+
+@freeze_time("2026-10-02T12:00:00+09:00")
+def test_board_shows_both_route_change_notices(app):
+    html = _html(app.test_client(), "/board")
+    assert html.count('class="notice notice-route_change"') == 2
+    assert "743번은" in html and "1115번은" in html
+
+
 @freeze_time("2026-10-02T12:00:00+09:00")
 def test_info_surface_not_in_seed_targets(app):
     """seed 공지는 info 화면을 대상으로 하지 않는다(info 본문에 같은 안내가 이미 있음)."""
@@ -142,9 +162,11 @@ def test_seed_is_not_publicly_served(app):
 @freeze_time("2026-10-02T12:00:00+09:00")
 @pytest.mark.parametrize("url", ["/board", "/unist", "/stops"])
 def test_realtime_pages_render_notice_once(app, url):
-    """실시간 화면(외부 API 실패 시에도 200)에 공지가 한 번만 그려진다."""
+    """실시간 화면(외부 API 실패 시에도 200)에 공지 영역이 한 번만, 공지는 중복 없이 그려진다."""
     html = _html(app.test_client(), url)
-    assert html.count('class="notice notice-route_change"') == 1
+    assert html.count('class="notice-list"') == 1
+    assert html.count("10월 3일부터 743번은") == 1
+    assert html.count("10월 3일부터 1115번은") == 1
 
 
 @freeze_time("2026-10-02T12:00:00+09:00")
