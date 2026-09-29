@@ -56,8 +56,8 @@ audience: 이 저장소에서 작업하는 사람·AI 세션
 | `crawler/` | `daemon`, `recorder`, `state`, `arrival_poller`, `cache_refresh`, `timetable_crawl`, `parsers` |
 | `data/` | `constants.py`(정적 노선·정류장 메타), `timetable.py`(시간표 로드·검증·캐시) |
 | `domain/` | **순수 뷰모델 빌더** — board, busno, stops, running, unist_board, unist_timetable. client·clock 주입 |
-| `services/` | 파일 기반 스토어·에디터 — board_support, holiday_*, special_timetable, via_editor, changelog_editor, crawl_settings, audit_log, auth, backup, recrawl_job, *_status, log_reader, stop_cache, timetable_editor |
-| `web/` | Flask 팩토리(`app.py`: CSRF·i18n·Server-Timing), `routes/`, `templates/`, `static/`, `i18n.py`, `route_diagram.py`(노선도 뷰모델) |
+| `services/` | 파일 기반 스토어·에디터 — board_support, holiday_*, special_timetable, via_editor, changelog_editor, crawl_settings, audit_log, auth, backup, recrawl_job, *_status, log_reader, stop_cache, timetable_editor, route_map_ab(노선도 A/B 카운터) |
+| `web/` | Flask 팩토리(`app.py`: CSRF·i18n·Server-Timing), `routes/`, `templates/`, `static/`, `i18n.py`, `route_diagram.py`(노선도 SVG·노선 경로 데이터), `route_lines.py`(노선별 목록 뷰모델) |
 
 **의존 규칙 (grep 으로 확인됨, 깨지 말 것)**
 
@@ -88,6 +88,7 @@ audience: 이 저장소에서 작업하는 사람·AI 세션
 | `holidays.json`(관리자 지정) / `holiday_cache.json`(API 캐시) | holiday_editor / holiday_service | atomic | 미추적 |
 | `via_overrides.json` | via_editor | atomic | 미추적 |
 | `crawl_settings.json` (폴링 주기 3~600s) | services/crawl_settings | atomic | 미추적 |
+| `route_map_ab.json` `{"YYYY-MM-DD": {event: count}}` (노선도 A/B 노출·전환) | services/route_map_ab | locked | ignore |
 | `audit_log.json`, `admin_lockout.json`, `timetable_crawl_job.json` | audit_log, admin, recrawl_job | **locked_update_json** | 미추적 |
 | `govtrack_state.json`, `govtrack_status.json`, `arrival_status.json` | crawler/state, *_status | atomic | 미추적(런타임) |
 | `logs.tsv` | crawler/daemon (FileHandler append) | append | **추적(주의)** |

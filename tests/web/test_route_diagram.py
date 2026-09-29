@@ -142,13 +142,19 @@ def test_1115_skips_yeompo():
 
 
 def test_1115_asanro_from_oct3():
-    """울산버스 공지(10/3 시행): 1115 는 명촌정문~성원상떼빌 7개 정류소에 서지 않고 아산로로 간다."""
+    """울산버스 공지(10/3 시행): 1115 는 명촌정문~성원상떼빌 7개 정류소에 서지 않고, 태화강을 건너 명촌에서 꺾어 강을 따라(아산로) 남목으로 간다."""
     before = stops_for(date(2026, 10, 2))["1115"]
     after = stops_for(date(2026, 10, 3))["1115"]
     assert "현대자동차" in before and "현대자동차" not in after
     assert "아산로" in paths_for(date(2026, 10, 3))["1115"]
     assert "아산로" not in paths_for(date(2026, 10, 2))["1115"]
     assert after[after.index("태화강역광장") + 1] == "남목"
+    # 태화강을 건너(명촌교) 명촌에서 꺾어 강을 따라 간다: 강 북쪽(y 작음)으로 올라갔다가 동남쪽으로
+    path = paths_for(date(2026, 10, 3))["1115"]
+    i = path.index("태화강역광장")
+    assert path[i + 1:i + 3] == ["명촌교", "아산로"]
+    assert NODES["명촌교"].y < NODES["태화강역광장"].y          # 강을 건너 북쪽으로
+    assert NODES["아산로"].y > NODES["명촌교"].y                # 명촌에서 꺾어 동남쪽(강 하류)으로
     assert {c.line for c in ROUTE_CHANGES} == {"743", "1115"}
 
 

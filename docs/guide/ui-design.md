@@ -87,7 +87,7 @@ audience: 화면·템플릿·CSS·노선도를 수정하는 사람·AI 세션
 | 출발 게시판 | `.dboard.table`/`.dboard.flap`, `.dboard-toolbar`, `.seg`/`.seg-btn.active`, 행 `.dboard-row.is-first/.is-second/.is-open`, 셀 `.c-time/.c-route-cell/.c-dest/.c-present/.c-flag`, `.tag-first/.tag-second`, `.via-label` |
 | 칩 | `.bus-btn`, `.day-btn`(.active) |
 | 카드 | `.bus-card-grid`(3열), `.bus-card`, `.bus-card-header`(배경 `var(--route)`), `.entry-live`/`.entry-timetable`, 막차 후 `.bus-card.last-bus`(opacity .6) |
-| 정보 페이지 | `.info-table`, `.changelog-list`, `.route-note`, `.route-lines`, `.route-stops`(info.css) |
+| 정보 페이지 | `.info-table`, `.changelog-list`, `.route-note`, 노선도 `.route-view-toggle`, `.route-view`, `.route-map`, `.route-svg`(`.route-station`, `.route-pill-btn`, `.is-dim`), `.route-chip`, `.route-map-panel`, 목록 `.route-lines`, `.route-stops`(info.css) |
 | 관리자 | `.admin-table`, `.admin-form`, `.btn-danger-sm`(admin.css) |
 
 알려진 충돌: `.btn-primary` 가 `style.css`(`#1a237e`)와 `admin.css`(`#3182ce`)에서 다르다. 새 버튼은 기존 클래스를 재사용하고 새 색을 만들지 않는다.
@@ -102,27 +102,37 @@ audience: 화면·템플릿·CSS·노선도를 수정하는 사람·AI 세션
 - 커버리지는 부분적이다(`t()` 호출은 `_base`·`board`·`unist_board` 뿐). 새로 쓰는 공개 화면 문구는 `t()` 로 쓴다.
 - **확장 설계는 ADR-014(draft)** — UI 문자열은 코드 사전, 정류소 이름은 관리자가 편집하는 1:1 사전. 정류소 이름·도메인 f-string·상수 라벨을 번역하려면 먼저 ADR-014 를 읽는다.
 
-## 6. 노선도 (`route_diagram.py`, `/info`)
+## 6. 노선도 (`/info`: A 지도 + B 노선별 목록, A/B 테스트)
 
-2026-09-29 PR #3 에서 **가로 SVG 다이어그램을 노선별 세로 정류장 목록(HTML)** 으로 바꿨다. 가로 SVG 는 라벨이 겹치고, 공유 정류장 박스가 사이 레인을 삼키는 문제가 반복됐다(PM-014). 다시 SVG 로 돌아가지 않는다.
+PR #6 에서 두 방식을 함께 둔다. 첫 방문에 하나를 무작위로 보여 주고(쿠키 `route_map_view`), "지도로 보기 / 목록으로 보기"로 바꿀 수 있다.
+노선 사실(정차 순서·경유점·시행일)은 **`route_diagram.py` 한 곳**에만 있고, 목록(B)은 그것을 읽어 만든다.
+
+**A. 개략 지도** — `web/route_diagram.py` → 인라인 SVG. 옛 가로 레인 SVG(라벨 겹침·공유 박스가 사이 레인을 삼킴, PM-014)와 다른 방식이다.
 
 | 데이터 | 의미 |
 |---|---|
-| `LINE_ORDER` | 카드 표시 순서 |
-| `COLORS` | 노선 색(§3.1 과 동기화) |
-| `LINE_STOPS` | 노선별 정류장, 경로 순서(앞이 UNIST 쪽, 513 은 삼남 쪽부터) |
-| `STOP_LABEL` | 화면 표시명(없으면 키 그대로). 예: `범서중` → "구영리 (범서중학교)" |
-| `STOP_LINK` | 정류장 → 도착 조회 `stop_id`. **UNIST 방면이 확인된 정류소만**, 값은 반드시 `constants.SERACH_STOPS` 에 있어야 한다 |
-| `VIA_743_BEOMSEO_FROM` | 시행일 게이트. 이전에는 743 범서중에 "10/3부터" 예고 표시 |
+| `NODES` | 노드 → 격자 좌표 `Node(x, y, label, anchor)`. x 서→동, y 북→남. 실제 위치(TAGO 좌표)를 **참고**해 방향·순서만 맞춘다. `label=None` 은 선 모양용 경유점(정차 아님) |
+| `LINE_PATHS` | 노선별 운행 순서(경유점 포함), **최신 노선 기준**. 라벨 있는 노드 = 정차 |
+| `ROUTE_CHANGES` | 시행일 있는 변경 `RouteChange(line, effective, old, new, summary)`. 시행일(KST, `get_now`) 전에는 `new` 구간을 `old` 로 되돌려 그린다 |
+| `RAILS` | 철도 배경(KTX 경부고속선·동해선). `stations` 정류장에 환승 테두리 |
+| `STOP_NOTE` | 정류장 정보 패널 설명 |
+| `COLORS`, `LINE_ORDER` | 노선 색(§3.1 동기화), 나란한 구간의 기본 쌓기 순서 |
+| `constants.ROUTE_MAP_STOP_LINK` | 정류장 → 실시간 도착 `stop_id`. 값은 반드시 `SERACH_STOPS` 안 |
 
-- `build_route_lines(today)` 가 `LineView`/`StopView`(label, href, is_unist, is_branch, note) 뷰모델을 만든다. 템플릿은 `info.html` 의 `route_lines` 루프, CSS 는 `css/info.css` 의 `.route-lines`, `.route-stops li.is-unist/.is-branch/.is-upcoming`, `.route-stop-note`.
-- 링크 규칙: UNIST → `/busno?bus=<노선>`, `STOP_LINK` 정류장 → `/stops?stop_id=<id>`(해당 정류소를 미리 선택·즉시 조회), 그 외는 링크 없음.
-- 노선을 추가·수정할 때는 `LINE_STOPS` / `STOP_LABEL` / `STOP_LINK` 만 바꾼다.
-- 같은 지역이라도 노선마다 실제 정차 지점이 다르면 **다른 키**로 둔다(구영리 안에서 513·743 은 `범서중`, 713·753·1115 는 `구영`). 둘 다 `is_branch` 로 강조된다.
-- 주의: `build_route_lines` 는 `date.today()`(호스트 TZ)를 쓴다. 새 날짜 게이트는 KST 기준으로 계산한다.
+그리기 규칙과 함정:
+- 모든 구간은 가로·세로·45°(`test_paths_octilinear`). 노드 좌표는 서로 겹치면 안 된다(`test_paths_defined`).
+- 여러 노선이 같은 구간을 지나면 평행 오프셋으로 나란히 그린다. 쌓는 순서는 구간 양 끝에서 갈라지는 방향(`_side_score`)으로 정해 **교차는 정류장 캡슐 안에서만** 생긴다. 경유점에서 교차가 보이면 경유점을 정류장 쪽으로 옮기거나 경로를 나눈다.
+- 이름이 같아도 실제 정차 지점이 다르면 다른 노드: 구영리 `구영`(선바위·우미린·범서파출소 길, 713·753·1115) vs `범서중`(현대2차·우미린2차·범서중 길, 513·743), `태화강역`(1번 정류소, 713·743·753) vs `태화강역광장`(1115).
+- 동서·남북 관계는 `test_rough_geography` 가 지킨다. 좌표를 옮기면 그 테스트와 **브라우저 렌더**(라벨·pill·철도 겹침)를 함께 본다. 옛 경로(시행 전)도 따로 렌더해 본다.
+- 상호작용은 `static/js/route_map.js`(노선 강조·정류장 패널·A/B 전환·이벤트). JS 없이도 SVG 는 완성된 그림이고, 전환은 `?view=a|b` 링크로 동작한다.
+
+**B. 노선별 정류장 목록** — `web/route_lines.py` `build_route_lines(today)`. `route_diagram` 의 경로에서 정류장만 뽑고, 시행 전 변경은 "10/3부터"/"10/2까지" 예고로 함께 보인다. 표시명은 `STOP_LABEL`, 링크는 UNIST → `/busno?bus=`, `ROUTE_MAP_STOP_LINK` → `/stops?stop_id=`(미리 선택·즉시 조회).
+
+**A/B 카운터** — `services/route_map_ab.py`, `<data_dir>/route_map_ab.json`(날짜별, `locked_update_json`, git ignore). 노출 `view_a/b` 는 서버가, 전환 `switch_to_a/b`·조작 이벤트는 `POST /info/event`(sendBeacon)로 센다. 관리자 대시보드에 방식별 노출·전환·전환율.
+
 - 텍스트(`VIA_STOPS`, `info.html` 표·배너)는 날짜 게이트가 없으므로 "10/3부터"처럼 문구에 시행일을 적는다.
-- 테스트 `tests/web/test_route_diagram.py`: 노선 5개, 종점, UNIST 링크, `STOP_LINK` 유효성, 범서중 분기, 743 예고, `/info` 렌더, `/stops` 미리 선택.
-- 수정 후 `/info` 를 브라우저로 열어 순서·라벨·링크를 눈으로 확인한다.
+- 테스트: `tests/web/test_route_diagram.py`(지도 규칙·지리·날짜 게이트·철도·상호작용 속성), `tests/web/test_route_map_page.py`(목록·A/B·`/stops` 미리 선택·관리자 표).
+- 수정 후 `/info` 를 브라우저로 열어 두 방식을 모두 눈으로 확인한다.
 
 ## 7. 알려진 UI 결함 (2026-09-29)
 

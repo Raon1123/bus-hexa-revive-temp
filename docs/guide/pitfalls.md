@@ -60,7 +60,7 @@ audience: 이 저장소에서 코드를 고치는 모든 사람·AI 세션 — �
 
 | 규칙 | 왜 | 근거 |
 |---|---|---|
-| 시간대는 `time_utils.KST` 하나. `ZoneInfo("Asia/Seoul")` 리터럴·naive `datetime.now()`·`date.today()` 금지 | 컨테이너 TZ 에 따라 자정 경계가 어긋난다. `route_diagram` 날짜 게이트가 아직 `date.today()` 사용 | ADR-008, PM-014 |
+| 시간대는 `time_utils.KST` 하나. `ZoneInfo("Asia/Seoul")` 리터럴·naive `datetime.now()`·`date.today()` 금지 | 컨테이너 TZ 에 따라 자정 경계가 어긋난다. 노선도 날짜 게이트(`ROUTE_CHANGES`)는 `get_now()` 사용 | ADR-008, PM-014 |
 | 시간 의존 로직은 `Clock` 을 주입하고 테스트는 `FakeClock` | 실제 시계에 의존하면 테스트가 시각에 따라 깨진다 | ADR-008 |
 | "없음"은 `None` 으로 표현한다. 시각 필드에 `0` sentinel 금지 | `until_ts=0` 이 `now >= 0` 으로 "만료"가 되어 lockout 이 영영 발동하지 않았다 | PM-005 |
 | 시행일이 미래인 변경은 날짜 게이트 + 경계일 테스트 | 743 변경을 시행일 없이 즉시 반영했다 | PM-014 |
@@ -123,7 +123,7 @@ audience: 이 저장소에서 코드를 고치는 모든 사람·AI 세션 — �
 | 노선 변경은 **공식 공지 원문**으로 정차 지점과 시행일을 확인한 뒤 편집한다 | 743 을 틀린 정류장으로 게시했다 | PM-014 |
 | 노선 사실은 여러 곳에 복제되어 있다. `change-playbooks.md` §1 체크리스트로 전부 고친다 | 한 곳만 고치면 화면마다 말이 다르다 | PM-014 |
 | 노선 색은 `style.css`, `timetable.css`, `route_diagram.COLORS` 3곳 동기화 | 화면마다 색이 달라진다 | ui-design §3.1 |
-| 노선도는 노선별 세로 목록이다(PR #3). 가로 SVG·공유 박스 방식으로 되돌리지 않는다. `STOP_LINK` 값은 `SERACH_STOPS` 에 있는 UNIST 방면 정류소만 | SVG 는 라벨 겹침·박스가 사이 레인을 삼키는 문제로 3번 정정됐다 | PM-014, ui-design §6 |
+| 노선도 지도는 격자·45° 개략도다(PR #6). 옛 가로 레인·공유 박스 방식으로 되돌리지 않는다. 좌표를 바꾸면 `test_rough_geography` 와 브라우저 렌더(시행 전 경로 포함)를 함께 본다. `ROUTE_MAP_STOP_LINK` 값은 `SERACH_STOPS` 안 | 레인 SVG 는 라벨 겹침·박스가 사이 레인을 삼키는 문제로 3번 정정됐다. 좌표 배치는 테스트가 통과해도 라벨·pill 이 선을 덮을 수 있다 | PM-014, ui-design §6 |
 | HTMX `outerHTML` swap 을 쓰면 응답 조각이 hx 속성을 다시 포함해야 한다 | `/unist` 자동 갱신이 첫 교체 후 멈춘다(미해결) | ui-design §7 |
 | 새 공개 문구는 `t()` 로, ko·en 둘 다 넣는다 | 누락 키는 키 문자열이 그대로 화면에 나온다 | ui-design §5 |
 | 변경이력은 `data/changelog.json`(라이브)을 고친다. `static/data/changelog.json` 은 시드 | 시드는 2025-08 이후 갱신되지 않는다 | architecture §4.2 |
