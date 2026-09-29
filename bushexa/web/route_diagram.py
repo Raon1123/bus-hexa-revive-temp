@@ -20,6 +20,8 @@ PNG(static/media/graphisnotmap.png)를 손그림으로 박아두던 것을 데�
 
 from __future__ import annotations
 
+from datetime import date
+
 from markupsafe import Markup, escape
 
 # ── 노선 (위→아래 lane 순서 = 리스트 인덱스) ─────────────────────────────
@@ -34,6 +36,9 @@ COLORS: dict[str, str] = {
     "753": "#7B1FA2",   # 보라
     "1115": "#F57C00",  # 주황
 }
+
+# 743은 이 날짜부터 구영리(범서중학교)를 경유한다. 그 전에는 천상 → 신복교차로 직행.
+VIA_743_BEOMSEO_FROM = date(2026, 10, 3)
 
 # 각 노선이 정차하는 핵심 정류장(경로 순서). 굴화주공·공업탑·명촌 등은 생략.
 LINE_STOPS: dict[str, list[str]] = {
@@ -101,21 +106,32 @@ def _y(lane: int) -> int:
     return _Y0 + lane * _LANE_H
 
 
-def _stations_lanes() -> dict[str, list[int]]:
+def _stations_lanes(line_stops: dict[str, list[str]]) -> dict[str, list[int]]:
     """정류장명 → 그 정류장에 정차하는 노선들의 lane 목록(정렬)."""
     out: dict[str, list[int]] = {}
     for line in LINE_ORDER:
         lane = _LANES[line]
-        for stop in LINE_STOPS[line]:
+        for stop in line_stops[line]:
             out.setdefault(stop, []).append(lane)
     for stop in out:
         out[stop].sort()
     return out
 
 
-def render_route_diagram() -> Markup:
-    """노선도 전체를 인라인 SVG 문자열(Markup)로 렌더한다."""
-    stations = _stations_lanes()
+def render_route_diagram(today: date | None = None) -> Markup:
+    """노선도 전체를 인라인 SVG 문자열(Markup)로 렌더한다.
+
+    ``today``가 ``VIA_743_BEOMSEO_FROM`` 이전이면 743을 범서중 미경유(구 경로)로 그린다.
+    """
+    today = today or date.today()
+    stops = LINE_STOPS
+    if today < VIA_743_BEOMSEO_FROM:
+        stops = {**stops, "743": [x for x in stops["743"] if x != "범서중"]}
+    return _render(stops)
+
+
+def _render(line_stops: dict[str, list[str]]) -> Markup:
+    stations = _stations_lanes(line_stops)
 
     n_lanes = len(LINE_ORDER)
 
@@ -123,15 +139,15 @@ def render_route_diagram() -> Markup:
     # 정류장)에 번호 배지를 둔다. 좌측 범례를 대체한다.
     # 배지는 양쪽 공통 가장자리(west_inner / east_inner)에 정렬하고, 종점 원에서
     # 그 가장자리까지 같은 색 선으로 잇는다.
-    first_cols = [COLS[LINE_STOPS[line][0]] for line in LINE_ORDER]
-    last_cols = [COLS[LINE_STOPS[line][-1]] for line in LINE_ORDER]
+    first_cols = [COLS[line_stops[line][0]] for line in LINE_ORDER]
+    last_cols = [COLS[line_stops[line][-1]] for line in LINE_ORDER]
     west_inner = _x(min(first_cols)) - _R - _STUB   # 모든 서쪽 배지의 안쪽 끝
     east_inner = _x(max(last_cols)) + _R + _STUB    # 모든 동쪽 배지의 안쪽 끝
 
     # (cx_circle, cy, dir, text, color, badge_w, inner_x) — dir: -1 서쪽 / +1 동쪽
     badges: list[tuple[float, float, int, str, str, float, float]] = []
     for line in LINE_ORDER:
-        stops = LINE_STOPS[line]
+        stops = line_stops[line]
         cy = _y(_LANES[line])
         bw = len(line) * _CHAR_W + _BADGE_PAD
         badges.append((_x(COLS[stops[0]]), cy, -1, line, COLORS[line], bw, west_inner))
@@ -175,7 +191,7 @@ def render_route_diagram() -> Markup:
 
     # 2) 노선 선 (각 노선은 자기 lane에서 좌→우 직선)
     for line in LINE_ORDER:
-        stops = LINE_STOPS[line]
+        stops = line_stops[line]
         y = _y(_LANES[line])
         pts = [(_x(COLS[s]), y) for s in stops]
         d = "M " + " L ".join(f"{px} {py}" for px, py in pts)
@@ -188,7 +204,7 @@ def render_route_diagram() -> Markup:
     # 3) 정류장 원 (노선별 lane 위)
     for line in LINE_ORDER:
         y = _y(_LANES[line])
-        for stop in LINE_STOPS[line]:
+        for stop in line_stops[line]:
             x = _x(COLS[stop])
             parts.append(
                 f'<circle class="route-stop" cx="{x}" cy="{y}" r="{_R}" '
