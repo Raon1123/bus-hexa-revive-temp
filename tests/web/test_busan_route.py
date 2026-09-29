@@ -96,3 +96,17 @@ def test_rail_view_defaults_to_table_and_board_is_optional(client):
     board = c.get("/busan?view=board").data.decode()
     assert "rb-board" in board and "직행" in board and "무정차" not in board
     assert "view=table" in c.get("/seoul?to=suseo&view=board").data.decode()
+
+
+def test_board_marquee_lists_stops_then_destination(client):
+    """발차 안내판 흐르는 문구는 '동대구 - 대전 - 서울'처럼 정차역과 행선만 나열한다(출발·정차·도착 문장 아님)."""
+    c, data_dir = client
+    from bushexa.time_utils import KSTClock
+    today = KSTClock().now().date().isoformat()
+    store = {"version": 1, "metro": {}, "trains": {"pairs": {"NATH13717-NAT010000": {"dates": {today: {
+        "trains": [{"grade": "KTX", "dep": f"{today}T23:58:00+09:00", "arr": f"{today}T23:59:00+09:00",
+                    "stops": [{"name": "동대구", "arr": "23:58"}, {"name": "대전", "arr": "23:58"}]}]}}}}}}
+    atomic_write_json(data_dir / "rail_timetable.json", store)
+    html = c.get("/seoul?view=board").data.decode()
+    assert "<span>동대구 - 대전 - 서울</span>" in html
+    assert "정차 →" not in html

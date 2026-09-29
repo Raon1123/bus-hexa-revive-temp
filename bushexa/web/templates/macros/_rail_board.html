@@ -36,7 +36,7 @@
             <li class="rb-stop rb-lit rb-end"><b>{{ tr.dest }}</b><i>{{ tr.arr }}</i></li>
         </ol>
         {% set lit = tr.strip | selectattr('stops') | map(attribute='name') | list %}
-        <div class="rb-marquee" aria-hidden="true"><span>{% if lit %}{{ t('rb.marquee', origin=tr.origin, stops=lit | join(' · '), dest=tr.dest, arr=tr.arr) }}{% else %}{{ t('rb.marquee_direct', origin=tr.origin, dest=tr.dest, arr=tr.arr) }}{% endif %}</span></div>
+        <div class="rb-marquee" aria-hidden="true"><span>{% if lit %}{{ (lit + [tr.dest]) | join(' - ') }}{% else %}{{ t('rb.marquee_direct', dest=tr.dest) }}{% endif %}</span></div>
         {% else %}
         <p class="rb-nostops">{{ t('rb.no_stops') }}</p>
         {% endif %}
