@@ -14,8 +14,6 @@ services:
     image: bushexa:latest
     build:
       context: ..
-      # podman-compose 는 dockerfile 을 "이 compose 파일의 디렉토리(docker/)" 기준으로
-      # 해석하므로 'Dockerfile' 로만 적어 docker/Dockerfile 로 풀리게 한다.
       dockerfile: docker/Dockerfile
     # web + 2 worker를 supervisord가 한 컨테이너에서 구동 (Dockerfile ENTRYPOINT override).
     entrypoint: ["supervisord", "-n", "-c", "/app/docker/supervisord.conf"]
