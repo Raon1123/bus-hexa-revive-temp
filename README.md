@@ -348,24 +348,11 @@ docker compose -f docker/compose.yaml exec app sqlite3 /app/data/bushexa.db '.ta
 ```
 세 프로세스가 같은 SQLite 파일을 공유하므로 동시쓰기는 `PRAGMA busy_timeout`(connection.py)으로 흡수됩니다.
 
-**관리자 비밀번호 초기 설정 / 분실 시 재설정**
+**관리자 비밀번호 초기 설정 / 변경**
 
-비밀번호는 `data/manager_password.txt`(컨테이너 안 `/app/data/manager_password.txt`)에 Argon2id 해시로 저장됩니다. 이 파일이 없고 `MANAGER_PASSWORD` 환경변수도 없으면 **초기 설정 모드**입니다.
-
-1. 초기 설정: `/admin/login` 에 접속하면 로그인 대신 "새 비밀번호 / 확인" 폼이 나옵니다. 8자 이상으로 입력하면 해시가 저장되고 곧바로 로그인됩니다.
-2. 분실 시 재설정: 해시 파일을 지우면 다시 초기 설정 모드가 됩니다(재기동 불필요 — 요청마다 파일을 읽음).
-   ```bash
-   docker compose -f docker/compose.yaml exec app rm /app/data/manager_password.txt   # 로컬: rm data/manager_password.txt
-   ```
-   > 초기 설정 모드에서는 `/admin/login` 에 **먼저 접속한 사람이** 비밀번호를 정합니다. 파일을 지운 뒤 바로 설정하세요.
-3. 웹을 거치지 않고 설정: 해시를 직접 만들어 파일에 씁니다(비밀번호가 셸 기록에 남지 않도록 `getpass` 로 입력).
-   ```bash
-   uv run python -c "import getpass; from argon2 import PasswordHasher; print(PasswordHasher(time_cost=2, memory_cost=19456, parallelism=1).hash(getpass.getpass()))" > data/manager_password.txt
-   chmod 600 data/manager_password.txt
-   ```
-4. 이미 로그인할 수 있으면 `/admin/password` 에서 바꾸는 것이 정석입니다(현재 비밀번호 확인 후 저장).
-
-참고: 로그인 5회 실패 시 해당 IP 가 잠시 잠깁니다(HTTP 423, `data/admin_lockout.json`). `MANAGER_PASSWORD` 가 설정되어 있으면 그 값도 로그인에 쓰이고 초기 설정 모드는 나타나지 않습니다.
+- 초기 설정: 첫 배포 직후 `/admin/login` 에 접속하면 로그인 대신 "새 비밀번호 / 확인" 폼이 나옵니다. 8자 이상으로 입력하면 저장되고 곧바로 로그인됩니다. 배포 후 바로 설정하세요.
+- 변경: 로그인한 뒤 `/admin/password` 에서 현재 비밀번호를 확인하고 바꿉니다.
+- 로그인에 5회 실패하면 해당 IP 가 잠시 잠깁니다(HTTP 423). 잠시 뒤 다시 시도하세요.
 
 **울산 BIS 장애 / API quota** — 공공 서비스 특성상 간헐적 다운타임이 있습니다. `crawl-loop` 은 오류 시 재시도하므로 대기하면 자동 복구되며, `BUSHEXA_LOG_LEVEL=DEBUG` 로 상세 로그를 볼 수 있습니다.
 
