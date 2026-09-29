@@ -186,3 +186,42 @@ UNISTBUS  = {
 
 ULSAN_CITYCODE = 26
 ULSAN_PREFIX = 'USB' # route_id prefix
+
+# ── 부산 루트 안내용 철도 (국토부 TAGO 열차정보·지하철정보) ─────────────────────────
+# ID 는 TAGO 실응답(2026-09-29 확인): TrainInfo/GetCtyAcctoTrainSttnList(cityCode 26·21),
+# SubwayInfo/GetKwrdFndSubwaySttnList. 수집·저장은 services/rail_timetable 이 담당한다.
+
+# 일반·고속열차(KTX·KTX-이음·ITX-마음·무궁화) 역. key: TAGO nodeid, value: 역명.
+RAIL_STATIONS = {
+    "NATH13717": "울산",      # 울산역(통도사) — 경부고속선
+    "NAT750726": "태화강",
+    "NAT014445": "부산",
+    "NAT750046": "부전",
+}
+
+# 날짜별 수집 구간 (출발역, 도착역). 울산역은 부산역만, 태화강역은 부전역만 본다.
+# SRT 는 이 API 응답에 나오지 않는다(2026-09-29 울산→부산 61편 전부 KTX 계열).
+RAIL_PAIRS = [
+    ("NATH13717", "NAT014445"),   # 울산 → 부산
+    ("NAT750726", "NAT750046"),   # 태화강 → 부전 (KTX-이음·ITX-마음·무궁화)
+]
+
+# 동해선 광역전철 역. key: TAGO subwayStationId, value: 역명. 노선 ID MTRKRK6.
+METRO_STATIONS = {
+    "MTRKRK6K132": "태화강",
+    "MTRKRK6K119": "벡스코",
+    "MTRKRK6K110": "부전",
+}
+
+# 역별 시간표 수집 대상 (역, 방향). 방향 U = 부전 방면(상행), D = 태화강 방면(하행).
+# 태화강은 출발(depTime), 벡스코·부전은 도착(arrTime)을 쓴다.
+METRO_QUERIES = [
+    ("MTRKRK6K132", "U"),
+    ("MTRKRK6K119", "U"),
+    ("MTRKRK6K110", "U"),
+]
+
+# TAGO 지하철 요일구분 코드. 동해선은 토요일(02) 시간표가 비어 있고(2026-09-29 확인)
+# 토요일은 휴일(03) 시간표로 운행한다 — 읽는 쪽이 METRO_SATURDAY_FALLBACK 으로 대체한다.
+METRO_DAY_TYPES = {"01": "평일", "02": "토요일", "03": "일요일·공휴일"}
+METRO_SATURDAY_FALLBACK = "03"

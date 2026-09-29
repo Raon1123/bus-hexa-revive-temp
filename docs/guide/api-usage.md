@@ -1,6 +1,6 @@
 ---
 status: living
-last_verified: 2026-09-29 (HEAD 8dc582e)
+last_verified: 2026-09-29 (feat/busan-routes, TAGO 열차·지하철 추가)
 audience: 크롤러·API 클라이언트를 수정하거나 수집 장애를 진단하는 사람·AI 세션
 ---
 
@@ -18,9 +18,11 @@ audience: 크롤러·API 클라이언트를 수정하거나 수집 장애를 진
 | TAGO 노선별 경유정류소 `getRouteAcctoThrghSttnList` | `…/BusRouteInfoInqireService/getRouteAcctoThrghSttnList` | 동일 | nodeord, nodeid, nodenm | **운영 미사용**(클라이언트만 존재) |
 | **울산 BIS 도착정보** `getBusArrivalInfo.xo` | `http://openapi.its.ulsan.kr/UlsanAPI/getBusArrivalInfo.xo` | serviceKey, pageNo=1, numOfRows=50, `stopid` | `<row>` → `routeid`, `presentstopnm`, `vehicleno`, `arrivaltime`(초) | worker-arrival, govtrack 폴백 |
 | **울산 BIS 시간표** `BusTimetable.xo` | `http://openapi.its.ulsan.kr/UlsanAPI/BusTimetable.xo` | pageNo, numOfRows=50, `routeNo`(버스 번호), `dayOfWeek` | `<row>` TIME(`HHMM`), DIRECTION(1 정/2 역), `totalcnt`(페이징) | worker-cache-refresh, CLI, 관리자 재크롤 |
+| **TAGO 열차정보** `GetStrtpntAlocFndTrainInfo` | `https://apis.data.go.kr/1613000/TrainInfo/GetStrtpntAlocFndTrainInfo` | serviceKey, `_type=json`, numOfRows=500, pageNo, `depPlaceId`, `arrPlaceId`, `depPlandTime`(YYYYMMDD) | `trainno`, `traingradename`, `depplandtime`/`arrplandtime`(YYYYMMDDHHMMSS), `adultcharge` | worker-cache-refresh, CLI `crawl-rail` |
+| **TAGO 지하철정보** `GetSubwaySttnAcctoSchdulList` | `https://apis.data.go.kr/1613000/SubwayInfo/GetSubwaySttnAcctoSchdulList` | serviceKey, `_type=json`, numOfRows=500, pageNo, `subwayStationId`, `dailyTypeCode`(01/02/03), `upDownTypeCode`(U/D) | `depTime`/`arrTime`(HHMMSS, 없으면 `"0"`), `endSubwayStationId`/`Nm` | worker-cache-refresh, CLI `crawl-rail` |
 | **특일정보(한국천문연구원)** `getRestDeInfo` | `http://apis.data.go.kr/B090041/openapi/service/SpcdeInfoService/getRestDeInfo` | serviceKey, solYear, solMonth(`%02d`) | `<locdate>` YYYYMMDD, resultCode `00` | worker-cache-refresh(부팅 + 매일), 관리자 미리보기 |
 
-코드 위치: `api_clients/tago.py`, `api_clients/ulsan_bis.py`, `api_clients/holiday.py`, 공통 전송은 `api_clients/_http.py`.
+코드 위치: `api_clients/tago.py`, `api_clients/tago_rail.py`(열차·지하철), `api_clients/ulsan_bis.py`, `api_clients/holiday.py`, 공통 전송은 `api_clients/_http.py`.
 
 ### 1.1 식별자 체계
 
@@ -31,6 +33,7 @@ audience: 크롤러·API 클라이언트를 수정하거나 수집 장애를 진
   - `ROUTEID` — 5개 노선(513/713/743/753/1115) × 2방향 = 10개.
   - `SERACH_STOPS` — 도착정보 폴링 정류장 17개(철자 `SERACH` 는 원본 유지, 고치지 말 것).
   - `UNIST_VIA_STOP_ID = "196040234"`.
+- 철도 역 ID(부산 루트): 열차 `RAIL_STATIONS`(울산 `NATH13717`, 태화강 `NAT750726`, 부산 `NAT014445`, 부전 `NAT750046`), 동해선 광역전철 `METRO_STATIONS`(태화강 `MTRKRK6K132`, 벡스코 `MTRKRK6K119`, 부전 `MTRKRK6K110`). 수집 구간은 `RAIL_PAIRS`·`METRO_QUERIES`. 역 목록은 `TrainInfo/GetCtyAcctoTrainSttnList`(cityCode 26·21), `SubwayInfo/GetKwrdFndSubwaySttnList` 로 확인했다.
 - 울산 시간표 `dayOfWeek`: 0 평일, 1 토, 2 일/공휴일, 3~5 방학 변형. 코드는 0·1·2(+방학 모드 3)를 크롤한다. `time_utils.get_weekday` 의 0/1/2 와 같은 의미다.
 
 ### 1.2 매뉴얼 기준 제약
@@ -77,6 +80,8 @@ audience: 크롤러·API 클라이언트를 수정하거나 수집 장애를 진
 - **울산 BIS** (`ulsan_bis.py` `check_response`):
   - HTTP 상태 → `<resultcode>`(200) → 게이트웨이 오류 순으로 검사. 어느 표지도 없으면 통과시킨다.
   - **의도된 비대칭:** `fetch_arrivals` 는 오류를 로그하고 `[]` 반환(루프가 계속 돌도록). `fetch_timetable_page` 는 예외를 올린다.
+- **TAGO 열차·지하철** (`tago_rail.py`): 본문 검사는 `tago.get_tago_json` 공용 경로(버스 TAGO 와 같음). 신규 GW 엔드포인트는 키·서비스 오류를 **HTTP 400·403 + JSON `OpenAPI_ServiceResponse`** 로 준다 → `TagoError(returnReasonCode)`. 페이지는 `totalCount` 에 닿을 때까지 모으고(중복 제거 전 행 수로 판정), 모자라면 `ParseError`.
+  - 저장·병합 규칙은 `services/rail_timetable.py` 머리 주석: 실패·빈 결과·급감이면 기존 유지, 중앙값 대비 급감한 새 날짜는 `suspect: true`.
 - **특일정보**: 항상 예외. 호출자(`services/holiday_service.py`)가 해당 월 캐시를 보존하고, 캐시에 없는 달은 `holidays` 패키지로 오프라인 gap-fill. 공휴일 판단은 패키지에 맡긴다(제헌절은 2026년부터 공휴일 재지정, 이름 문자열 필터는 locale 의존이라 제거됨 — `f80e55e`).
 - **CompositeLocationClient** (`composite_location.py`):
   - TAGO 가 `TagoError`/`RequestException` 이면 해당 노선의 추적 정류장들에 울산 도착정보를 호출해 `routeid` 가 일치하는 차량을 모으고, `presentstopnm` 을 정류장 ID 로 역매핑한다. 결과는 `result_code="ULSAN"`, `node_ord=None`(순방향 게이트 미적용).
@@ -94,6 +99,8 @@ audience: 크롤러·API 클라이언트를 수정하거나 수집 장애를 진
 | govtrack 폴백 → 울산 | 노선의 추적 정류장 수만큼(8s 캐시로 중복 제거) | TAGO 장애 시 | — | 가변 |
 | cache-refresh → 특일정보 | 2(이번 달·다음 달) | 부팅 + 하루 1회 | — | ≈ 4 |
 | cache-refresh → 울산 시간표 | 5노선 × 3요일 × 페이지 | 하루 1회(02~03시) | — | 15~45 + 수동 재크롤 |
+| cache-refresh → TAGO 열차정보 | 2구간 × 14일 | 하루 1회(02~03시) + 부팅 시 그날 미성공이면 | — | ≈ 28 (+부팅 28) |
+| cache-refresh → TAGO 지하철정보 | 3역 × 3요일구분 (페이지 1) | 위와 같음 | — | ≈ 9 (+부팅 9) |
 
 설계 원칙:
 
@@ -118,15 +125,23 @@ audience: 크롤러·API 클라이언트를 수정하거나 수집 장애를 진
 | 요청 URL 에 담긴 API 키가 로그·상태 파일에 기록됨 | 해결(2026-09-29) | `bushexa/redact.py` 를 로그 포매터·상태 파일·로그 뷰어에 적용. 수정 이전 로그는 운영자가 정리([PM-016](../refactor/postmortems/PM-016-api-key-in-log-files.md) §6.2) |
 | 모든 기본 URL 이 `http://` | 미해결 | 키가 평문 전송된다. data.go.kr 은 https 지원, 울산 호스트는 확인 필요 |
 | `BUSHEXA_ARRIVAL_POLL_SECONDS` 가 동작하지 않음 | **미해결** | CLI `arrival-loop --poll` 기본값 7.0 이 항상 명시 인자로 넘어가 env 를 이긴다. 실제로 주기를 바꾸려면 관리자 크롤 설정을 쓴다 |
+| 폐기된 TAGO 열차 경로 `TrainInfoService/getStrtpntAlocFndTrainInfo` → resultCode 12 `NO_OPENAPI_SERVICE` | 해결 | 신규 경로 `TrainInfo/GetStrtpntAlocFndTrainInfo`(오퍼레이션 대문자 시작) |
+| 열차정보가 `numOfRows`/`pageNo` 를 무시하고 매번 전량을 줌 | 대응 | `_collect_pages` 가 새 항목 없는 페이지에서 멈춤. 지하철정보는 페이지를 지킴 |
+| 열차정보가 같은 열차를 도착시각만 1분 다르게 두 번 줌(2026-10-09 태화강→부전 00705) | 대응 | (열차번호, 출발시각) 중복 제거, 완결성은 원 행 수로 판정. 픽스처 `tago_rail/route_duplicate_row.json` |
+| 열차정보가 특정 날짜만 편수 급감(2026-10-13 울산→부산 3편, 평소 60편대). 약 30일 너머는 0건 | 대응 | 기존 값 유지 / 첫 수집이면 `suspect` 표시. 수집 범위는 14일 |
+| 동해선 토요일(`dailyTypeCode=02`) 시간표가 0건 | 대응 | 읽을 때 03(일·공휴일)으로 대체(`METRO_SATURDAY_FALLBACK`). 실제 토요일 운행이 휴일 시간표와 같은지는 코레일 공지로 재확인 필요 |
+| 지하철 역별 시간표에 열차번호가 없음 | 대응 | 시각만으로 잇는다(`domain/rail_match.py`, `rail_timetable.metro_trips`): 소요시간 최빈값(태화강→벡스코 55.5분, →부전 76분) + 추월 없음 가정으로 가장 이른 미배정 도착을 배정(지연 최대 15분 대기). 중간역(일광) 출발 편은 남는다. 평일·휴일 42편 전부 매칭, 벡스코→부전 구간 20.5~26.5분으로 교차 검증 |
+| SRT 가 열차정보 응답에 없음(울산→부산 61편 전부 KTX 계열, 차종 코드 17 SRT 는 목록에만 있음) | 해당 없음 | SRT 는 필요 없다(소유자 결정 2026-09-29) |
 | 일일 트래픽 한도 미기록 | 미해결 | 키별 한도를 확인해 이 문서 §1.2 에 적는다. TAGO 개발계정 한도가 낮게 잡혀 있다면 govtrack 만으로 초과할 수 있다(확인 필요) |
 
 ## 5. 테스트 방법 (네트워크 없이)
 
 - 단위 테스트는 네트워크를 쓰지 않는다. `responses` 라이브러리로 HTTP 를 가짜로 만들고, `tests/conftest.py` 의 `no_network` 픽스처는 `requests.get/post` 호출 시 실패시킨다.
 - 크롤러 테스트는 가짜 클라이언트(`tests/crawler/_fakes.py` 의 `FakeTagoClient` 등) + 주입된 clock·sleep·`stop_event` 를 쓴다.
-- 실응답 샘플 픽스처: `tests/fixtures/tago/`(normal, empty, error_99, single_dict, single_list, route_stops), `tests/fixtures/ulsan/`(arrival_normal, arrival_no_bus, timetable_normal), `tests/fixtures/holiday/2026.xml`.
+- 실응답 샘플 픽스처: `tests/fixtures/tago/`(normal, empty, error_99, single_dict, single_list, route_stops), `tests/fixtures/tago_rail/`(열차 정상·빈·중복행·GW 키오류, 동해선 태화강 평일·토요일 빈 응답), `tests/fixtures/ulsan/`(arrival_normal, arrival_no_bus, timetable_normal), `tests/fixtures/holiday/2026.xml`.
   - **주의:** 울산 도착정보 픽스처는 실제 형식(`<tableInfo><resultCode>200`)이 아닌 임의 스키마다. `check_response` 가 모르는 형식을 통과시키기 때문에 통과하고 있을 뿐이다. 울산 응답 처리를 고칠 때는 실응답으로 픽스처를 교체한다.
 - 새 오류 형식을 만나면: 응답 본문을 **키를 지운 뒤** 픽스처로 저장하고, 그 픽스처로 "예외가 난다" 또는 "캐시를 보존한다" 테스트를 먼저 쓴다.
+- 철도 라이브 확인: `uv run bushexa crawl-rail`(요약만 출력, `data/rail_timetable.json` 에 병합).
 - 라이브 확인은 `scripts/smoke_compose.sh`(키 필요, `SMOKE_SKIP_FEED=1` 이면 HTTP 200 만)와 `uv run bushexa crawl-once --route 195000177 --dry-run`.
 
 ## 6. 장애 진단 순서

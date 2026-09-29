@@ -9,6 +9,7 @@
 * ``cache-refresh-loop`` -> 유휴 윈도(02–03시) 공휴일·시간표 재크롤 워커
 * ``init-db``            -> 스키마 생성(--reset 시 bus_timelog 비움)
 * ``crawl-timetable``    -> P2 / F10 (시간표 재크롤)
+* ``crawl-rail``         -> 부산 루트 철도(열차·동해선) 시간표 즉시 갱신
 * ``debug-running``      -> F05 운행 재구성 진단 (제외 정류장·분리·덮어쓰기 출력)
 
 설계(F09 §4.1)에 맞춰 ``crawl-loop``의 폴링 인자는 ``--poll``(기본 15초, 2026-06-06 10→15
@@ -147,6 +148,29 @@ def cmd_crawl_timetable(args) -> int:
     return 0
 
 
+def cmd_crawl_rail(args) -> int:
+    """TAGO 열차·동해선 시간표를 즉시 받아 ``rail_timetable.json`` 에 병합(워커와 같은 규칙)."""
+    from bushexa.api_clients.tago_rail import SubwayInfoClient, TrainInfoClient
+    from bushexa.logging_setup import setup_logging
+    from bushexa.services.rail_timetable import (
+        default_rail_path,
+        refresh_metro,
+        refresh_trains,
+    )
+
+    config = _load_config()
+    setup_logging(level=config.log_level, log_dir=config.log_dir, filename="bushexa-crawl.log")
+    path = default_rail_path(config.data_dir)
+    kwargs = {} if args.days is None else {"days": args.days}
+    trains = refresh_trains(TrainInfoClient(config.api_key), path, **kwargs)
+    print(f"열차 시간표: {trains}")
+    metro = refresh_metro(SubwayInfoClient(config.api_key), path)
+    print(f"동해선 시간표: {metro}")
+    for label in trains.failed + metro.failed:
+        print(f"  실패(기존 유지): {label}")
+    return 1 if trains.failed or metro.failed else 0
+
+
 def _parse_cli_date(value: str | None):
     """``YYYYMMDD``/``YYYY-MM-DD`` → date. 미지정 시 오늘(KST). 형식 오류는 argparse 에러."""
     from datetime import date
@@ -278,6 +302,10 @@ def build_parser() -> argparse.ArgumentParser:
     p_tt = sub.add_parser("crawl-timetable", help="Re-crawl Ulsan timetables")
     p_tt.add_argument("--vacation", action="store_true", help="방학 시간표 모드")
 
+    p_rail = sub.add_parser("crawl-rail", help="Refresh KTX/동해선 rail timetables now")
+    p_rail.add_argument("--days", type=int, default=None,
+                        help="열차 수집 일수(오늘 포함, 기본: RAIL_HORIZON_DAYS=14)")
+
     p_dbg = sub.add_parser(
         "debug-running", help="Explain how /running reconstructs runs for a route/day",
     )
@@ -355,6 +383,7 @@ def main(argv: list[str] | None = None) -> int:
         "arrival-loop": cmd_arrival_loop,
         "cache-refresh-loop": cmd_cache_refresh_loop,
         "crawl-timetable": cmd_crawl_timetable,
+        "crawl-rail": cmd_crawl_rail,
         "debug-running": cmd_debug_running,
         "serve": cmd_serve,
     }

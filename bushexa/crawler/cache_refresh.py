@@ -2,11 +2,13 @@
 
 배경: 공휴일/버스 시간표는 하루에도 자주 변하지 않는다. 화면 요청 경로에서 외부 API를
 동기 호출하면(과거 board의 공휴일 호출) cold 지연이 발생한다. 이 워커가 새벽 유휴시간
-(기본 02–03시)에 하루 1회 data.go.kr 공휴일 API와 울산 시간표를 호출해 영속 캐시
-(``holiday_cache.json`` / ``data/timetable/*.json``)에 적재하고, 화면은 그 캐시만 읽는다.
+(기본 02–03시)에 하루 1회 data.go.kr 공휴일 API·울산 시간표·TAGO 철도(열차·동해선) 시간표를
+호출해 영속 캐시(``holiday_cache.json`` / ``data/timetable/*.json`` / ``rail_timetable.json``)에
+적재하고, 화면은 그 캐시만 읽는다.
 
 govtrack/arrival 데몬과 동일한 graceful 종료·sleep/clock 주입 패턴을 따른다(테스트 결정성).
 부팅 직후엔 공휴일만 즉시 1회 갱신해(가벼움) 읽기 경로가 빈 캐시로 시작하지 않게 하고,
+철도 시간표는 그날 아직 성공한 적이 없을 때만 부팅 시 받는다(호출 40회 안팎, 재시작마다 반복 방지).
 무거운 시간표 재크롤은 새벽 윈도에서만 수행한다(매 재시작마다 전 노선 재크롤 방지).
 """
 from __future__ import annotations
@@ -48,13 +50,53 @@ def refresh_timetables(config, *, client=None, on_progress=None) -> dict:
     return crawl_all_timetables(client, on_progress=on_progress)
 
 
+def refresh_rail(config, *, clock=None, only_if_stale=False,
+                 train_client=None, subway_client=None) -> None:
+    """TAGO 열차·동해선 시간표를 ``rail_timetable.json`` 에 갱신. 두 절은 서로 격리.
+
+    ``only_if_stale`` 면 오늘 이미 실패 없이 갱신된 절은 건너뛴다(부팅 경로).
+    """
+    from bushexa.services.rail_timetable import (
+        default_rail_path,
+        refresh_metro,
+        refresh_trains,
+        refreshed_today,
+    )
+    clock = clock or KSTClock()
+    path = default_rail_path(config.data_dir)
+    today = clock.now().date()
+    if not (only_if_stale and refreshed_today(path, "trains", today)):
+        try:
+            if train_client is None:
+                from bushexa.api_clients.tago_rail import TrainInfoClient
+                train_client = TrainInfoClient(config.api_key)
+            logger.info("열차 시간표 갱신: %s", refresh_trains(train_client, path, clock=clock))
+        except Exception as exc:
+            logger.error("열차 시간표 갱신 실패(계속): %s", exc, exc_info=True)
+    if not (only_if_stale and refreshed_today(path, "metro", today)):
+        try:
+            if subway_client is None:
+                from bushexa.api_clients.tago_rail import SubwayInfoClient
+                subway_client = SubwayInfoClient(config.api_key)
+            logger.info("동해선 시간표 갱신: %s", refresh_metro(subway_client, path, clock=clock))
+        except Exception as exc:
+            logger.error("동해선 시간표 갱신 실패(계속): %s", exc, exc_info=True)
+
+
 def refresh_all(config, *, do_timetable=True, clock=None) -> None:
-    """공휴일(+선택적으로 시간표)을 갱신. 한쪽 실패가 다른 쪽을 막지 않는다."""
+    """공휴일·철도(+선택적으로 버스 시간표)를 갱신. 한쪽 실패가 다른 쪽을 막지 않는다.
+
+    철도는 ``do_timetable`` 이 거짓(부팅 경로)이면 오늘 갱신이 안 된 경우에만 받는다.
+    """
     try:
         holidays = refresh_holidays(config, clock=clock)
         logger.info("공휴일 캐시 갱신 완료: 총 %d건", len(holidays))
     except Exception as exc:  # 방어: 갱신 실패가 데몬을 죽이지 않게(ADR-013)
         logger.error("공휴일 캐시 갱신 실패(계속): %s", exc, exc_info=True)
+    try:
+        refresh_rail(config, clock=clock, only_if_stale=not do_timetable)
+    except Exception as exc:
+        logger.error("철도 시간표 갱신 실패(계속): %s", exc, exc_info=True)
     if do_timetable:
         try:
             written = refresh_timetables(config)
