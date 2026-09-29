@@ -21,3 +21,6 @@ podman.out
 
 # admin password hash (secret)
 data/manager_password.txt
+
+# local prod DB snapshots for debugging (never commit)
+data/debug/
