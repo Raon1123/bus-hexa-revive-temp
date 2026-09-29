@@ -191,20 +191,72 @@ ULSAN_PREFIX = 'USB' # route_id prefix
 # ID 는 TAGO 실응답(2026-09-29 확인): TrainInfo/GetCtyAcctoTrainSttnList(cityCode 26·21),
 # SubwayInfo/GetKwrdFndSubwaySttnList. 수집·저장은 services/rail_timetable 이 담당한다.
 
-# 일반·고속열차(KTX·KTX-이음·ITX-마음·무궁화) 역. key: TAGO nodeid, value: 역명.
+# 일반·고속열차(KTX·KTX-이음·ITX-마음·무궁화) 역 ID.
+RAIL_ULSAN = "NATH13717"        # 울산역(통도사) — 경부고속선
+RAIL_TAEHWAGANG = "NAT750726"
+RAIL_BUSAN = "NAT014445"
+RAIL_BUJEON = "NAT750046"
+RAIL_SEOUL = "NAT010000"
+RAIL_SUSEO = "NATH30000"        # 옛 SRT 계통도 이 API 에서는 KTX 로 나온다
+
+# 역명. 정차역 후보(RAIL_STOP_CANDIDATES)의 역도 모두 여기 있어야 한다.
 RAIL_STATIONS = {
-    "NATH13717": "울산",      # 울산역(통도사) — 경부고속선
-    "NAT750726": "태화강",
-    "NAT014445": "부산",
-    "NAT750046": "부전",
+    RAIL_ULSAN: "울산",
+    RAIL_TAEHWAGANG: "태화강",
+    RAIL_BUSAN: "부산",
+    RAIL_BUJEON: "부전",
+    RAIL_SEOUL: "서울",
+    RAIL_SUSEO: "수서",
+    "NATH13421": "경주",        # 옛 신경주역(2021-12 개칭)
+    "NAT013271": "동대구",
+    "NAT013189": "서대구",
+    "NATH12383": "김천구미",
+    "NAT011668": "대전",
+    "NAT050044": "오송",
+    "NATH10960": "천안아산",
+    "NAT010415": "수원",        # 경부 일반선 경유 편
+    "NATH10219": "광명",
+    "NAT010091": "영등포",      # 경부 일반선 경유 편
+    "NATH30326": "동탄",
+    "NAT750560": "남창",
+    "NAT750329": "기장",
+    "NAT750189": "신해운대",
+    "NAT750161": "센텀",
+    "NAT750106": "동래",
 }
 
-# 날짜별 수집 구간 (출발역, 도착역). 울산역은 부산역만, 태화강역은 부전역만 본다.
-# SRT 는 이 API 응답에 나오지 않는다(2026-09-29 울산→부산 61편 전부 KTX 계열).
+# 날짜별 수집 구간 (출발역, 도착역). 울산역은 부산·서울·수서, 태화강역은 부전만 본다.
+# SRT 는 필요 없다(소유자 결정 2026-09-29).
 RAIL_PAIRS = [
-    ("NATH13717", "NAT014445"),   # 울산 → 부산
-    ("NAT750726", "NAT750046"),   # 태화강 → 부전 (KTX-이음·ITX-마음·무궁화)
+    (RAIL_ULSAN, RAIL_BUSAN),         # 울산 → 부산
+    (RAIL_TAEHWAGANG, RAIL_BUJEON),   # 태화강 → 부전 (KTX-이음·ITX-마음·무궁화)
+    (RAIL_ULSAN, RAIL_SEOUL),         # 울산 → 서울
+    (RAIL_ULSAN, RAIL_SUSEO),         # 울산 → 수서
 ]
+
+# 정차역 후보(운행 순서). API 가 정차역 목록을 주지 않으므로, 같은 출발역·출발시각의 열차가
+# "출발역 → 후보역" 조회에도 나오면 그 역에 선다고 본다(열차번호 대신 시각으로 잇기).
+RAIL_STOP_CANDIDATES = {
+    (RAIL_ULSAN, RAIL_SEOUL): ["NATH13421", "NAT013271", "NAT013189", "NATH12383", "NAT011668",
+                               "NAT050044", "NATH10960", "NAT010415", "NATH10219", "NAT010091"],
+    (RAIL_ULSAN, RAIL_SUSEO): ["NATH13421", "NAT013271", "NAT013189", "NATH12383", "NAT011668",
+                               "NAT050044", "NATH10960", "NATH30326"],
+    (RAIL_TAEHWAGANG, RAIL_BUJEON): ["NAT750560", "NAT750329", "NAT750189", "NAT750161", "NAT750106"],
+}
+# 정차역 띠 모양. 서울행은 대전 뒤에서 고속선(오송-천안아산-광명)과 경부 일반선(수원-영등포)으로
+# 갈린다 — 열차가 서는 역이 있는 갈래만 그린다(둘 다 없으면 첫 갈래). 없는 구간은 후보 목록 그대로.
+RAIL_STRIP_LAYOUT = {
+    (RAIL_ULSAN, RAIL_SEOUL): {
+        "trunk": ["NATH13421", "NAT013271", "NAT013189", "NATH12383", "NAT011668"],
+        "branches": [["NAT050044", "NATH10960", "NATH10219"],     # 고속선
+                     ["NAT010415", "NAT010091"]],                  # 수원 경유(일반선)
+    },
+}
+# 예외적인 정차 — 안내판·표에서 강조한다. key: 역명, value: 배지 i18n 키.
+RAIL_SPECIAL_STOPS = {"서대구": "rb.special.seodaegu", "수원": "rb.special.suwon"}
+
+# 정차역 조회는 가까운 날짜만(오늘 포함). 화면은 오늘·내일만 쓴다.
+RAIL_STOP_PATTERN_DAYS = 3
 
 # 동해선 광역전철 역. key: TAGO subwayStationId, value: 역명. 노선 ID MTRKRK6.
 METRO_STATIONS = {
@@ -225,3 +277,28 @@ METRO_QUERIES = [
 # 토요일은 휴일(03) 시간표로 운행한다 — 읽는 쪽이 METRO_SATURDAY_FALLBACK 으로 대체한다.
 METRO_DAY_TYPES = {"01": "평일", "02": "토요일", "03": "일요일·공휴일"}
 METRO_SATURDAY_FALLBACK = "03"
+
+
+# ── 부산 루트 안내 페이지(/busan) ──────────────────────────────────────────────
+# 수치 출처: 레거시 통과기록 logs/logs.tsv(2026-04-16 ~ 06-01) 같은 차량 짝짓기 중앙값.
+# 운영 bus_timelog 가 한 달 이상 쌓이면 이력 예측으로 대체한다(timetable UX 결정 D1).
+
+# 루트 1: 513 울산역 방면. UNIST(경유) 실시간 도착 → 울산역 → KTX 울산→부산.
+BUSAN_513_ROUTE_ID = "196000421"          # 513 삼남(울산역) 방면, 기점 덕하
+BUSAN_513_ORIGIN = "덕하"                 # 시간표 키 — 이 시각은 덕하 출발이지 UNIST 통과가 아니다
+BUSAN_UNIST_TO_ULSAN_STATION_MIN = 16     # UNIST → 울산역 중앙값(p10 14, p90 19, n=894)
+BUSAN_KTX_TRANSFER_MIN = 10               # 울산역 정류장 → KTX 승강장 여유
+
+# 루트 3: UNIST 출발 → 태화강역 → 동해선. 노선별 요일구분(0 평일/1 토/2 일·공휴일) 소요 중앙값(분).
+# 713·743·753 은 태화강역(시내) 1번 정류소, 1115 는 태화강역광장에서 내린다.
+BUSAN_TAEHWAGANG_BUS_MIN = {
+    "713": {0: 65, 1: 73, 2: 61},
+    "743": {0: 66, 1: 64, 2: 61},
+    "753": {0: 75, 1: 73, 2: 69},
+    "1115": {0: 56, 1: 54, 2: 49},
+}
+# 정류장 → 광역전철 승강장 도보·환승 여유(분). 1번 정류소 약 80m, 광장 약 300m.
+BUSAN_TAEHWAGANG_WALK_MIN = {"713": 5, "743": 5, "753": 5, "1115": 8}
+
+# 루트 2: 743·753 → 좋은삼정병원앞 → 1224 → 노포. 1224 시간표·정류소는 조사 중(미확정).
+BUSAN_NOPO_FEEDER_BUSES = ("743", "753")

@@ -5,7 +5,7 @@ import json
 from datetime import date, datetime, timedelta
 
 from bushexa.api_clients.tago_rail import MetroStopTime, Train
-from bushexa.data.constants import METRO_QUERIES, RAIL_PAIRS
+from bushexa.data.constants import METRO_QUERIES, RAIL_BUSAN, RAIL_PAIRS, RAIL_ULSAN
 from bushexa.services.rail_timetable import (
     load_rail_store,
     metro_day_type,
@@ -17,7 +17,7 @@ from bushexa.services.rail_timetable import (
 )
 from bushexa.time_utils import KST
 
-UL, BS = RAIL_PAIRS[0]
+UL, BS = RAIL_ULSAN, RAIL_BUSAN
 
 
 class _Clock:

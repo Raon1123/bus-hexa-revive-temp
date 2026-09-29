@@ -1,0 +1,136 @@
+{% extends "_base.html" %}
+{% from "macros/_rail_board.html" import rail_trains, view_toggle with context %}
+
+{% block title %}Bus HeXA — {{ t('busan.title') }}{% endblock %}
+
+{% block extra_head %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/busan.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/rail_board.css') }}">
+{% endblock %}
+
+{% block content %}
+<h2>{{ t('busan.title') }}</h2>
+<p class="busan-intro">{{ t('busan.intro') }} <span class="busan-asof">{{ t('busan.as_of', time=snapshot.now) }}</span></p>
+
+{% if arrival_error %}
+<div class="error-banner">{{ t('busan.arrival_error') }}</div>
+{% endif %}
+
+<nav class="busan-jump">
+    <a href="#route-ktx">🚄 {{ t('busan.r1.title') }}</a>
+    <a href="#route-nopo">🚌 {{ t('busan.r2.title') }}</a>
+    <a href="#route-donghae">🚆 {{ t('busan.r3.title') }}</a>
+</nav>
+
+{# ── 루트 1: 513 → 울산역 → KTX ── #}
+<section class="busan-route" id="route-ktx">
+    <header class="busan-route-head route-513">
+        <span class="busan-dest">🚄 {{ t('busan.r1.title') }}</span>
+        <span class="busan-via">{{ t('busan.r1.via') }}</span>
+    </header>
+
+    <h3>{{ t('busan.live_513') }}</h3>
+    {% if snapshot.ktx_live %}
+    <table class="timetable busan-table">
+        <thead><tr>
+            <th>{{ t('busan.col.unist_arr') }}</th><th>{{ t('busan.col.station') }}</th>
+            <th>{{ t('busan.col.ktx') }}</th><th>{{ t('busan.col.busan_arr') }}</th>
+        </tr></thead>
+        <tbody>
+        {% for r in snapshot.ktx_live %}
+        <tr>
+            <td><strong>{{ r.unist_at }}</strong> <span class="busan-sub">{{ t('busan.in_min', min=r.eta_min) }}</span></td>
+            <td>≈ {{ r.station_at }}</td>
+            {% if r.train %}
+            <td>{{ r.train.dep }} <span class="busan-sub">{{ r.train.grade }}</span></td><td>{{ r.train.arr }}</td>
+            {% else %}
+            <td colspan="2" class="busan-muted">{{ t('busan.no_connection') }}</td>
+            {% endif %}
+        </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p class="empty-state">{{ t('busan.no_live_513') }}</p>
+    {% endif %}
+
+    {% if snapshot.origin_513 %}
+    <p class="busan-origin"><span class="busan-label">{{ t('busan.origin_513') }}</span>
+        {% for tm in snapshot.origin_513 %}<span class="busan-chip">{{ tm }}</span>{% endfor %}</p>
+    {% endif %}
+
+    <h3>{{ t('busan.ktx_next') }}</h3>
+    {% if snapshot.ktx_state == 'missing' %}
+    <p class="empty-state">{{ t('busan.rail_missing') }}</p>
+    {% else %}
+        {% if snapshot.ktx_state == 'suspect' %}<div class="info-banner">{{ t('busan.rail_suspect') }}</div>{% endif %}
+        {{ view_toggle(view) }}
+        {{ rail_trains(boards.ktx, view, limit=6) }}
+    {% endif %}
+    <p class="busan-note">{{ t('busan.note_513', min=unist_to_station_min, transfer=ktx_transfer_min) }}</p>
+</section>
+
+{# ── 루트 2: 743·753 → 좋은삼정병원앞 → 1224 ── #}
+<section class="busan-route" id="route-nopo">
+    <header class="busan-route-head route-743">
+        <span class="busan-dest">🚌 {{ t('busan.r2.title') }}</span>
+        <span class="busan-via">{{ t('busan.r2.via') }}</span>
+    </header>
+    <div class="info-banner">{{ t('busan.r2.pending') }}</div>
+    {% if snapshot.nopo_buses %}
+    <p class="busan-origin">
+        {% for r in snapshot.nopo_buses %}<span class="busan-chip route-{{ r.busno }}"><b>{{ r.busno }}</b> {{ r.unist_dep }}</span>{% endfor %}
+    </p>
+    {% else %}
+    <p class="empty-state">{{ t('busan.no_more_buses') }}</p>
+    {% endif %}
+</section>
+
+{# ── 루트 3: 버스 → 태화강역 → 동해선 ── #}
+<section class="busan-route" id="route-donghae">
+    <header class="busan-route-head route-1115">
+        <span class="busan-dest">🚆 {{ t('busan.r3.title') }}</span>
+        <span class="busan-via">{{ t('busan.r3.via') }}</span>
+    </header>
+    {% if snapshot.metro_state == 'missing' %}
+    <p class="empty-state">{{ t('busan.metro_missing') }}</p>
+    {% elif snapshot.metro_state == 'saturday_fallback' %}
+    <div class="info-banner">{{ t('busan.metro_saturday') }}</div>
+    {% endif %}
+    {% if snapshot.donghae %}
+    <table class="timetable busan-table">
+        <thead><tr>
+            <th>{{ t('busan.col.bus') }}</th><th>{{ t('busan.col.unist_dep') }}</th><th>{{ t('busan.col.taehwagang') }}</th>
+            <th>{{ t('busan.col.metro') }}</th><th>{{ t('busan.col.bexco') }}</th><th>{{ t('busan.col.bujeon') }}</th>
+        </tr></thead>
+        <tbody>
+        {% for r in snapshot.donghae %}
+        <tr>
+            <td><span class="busan-busno route-{{ r.busno }}">{{ r.busno }}</span></td>
+            <td><strong>{{ r.unist_dep }}</strong></td>
+            <td>≈ {{ r.taehwagang_at }}</td>
+            {% if r.metro_dep %}
+            <td>{{ r.metro_dep }}</td><td>{{ r.bexco_at or '–' }}</td><td>{{ r.bujeon_at or '–' }}</td>
+            {% else %}
+            <td colspan="3" class="busan-muted">{{ t('busan.no_connection') }}</td>
+            {% endif %}
+        </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p class="empty-state">{{ t('busan.no_more_buses') }}</p>
+    {% endif %}
+    <p class="busan-note">{{ t('busan.r3.note') }}</p>
+
+    <h3>{{ t('busan.intercity') }}</h3>
+    {% if snapshot.intercity_state == 'missing' %}
+    <p class="empty-state">{{ t('busan.rail_missing') }}</p>
+    {% else %}
+        {% if snapshot.intercity_state == 'suspect' %}<div class="info-banner">{{ t('busan.rail_suspect') }}</div>{% endif %}
+        {{ rail_trains(boards.intercity, view, limit=4) }}
+    {% endif %}
+</section>
+
+<p class="busan-source">{{ t('busan.source') }}</p>
+{% endblock %}

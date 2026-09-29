@@ -10,6 +10,10 @@ cache-refresh 워커(와 CLI ``crawl-rail``)만 TAGO 를 호출해 이 파일을
     · 빈 결과 → 기존 값이 있으면 유지, 없으면 저장하지 않음(없음 = 모름)
     · 기존보다 절반 미만으로 급감 → 기존 값 유지 + 경고
     · 같은 구간 다른 날짜 중앙값의 절반 미만 → 저장하되 ``suspect: true`` (화면이 경고)
+  정차역: API 가 주지 않으므로 ``RAIL_STOP_CANDIDATES`` 의 "출발역 → 후보역" 조회에 같은
+  출발시각 열차가 나오면 그 역에 선다고 본다(가까운 ``RAIL_STOP_PATTERN_DAYS`` 일만).
+  각 열차의 ``stops`` 는 ``[{"name", "arr"}]``(운행 순서), 후보 조회가 하나라도 실패하면
+  ``None``(모름 — 통과로 오인하지 않게).
 - ``metro``  : 동해선 광역전철 역·방향·요일구분별 시간표(``METRO_QUERIES`` × ``METRO_DAY_TYPES``).
   요일구분 시간표라 날짜와 무관하다. 토요일(02)은 비어 있어 읽을 때 03 으로 대체한다.
 
@@ -30,6 +34,8 @@ from bushexa.data.constants import (
     METRO_STATIONS,
     RAIL_PAIRS,
     RAIL_STATIONS,
+    RAIL_STOP_CANDIDATES,
+    RAIL_STOP_PATTERN_DAYS,
 )
 from bushexa.domain.rail_match import infer_run_minutes, match_by_time, service_minutes
 from bushexa.fileio import locked_update_json, read_json
@@ -77,12 +83,33 @@ def _is_drop(new_count: int, base_count: int) -> bool:
     return base_count >= _DROP_MIN_BASE and new_count < base_count * _DROP_RATIO
 
 
-def _train_row(t) -> dict:
-    return {
+def _train_row(t, stop_map=None, with_stops=False) -> dict:
+    row = {
         "no": t.train_no, "grade": t.grade,
         "dep": t.dep_at.isoformat(), "arr": t.arr_at.isoformat(),
         "charge": t.adult_charge,
     }
+    if with_stops:
+        row["stops"] = None if stop_map is None else stop_map.get(t.dep_at.isoformat(), [])
+    return row
+
+
+def _fetch_stop_map(client, dep_id: str, candidates: list[str], d: date) -> dict | None:
+    """출발시각(ISO) → 정차역 ``[{"name", "arr"}]``(운행 순서). 후보 조회 실패 시 None."""
+    stops: dict[str, list[dict]] = {}
+    for cid in candidates:
+        name = RAIL_STATIONS.get(cid, cid)
+        try:
+            rows = client.fetch_trains(dep_id, cid, d)
+        except Exception as exc:
+            logger.warning("정차역 조회 실패(정차역 모름 처리) %s→%s %s: %s",
+                           RAIL_STATIONS.get(dep_id, dep_id), name, d, exc)
+            return None
+        for t in rows:
+            lst = stops.setdefault(t.dep_at.isoformat(), [])
+            if not any(x["name"] == name for x in lst):   # 중련 열차는 한 번만
+                lst.append({"name": name, "arr": t.arr_at.strftime("%H:%M")})
+    return stops
 
 
 def _mark_suspects(dates: dict) -> None:
@@ -106,7 +133,12 @@ def refresh_trains(client, path, *, clock: Clock | None = None,
     targets = [today + timedelta(days=i) for i in range(days)]
 
     fetched: dict[tuple[str, str], list | Exception] = {}
+    stop_maps: dict[tuple[str, str], dict | None] = {}
     for dep_id, arr_id in RAIL_PAIRS:
+        candidates = RAIL_STOP_CANDIDATES.get((dep_id, arr_id))
+        for d in targets[:RAIL_STOP_PATTERN_DAYS] if candidates else []:
+            stop_maps[(pair_key(dep_id, arr_id), d.isoformat())] = _fetch_stop_map(
+                client, dep_id, candidates, d)
         for d in targets:
             label = f"{RAIL_STATIONS.get(dep_id, dep_id)}→{RAIL_STATIONS.get(arr_id, arr_id)} {d}"
             try:
@@ -146,8 +178,10 @@ def refresh_trains(client, path, *, clock: Clock | None = None,
                     logger.warning("열차 편수 급감 %d→%d — 기존 유지: %s", old_count, len(result), label)
                     summary.kept.append(label)
                     continue
+                with_stops = (key, ds) in stop_maps
+                smap = stop_maps.get((key, ds))
                 dates[ds] = {"fetched_at": now.isoformat(),
-                             "trains": [_train_row(t) for t in result]}
+                             "trains": [_train_row(t, smap, with_stops) for t in result]}
                 summary.stored.append(label)
             for ds in [k for k in dates if k < today.isoformat()]:
                 del dates[ds]   # 지난 날짜 정리

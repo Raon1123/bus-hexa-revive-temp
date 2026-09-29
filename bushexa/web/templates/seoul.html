@@ -1,0 +1,71 @@
+{% extends "_base.html" %}
+{% from "macros/_rail_board.html" import rail_trains, view_toggle with context %}
+
+{% block title %}Bus HeXA — {{ t('seoul.title') }}{% endblock %}
+
+{% block extra_head %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/busan.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/rail_board.css') }}">
+{% endblock %}
+
+{% block content %}
+<h2>{{ t('seoul.title') }}</h2>
+<p class="busan-intro">{{ t('seoul.intro') }} <span class="busan-asof">{{ t('busan.as_of', time=snapshot.now) }}</span></p>
+
+{% if arrival_error %}
+<div class="error-banner">{{ t('busan.arrival_error') }}</div>
+{% endif %}
+
+<section class="busan-route">
+    <header class="busan-route-head route-513">
+        <span class="busan-dest">🚌 {{ t('seoul.step1') }}</span>
+        <span class="busan-via">{{ t('busan.r1.via') }}</span>
+    </header>
+    {% if snapshot.live %}
+    <table class="timetable busan-table">
+        <thead><tr>
+            <th>{{ t('busan.col.unist_arr') }}</th><th>{{ t('busan.col.station') }}</th>
+            <th>{{ t('seoul.col.to_seoul') }}</th><th>{{ t('seoul.col.to_suseo') }}</th>
+        </tr></thead>
+        <tbody>
+        {% for b in snapshot.live %}
+        <tr>
+            <td><strong>{{ b.unist_at }}</strong> <span class="busan-sub">{{ t('busan.in_min', min=b.eta_min) }}</span></td>
+            <td>≈ {{ b.station_at }}</td>
+            <td>{% if b.seoul %}{{ b.seoul.dep }} → {{ b.seoul.arr }}{% if b.seoul.next_day %}<sup>+1</sup>{% endif %}{% else %}<span class="busan-muted">{{ t('busan.no_connection') }}</span>{% endif %}</td>
+            <td>{% if b.suseo %}{{ b.suseo.dep }} → {{ b.suseo.arr }}{% if b.suseo.next_day %}<sup>+1</sup>{% endif %}{% else %}<span class="busan-muted">{{ t('busan.no_connection') }}</span>{% endif %}</td>
+        </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p class="empty-state">{{ t('busan.no_live_513') }}</p>
+    {% endif %}
+    {% if snapshot.origin_513 %}
+    <p class="busan-origin"><span class="busan-label">{{ t('busan.origin_513') }}</span>
+        {% for tm in snapshot.origin_513 %}<span class="busan-chip">{{ tm }}</span>{% endfor %}</p>
+    {% endif %}
+    <p class="busan-note">{{ t('busan.note_513', min=unist_to_station_min, transfer=ktx_transfer_min) }}</p>
+</section>
+
+<section class="busan-route">
+    <header class="busan-route-head route-743">
+        <span class="busan-dest">🚄 {{ t('seoul.step2') }}</span>
+        {% if view == 'board' %}<span class="busan-via">{{ t('seoul.board_hint') }}</span>{% endif %}
+    </header>
+    <nav class="busan-jump seoul-tabs">
+        {% for key, label in [('all', t('seoul.tab.all')), ('seoul', t('seoul.tab.seoul')), ('suseo', t('seoul.tab.suseo'))] %}
+        <a href="?to={{ key }}&amp;view={{ view }}"{% if snapshot.dest == key %} class="active" aria-current="page"{% endif %}>{{ label }}</a>
+        {% endfor %}
+    </nav>
+    {{ view_toggle(view) }}
+    {% for name, state in snapshot.states.items() %}
+        {% if state == 'missing' %}<p class="empty-state">{{ t('seoul.missing', dest=name) }}</p>
+        {% elif state == 'suspect' %}<div class="info-banner">{{ t('busan.rail_suspect') }}</div>{% endif %}
+    {% endfor %}
+    {{ rail_trains(snapshot.board, view, show_dest=True) }}
+    {% if view == 'board' %}<p class="busan-note">{{ t('seoul.stops_note') }}</p>{% endif %}
+</section>
+
+<p class="busan-source">{{ t('busan.source') }}</p>
+{% endblock %}
