@@ -6,7 +6,7 @@
 - **대상 노선**: 513 · 713 · 743 · 753 · 1115 (UNIST 경유)
 - **데이터 소스**: 울산광역시 BIS / 국토교통부 TAGO 공용 API
 - **스택**: Python 3.12 · Flask 3 · HTMX · SQLite (단일 백엔드) · 단일 컨테이너(supervisord)
-- **상태**: 백엔드·웹·크롤러·배포자산 구현 완료 (테스트 386 passed)
+- **상태**: 백엔드·웹·크롤러·배포자산 구현 완료 (2026-09-29 기준 테스트 573 passed)
 
 ---
 
@@ -291,6 +291,13 @@ tests/               # pytest (단위·통합·보안)
 
 | 문서 | 내용 |
 |---|---|
+| [`CLAUDE.md`](CLAUDE.md) | AI 세션·기여자 진입점 — 명령, 절대 규칙, 작업 방식, 미해결 문제 |
+| [`docs/guide/architecture.md`](docs/guide/architecture.md) | **현행** 아키텍처·데이터 흐름·불변식·ADR 현행성 |
+| [`docs/guide/api-usage.md`](docs/guide/api-usage.md) | 국토부 TAGO·울산 BIS·특일정보 API 활용과 호출량 전략 |
+| [`docs/guide/ui-design.md`](docs/guide/ui-design.md) | UI 디자인 토큰·컴포넌트·노선도·i18n 규칙 |
+| [`docs/guide/pitfalls.md`](docs/guide/pitfalls.md) | 자주 범하는 오류 (부검에서 추린 규칙) |
+| [`docs/guide/change-playbooks.md`](docs/guide/change-playbooks.md) | 노선 변경·페이지/API/설정 추가·배포 체크리스트 |
+| [`docs/refactor/postmortems/INDEX.md`](docs/refactor/postmortems/INDEX.md) | 부검 보고서 목록 |
 | [`docs/refactor/00-workflow.md`](docs/refactor/00-workflow.md) | Designer/Executor/Auditor 3역할 워크플로우 |
 | `docs/refactor/architecture/ADR-*.md` | 아키텍처 결정 레코드 |
 | `docs/refactor/phases/P0~P5.md` | 단계별 리팩터 계획 |
