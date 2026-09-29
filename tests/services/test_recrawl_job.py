@@ -86,10 +86,15 @@ def test_progress_jsonl_written(tmp_path):
 
     # 크롤이 완료될 때까지 최대 3초 대기
     done_event.wait(timeout=3.0)
-    time.sleep(0.1)  # JSONL flush 여유
 
     progress_path = tmp_path / "data" / "timetable_crawl_progress.jsonl"
     assert progress_path.exists(), "진행 JSONL 파일이 생성되어야 함"
+
+    # "done" 줄은 crawl_fn 반환 뒤 _mark_done(flock) 이후에 append된다 — 고정 sleep 대신
+    # 기한부 폴링으로 기다린다(부하 걸린 CI 러너에서 0.1s 고정 대기가 레이스로 실패).
+    deadline = time.monotonic() + 3.0
+    while '"done"' not in progress_path.read_text(encoding="utf-8") and time.monotonic() < deadline:
+        time.sleep(0.02)
 
     lines = [l.strip() for l in progress_path.read_text(encoding="utf-8").splitlines() if l.strip()]
     assert len(lines) >= 2, f"progress 이벤트가 2건 이상이어야 함, found {len(lines)}"
@@ -211,3 +216,120 @@ def test_unknown_job_id_raises_keyerror(tmp_path):
 
     with pytest.raises(KeyError):
         list(job.progress("nonexistent-job-id"))
+
+
+# ──────────────────────────────────────────────────
+# 크로스 워커 가드 경계: stale heartbeat / 파손 메타 / 안전 탈출
+# ──────────────────────────────────────────────────
+
+def _write_meta(tmp_path, **meta):
+    (tmp_path / "timetable_crawl_job.json").write_text(json.dumps(meta), encoding="utf-8")
+
+
+def test_stale_heartbeat_allows_restart(tmp_path):
+    """heartbeat가 _HEARTBEAT_TIMEOUT(120s)보다 오래된 미완료 잡은 죽은 잡으로 보고
+    새 start가 ConflictError 없이 선점하는지 검증한다(워커 크래시 후 영구 409 방지)."""
+    old = time.time() - 121
+    _write_meta(tmp_path, job_id="dead", started_at=old, heartbeat=old, done=False, error=None)
+    job = RecrawlJob(_simple_crawl, data_dir=tmp_path)
+    assert job.is_running is False
+
+    new_id = job.start()
+    assert new_id != "dead"
+    events = list(job.progress(new_id))
+    assert events[-1] == ("done", None)
+
+
+def test_fresh_heartbeat_blocks_restart(tmp_path):
+    """heartbeat가 최근인 미완료 잡이 있으면(다른 워커 실행 중) is_running=True이고 start가 ConflictError인지 검증한다."""
+    now = time.time()
+    _write_meta(tmp_path, job_id="alive", started_at=now, heartbeat=now, done=False, error=None)
+    job = RecrawlJob(_simple_crawl, data_dir=tmp_path)
+    assert job.is_running is True
+    with pytest.raises(ConflictError):
+        job.start()
+
+
+def test_corrupt_meta_treated_as_idle(tmp_path):
+    """메타 JSON이 파손돼 있으면 빈 메타로 간주 — is_running=False, start 가능한지 검증한다."""
+    (tmp_path / "timetable_crawl_job.json").write_text("{not json", encoding="utf-8")
+    job = RecrawlJob(_simple_crawl, data_dir=tmp_path)
+    assert job.is_running is False
+    job_id = job.start()
+    assert list(job.progress(job_id))[-1] == ("done", None)
+
+
+def test_progress_safe_exit_when_meta_done_but_jsonl_lacks_terminal(tmp_path, monkeypatch):
+    """메타는 done인데 JSONL에 done 줄이 없으면(append 실패 등) 무한 대기하지 않고
+    메타 기준으로 ('done', None)을 내고 종결하는지 검증한다."""
+    import bushexa.services.recrawl_job as rj
+    monkeypatch.setattr(rj, "_POLL_INTERVAL", 0)
+    now = time.time()
+    _write_meta(tmp_path, job_id="j1", started_at=now, heartbeat=now, done=True, error=None)
+    (tmp_path / "timetable_crawl_progress.jsonl").write_text(
+        json.dumps({"kind": "progress", "payload": {"page": 1}, "ts": now}) + "\n",
+        encoding="utf-8")
+
+    events = list(RecrawlJob(_simple_crawl, data_dir=tmp_path).progress("j1"))
+    assert events == [("progress", {"page": 1}), ("done", None)]
+
+
+def test_progress_safe_exit_with_meta_error(tmp_path, monkeypatch):
+    """메타에 error만 기록되고 JSONL이 없을 때 메타의 에러 메시지로 ('error', Exception)을 내고 종결하는지 검증한다."""
+    import bushexa.services.recrawl_job as rj
+    monkeypatch.setattr(rj, "_POLL_INTERVAL", 0)
+    now = time.time()
+    _write_meta(tmp_path, job_id="j1", started_at=now, heartbeat=now, done=False, error="api 99")
+
+    events = list(RecrawlJob(_simple_crawl, data_dir=tmp_path).progress("j1"))
+    assert len(events) == 1
+    kind, exc = events[0]
+    assert kind == "error" and str(exc) == "api 99"
+
+
+def test_progress_skips_malformed_jsonl_lines(tmp_path):
+    """JSONL에 파손된 줄이 섞여 있어도 건너뛰고 유효한 이벤트만 순서대로 yield하는지 검증한다."""
+    now = time.time()
+    _write_meta(tmp_path, job_id="j1", started_at=now, heartbeat=now, done=True, error=None)
+    lines = [
+        json.dumps({"kind": "progress", "payload": {"page": 1}, "ts": now}),
+        "{broken",
+        "",
+        json.dumps({"kind": "done", "payload": None, "ts": now}),
+    ]
+    (tmp_path / "timetable_crawl_progress.jsonl").write_text("\n".join(lines) + "\n",
+                                                             encoding="utf-8")
+
+    events = list(RecrawlJob(_simple_crawl, data_dir=tmp_path).progress("j1"))
+    assert events == [("progress", {"page": 1}), ("done", None)]
+
+
+def test_progress_ends_when_job_replaced(tmp_path, monkeypatch):
+    """스트림 도중 메타의 job_id가 다른 잡으로 바뀌면(새 잡이 선점) 이전 스트림이 조용히 종결되는지 검증한다."""
+    import bushexa.services.recrawl_job as rj
+    now = time.time()
+    _write_meta(tmp_path, job_id="old", started_at=now, heartbeat=now, done=False, error=None)
+    (tmp_path / "timetable_crawl_progress.jsonl").write_text("", encoding="utf-8")
+
+    def fake_sleep(_s):
+        _write_meta(tmp_path, job_id="new", started_at=now, heartbeat=now, done=False, error=None)
+
+    monkeypatch.setattr(rj.time, "sleep", fake_sleep)
+    assert list(RecrawlJob(_simple_crawl, data_dir=tmp_path).progress("old")) == []
+
+
+def test_dataclass_progress_payload_serialized(tmp_path):
+    """on_progress에 dataclass(ProgressEvent류)를 넘기면 dict로 직렬화되어 스트림에 전달되는지 검증한다."""
+    from dataclasses import dataclass
+
+    @dataclass
+    class Ev:
+        route: str
+        page: int
+
+    def crawl(*, vacation, on_progress):
+        on_progress(Ev("713", 3))
+
+    job = RecrawlJob(crawl, data_dir=tmp_path)
+    events = list(job.progress(job.start()))
+    assert events == [("progress", {"route": "713", "page": 3}), ("done", None)]

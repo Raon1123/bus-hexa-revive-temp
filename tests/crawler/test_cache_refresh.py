@@ -94,3 +94,118 @@ def test_stop_event_breaks_loop():
         sleep=sleep, stop_event=stop, run_on_start=False,
     )
     assert iterations == 1
+
+
+def test_run_on_start_failure_does_not_kill_loop():
+    """부팅 시 공휴일 갱신이 예외를 던져도 루프가 시작되어 체크를 계속하는지 검증한다(ADR-013)."""
+    calls: list[bool] = []
+
+    def refresh(do_timetable):
+        calls.append(do_timetable)
+        if not do_timetable:
+            raise RuntimeError("holiday api down")
+
+    iterations = run_cache_refresh_loop(
+        config=None, refresh=refresh,
+        clock=_Clock(datetime(2026, 6, 1, 2, 30, tzinfo=KST)),  # 윈도 안
+        sleep=lambda s: None, stop_event=threading.Event(),
+        run_on_start=True, max_iterations=2,
+    )
+    assert iterations == 2
+    assert calls == [False, True]  # 부팅 실패 후에도 윈도 갱신은 수행
+
+
+def test_window_refresh_runs_again_next_day():
+    """윈도 갱신이 날짜 단위로 1회씩 — 다음 날 윈도에서는 다시 수행되는지 검증한다."""
+    refresh, calls = _recorder()
+    days = iter([
+        datetime(2026, 6, 1, 2, 10, tzinfo=KST),
+        datetime(2026, 6, 1, 2, 20, tzinfo=KST),
+        datetime(2026, 6, 2, 2, 10, tzinfo=KST),
+    ])
+
+    class _SeqClock:
+        def now(self):
+            return next(days)
+
+    run_cache_refresh_loop(
+        config=None, refresh=refresh, clock=_SeqClock(),
+        sleep=lambda s: None, stop_event=threading.Event(),
+        run_on_start=False, max_iterations=3,
+    )
+    assert calls == [True, True]  # 6/1 1회 + 6/2 1회
+
+
+def test_window_end_is_exclusive():
+    """윈도 종료 시각(03:00)은 윈도 밖 — 갱신하지 않는지 검증한다(start <= t < end)."""
+    refresh, calls = _recorder()
+    run_cache_refresh_loop(
+        config=None, refresh=refresh,
+        clock=_Clock(datetime(2026, 6, 1, 3, 0, tzinfo=KST)),
+        sleep=lambda s: None, stop_event=threading.Event(),
+        run_on_start=False, max_iterations=1,
+    )
+    assert calls == []
+
+
+def test_refresh_all_isolates_holiday_failure(monkeypatch):
+    """refresh_all에서 공휴일 갱신이 실패해도 시간표 재크롤은 수행되는지 검증한다(한쪽 실패 격리)."""
+    from bushexa.crawler import cache_refresh
+
+    order: list[str] = []
+
+    def bad_holidays(config, clock=None):
+        order.append("holiday")
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr(cache_refresh, "refresh_holidays", bad_holidays)
+    monkeypatch.setattr(cache_refresh, "refresh_timetables",
+                        lambda config: order.append("timetable") or {})
+
+    cache_refresh.refresh_all(None, do_timetable=True)
+    assert order == ["holiday", "timetable"]
+
+
+def test_refresh_all_isolates_timetable_failure_and_skips_when_disabled(monkeypatch):
+    """시간표 재크롤 예외는 삼켜지고, do_timetable=False면 시간표는 호출되지 않는지 검증한다."""
+    from bushexa.crawler import cache_refresh
+
+    order: list[str] = []
+    monkeypatch.setattr(cache_refresh, "refresh_holidays",
+                        lambda config, clock=None: order.append("holiday") or set())
+
+    def bad_tt(config):
+        order.append("timetable")
+        raise RuntimeError("ulsan down")
+
+    monkeypatch.setattr(cache_refresh, "refresh_timetables", bad_tt)
+
+    cache_refresh.refresh_all(None, do_timetable=True)   # 예외 전파 없음
+    cache_refresh.refresh_all(None, do_timetable=False)
+    assert order == ["holiday", "timetable", "holiday"]
+
+
+def test_refresh_holidays_writes_cache_for_current_and_next_month(app_config_test):
+    """refresh_holidays가 clock 기준 이번 달+다음 달을 조회해 holiday_cache.json에 적재하는지 검증한다."""
+    from datetime import date
+
+    from bushexa.crawler.cache_refresh import refresh_holidays
+    from bushexa.services.holiday_service import HolidayCache, default_holiday_cache_path
+
+    class _Client:
+        def __init__(self):
+            self.asked = []
+
+        def fetch(self, year, month):
+            self.asked.append((year, month))
+            return [date(2026, 6, 6)] if month == 6 else []
+
+    client = _Client()
+    app_config_test.data_dir.mkdir(parents=True, exist_ok=True)
+    result = refresh_holidays(app_config_test, client=client,
+                              clock=_Clock(datetime(2026, 6, 15, 12, 0, tzinfo=KST)))
+
+    assert client.asked == [(2026, 6), (2026, 7)]
+    assert result == {"20260606"}
+    cache = HolidayCache(default_holiday_cache_path(app_config_test.data_dir))
+    assert cache.load() == {"20260606"}
