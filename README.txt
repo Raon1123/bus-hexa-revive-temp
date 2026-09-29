@@ -20,6 +20,15 @@ bushexa 소스 배포 번들 (빌드는 서버에서)
   5) podman compose -f docker/compose.yaml up -d --build
   (docker 도 동일: docker compose -f docker/compose.yaml ...)
 
+배포 시 1회 보안 조치 (2026-09-29 기준 미완료 — 끝나면 이 절을 지운다):
+  a) 관리자 비밀번호 교체: 기동 후 http://<host>:8017/admin/password
+     (예전 해시가 git 이력에 남아 있음 — docs/refactor/postmortems/PM-013)
+  b) 수정(PM-016) 이전 로그에 남은 API 키 정리 — 앱을 멈춘 뒤 치환하고 다시 시작:
+       podman compose -f docker/compose.yaml stop app
+       sudo sed -i -E "s/(service_?key=)[^&[:space:]\"'()<>]+/\\1***/Ig" logs/*.log*
+       podman compose -f docker/compose.yaml start app
+       grep -ic "servicekey=[^*]" logs/*.log*   # 모두 0 이어야 함
+
 코드만 갱신할 때 (재빌드 불필요):
   compose 가 ../bushexa 를 /app/bushexa 로 ro bind-mount 하므로, 새 번들의 bushexa/ 를 덮어쓴 뒤
   재시작만 하면 된다. 이미지 재빌드는 pyproject.toml/uv.lock/docker/ 가 바뀔 때만.

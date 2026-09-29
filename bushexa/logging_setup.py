@@ -13,6 +13,7 @@ import logging.config
 from datetime import datetime
 from pathlib import Path
 
+from bushexa.redact import redact_secrets  # PM-016: 기록 시점 시크릿 가림
 from bushexa.time_utils import KST  # ADR-008: KST 단일 출처
 
 LOG_FORMAT = "%(asctime)s [%(name)s] %(levelname)s: %(message)s"
@@ -21,7 +22,17 @@ _LOGGER_NAMES = ("bushexa", "bushexa.crawler", "bushexa.web")
 
 
 class KSTFormatter(logging.Formatter):
-    """Formatter whose ``asctime`` is rendered in KST with a ``+09:00`` offset."""
+    """Formatter whose ``asctime`` is rendered in KST with a ``+09:00`` offset.
+
+    Every rendered line (message, exception traceback, stack info) is passed
+    through :func:`bushexa.redact.redact_secrets` so that API keys embedded in
+    request URLs (``serviceKey=...``) never reach console or log files (PM-016).
+    All handlers configured by :func:`setup_logging` use this formatter, which
+    also covers third-party loggers (urllib3, requests) that propagate to root.
+    """
+
+    def format(self, record: logging.LogRecord) -> str:
+        return redact_secrets(super().format(record))
 
     def formatTime(self, record: logging.LogRecord, datefmt: str | None = None) -> str:
         dt = datetime.fromtimestamp(record.created, tz=KST)

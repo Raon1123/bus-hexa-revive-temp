@@ -70,3 +70,21 @@ def test_missing_file_returns_none(tmp_path):
     """status 파일이 없으면 latest()는 None을 반환한다."""
     r = ArrivalStatusReader(tmp_path / "no_file.json")
     assert r.latest() is None
+
+
+def test_last_error_msg_redacts_service_key(tmp_path):
+    """poller가 넘긴 예외 문자열에 serviceKey가 있어도 status 파일에는 가려서 저장한다 (PM-016).
+
+    이 파일은 관리자 대시보드에 표시되므로 기록 시점에 가려야 한다.
+    """
+    path = tmp_path / "arrival_status.json"
+    secret = "AbCd%2BSecretKey%3D%3D"
+    ArrivalStatusWriter(path).write(
+        cycle_started_at=datetime(2026, 6, 1, 8, 30, tzinfo=ZoneInfo("Asia/Seoul")),
+        stops_ok=16, stops_total=17,
+        last_error_msg=f"Read timed out. (url: /getBusArrivalInfo.xo?serviceKey={secret}&stopid=1)",
+    )
+    raw = path.read_text(encoding="utf-8")
+    assert secret not in raw
+    latest = ArrivalStatusReader(path).latest()
+    assert latest.last_error_msg.endswith("serviceKey=***&stopid=1)")

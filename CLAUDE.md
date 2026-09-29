@@ -53,7 +53,7 @@ archive/        Streamlit 레거시 (수정 대상 아님)
 5. **시간은 `time_utils.KST` 와 주입된 `Clock`.** naive `datetime.now()`·`date.today()`·`ZoneInfo` 리터럴 금지.
 6. **노선·정류장 ID와 문구는 `data/constants.py` 에만.** `STOP_IDS[...]` 대신 `.get`.
 7. **데몬 루프는 예외로 죽지 않는다.** 잡은 예외는 반드시 로그한다(ADR-013).
-8. **시크릿 커밋 금지:** `.env`, `secret/`, `data/manager_password.txt`, `data/bushexa.db*`, `data/debug/`. 로그에 API 키가 찍히지 않게 한다.
+8. **시크릿 커밋 금지:** `.env`, `secret/`, `data/manager_password.txt`, `data/bushexa.db*`, `data/debug/`. 예외 문자열·URL 을 로그나 파일에 남길 때 키 가림은 `bushexa/redact.py` 가 담당하며, 새 시크릿 형식이 생기면 그 패턴을 갱신한다.
 9. **단위 테스트는 네트워크를 쓰지 않는다.** 테스트마다 자연어 의도 docstring 을 단다.
 
 ## 작업 방식
@@ -70,8 +70,8 @@ archive/        Streamlit 레거시 (수정 대상 아님)
 
 | 문제 | 문서 |
 |---|---|
-| API 인증키가 요청 URL 째로 로그 파일에 기록되고 `/admin/logs` 가 마스킹하지 못함 | PM-016 |
-| 관리자 비밀번호 해시가 git 이력에 남아 있음 — 비밀번호 교체 필요 | PM-013 |
+| 관리자 비밀번호 해시가 git 이력에 남아 있음 — 다음 배포 때 운영자가 비밀번호 교체 | PM-013, README.txt |
+| 수정(PM-016) 이전 로그 파일에 API 키가 남아 있음 — 배포 때 1회 정리 | PM-016 §6.2 |
 | 울산 도착정보 호출 실패가 "도착 버스 없음"으로 캐시·표시됨 | api-usage §4 |
 | `/unist` HTMX 자동 갱신이 첫 교체 후 멈춤 | ui-design §7 |
 | `BUSHEXA_ARRIVAL_POLL_SECONDS` 가 CLI 기본값에 가려 무효 | api-usage §4 |

@@ -54,6 +54,7 @@ from bushexa.domain.board import via_default
 from bushexa.db.connection import create_connection
 from bushexa.db.repo import BusLogRepo
 from bushexa.api_clients.holiday import HolidayClient
+from bushexa.redact import redact_secrets
 from bushexa.services.arrival_status import ArrivalStatusReader
 from bushexa.services.audit_log import AuditLog, default_audit_path
 from bushexa.services.auth import AuthService
@@ -819,8 +820,12 @@ def _mask_secrets(text: str) -> str:
       password=hunter2          → password=****
       api_key=ABCDEF123         → api_key=****
       Authorization: Bearer secrettoken123  → Authorization=****
+      ...?serviceKey=ABC&pageNo=1  → ...?serviceKey=***&pageNo=1  (PM-016)
+
+    기록 시점에도 ``KSTFormatter`` 가 serviceKey 를 가리지만, 수정 이전에 기록된
+    로그 파일이 남아 있을 수 있어 표시 시점에도 한 번 더 적용한다.
     """
-    return _SECRET_PATTERN.sub(lambda m: m.group(1) + "=****", text)
+    return _SECRET_PATTERN.sub(lambda m: m.group(1) + "=****", redact_secrets(text))
 
 
 @bp.get("/logs")

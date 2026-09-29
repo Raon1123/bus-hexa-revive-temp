@@ -228,3 +228,23 @@ def test_masking_bearer_token(authed_client):
     assert "****" in body, (
         "Masking marker '****' not found in response for Bearer token line"
     )
+
+
+def test_masking_service_key_in_request_url(authed_client):
+    """수정 이전에 기록된 로그의 `?serviceKey=<키>` 도 뷰어가 가린다 (PM-016 표시 계층 이중 방어).
+
+    기대값 = 키 원문 부재 + 진단용 다른 쿼리 파라미터(stopid)는 보존.
+    """
+    c, log_dir = authed_client
+    secret = "AbCd%2BSecretKey%3D%3D"
+    _write_log_lines(log_dir, [
+        f"울산 도착정보 호출 실패 stop_id=196020808: Max retries exceeded with url: "
+        f"/UlsanAPI/getBusArrivalInfo.xo?serviceKey={secret}&pageNo=1&stopid=196020808",
+    ])
+
+    resp = c.get("/admin/logs")
+    assert resp.status_code == 200
+    body = resp.data.decode("utf-8")
+    assert secret not in body
+    assert "serviceKey=***" in body
+    assert "stopid=196020808" in body
