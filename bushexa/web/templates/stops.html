@@ -13,14 +13,23 @@
             hx-trigger="change"
             hx-target="#stops-table"
             hx-include="[name='stop_id']">
-        <option value="" disabled selected>-- 정류소를 선택해주세요 --</option>
+        <option value="" disabled {% if not selected_stop %}selected{% endif %}>-- 정류소를 선택해주세요 --</option>
         {% for stop_id, stop_name in stop_options %}
-        <option value="{{ stop_id }}">{{ stop_name }}</option>
+        <option value="{{ stop_id }}" {% if stop_id == selected_stop %}selected{% endif %}>{{ stop_name }}</option>
         {% endfor %}
     </select>
 </div>
 
+{% if selected_stop %}
+<div id="stops-table"
+     hx-get="/partial/stops?stop_id={{ selected_stop }}"
+     hx-trigger="load"
+     hx-swap="outerHTML">
+    <p class="empty-state">불러오는 중…</p>
+</div>
+{% else %}
 <div id="stops-table">
     <p class="empty-state">정류소를 선택하면 도착 정보가 표시됩니다.</p>
 </div>
+{% endif %}
 {% endblock %}

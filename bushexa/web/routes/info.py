@@ -18,7 +18,7 @@ from pathlib import Path
 from flask import Blueprint, current_app, render_template
 
 from bushexa.services.changelog_editor import ChangelogEditor, default_changelog_path
-from bushexa.web.route_diagram import render_route_diagram
+from bushexa.web.route_diagram import build_route_lines
 
 log = logging.getLogger("bushexa.web.routes.info")
 
@@ -37,5 +37,6 @@ def info_page() -> str:
         seed_path=_STATIC_DATA / "changelog.json",
     )
     changelog = editor.load()
-    diagram = render_route_diagram()
-    return render_template("info.html", changelog=changelog, diagram=diagram)
+    return render_template(
+        "info.html", changelog=changelog, route_lines=build_route_lines(),
+    )

@@ -27,7 +27,13 @@ def stops_page() -> str:
         (stop_id, STOP_IDS.get(stop_id, stop_id))
         for stop_id in SERACH_STOPS
     ]
-    return render_template("stops.html", stop_options=stop_options)
+    # 노선도 등에서 ?stop_id=로 진입하면 해당 정류소를 미리 선택하고 바로 조회한다.
+    selected = request.args.get("stop_id")
+    if selected not in SERACH_STOPS:
+        selected = None
+    return render_template(
+        "stops.html", stop_options=stop_options, selected_stop=selected,
+    )
 
 
 @bp.route("/partial/stops", methods=["GET"])

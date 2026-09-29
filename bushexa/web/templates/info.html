@@ -13,9 +13,23 @@
 이를 반영한 버스 시간표에 관한 정보를 제공하는 페이지입니다.</p>
 
 <h3>Bus Route Map</h3>
-<p class="route-note">노선 관계도 (지도가 아닌 그래프). 핵심 정류장만 표시합니다 · 가로로 스크롤하세요.</p>
-<div class="route-diagram-wrap">
-    {{ diagram }}
+<p class="route-note">노선별 정류장 순서입니다. <b>UNIST</b>를 누르면 그 노선의 UNIST 출발 시간표,
+밑줄 친 정류장을 누르면 UNIST 방면(돌아오는 방향) 실시간 도착 정보로 이동합니다.
+구영리는 513·743(범서중학교 경유)과 713·753·1115가 서로 다른 길로 지납니다.</p>
+<div class="route-lines">
+{% for ln in route_lines %}
+    <section class="route-card route-{{ ln.line }}" style="--route: {{ ln.color }}">
+        <h4 class="route-card-title"><span class="route-badge">{{ ln.line }}</span></h4>
+        <ol class="route-stops">
+        {% for s in ln.stops %}
+            <li class="{% if s.is_unist %}is-unist{% endif %}{% if s.is_branch %} is-branch{% endif %}{% if s.note %} is-upcoming{% endif %}">
+                {% if s.href %}<a href="{{ s.href }}">{{ s.label }}</a>{% else %}<span>{{ s.label }}</span>{% endif %}
+                {% if s.note %}<small class="route-stop-note">{{ s.note }}</small>{% endif %}
+            </li>
+        {% endfor %}
+        </ol>
+    </section>
+{% endfor %}
 </div>
 
 <h3>For Destination</h3>

@@ -1,4 +1,4 @@
-/* /info 페이지 스타일 — 노선도(SVG) + 정보 테이블/배너. */
+/* /info 페이지 스타일 — 노선별 정류장 목록 + 정보 테이블/배너. */
 
 /* ── 노선도 ───────────────────────────────────────────────── */
 .route-note {
@@ -7,48 +7,67 @@
     margin: 0.2rem 0 0.6rem;
 }
 
-.route-diagram-wrap {
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
+.route-lines {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+    gap: 12px;
+}
+
+.route-card {
     border: 1px solid #e5e5e5;
+    border-top: 5px solid var(--route);
     border-radius: 10px;
     background: #fff;
-    padding: 8px 4px;
+    padding: 8px 14px 12px;
 }
 
-.route-svg {
-    display: block;
-    min-width: 1300px;   /* 좁은 화면에서는 가로 스크롤 */
-    height: auto;
-}
+.route-card-title { margin: 4px 0 8px; }
 
-.route-svg .route-box {
-    fill: none;
-    stroke: #34404a;
-    stroke-width: 1.6;
-}
-
-.route-svg .route-line {
-    opacity: 0.95;
-}
-
-.route-svg .route-stop {
-    fill: #fff;
-    stroke-width: 4.5;   /* 경유지 색을 더 진하게/굵게 */
-}
-
-.route-svg .route-label {
-    font-family: inherit;
-    font-size: 18px;     /* 라벨 확대 */
-    fill: #1f1f1f;
+.route-badge {
+    display: inline-block;
+    background: var(--route);
+    color: #fff;
     font-weight: 700;
+    border-radius: 6px;
+    padding: 2px 12px;
 }
 
-.route-svg .route-pill-text {
-    font-family: inherit;
-    font-size: 15px;
+/* 세로 노선: 왼쪽 색선 + 정류장 점 */
+.route-stops {
+    list-style: none;
+    margin: 0;
+    padding: 0 0 0 20px;
+    border-left: 4px solid var(--route);
+}
+
+.route-stops li {
+    position: relative;
+    padding: 5px 0;
+    line-height: 1.35;
+}
+
+.route-stops li::before {
+    content: "";
+    position: absolute;
+    left: -29px;
+    top: 0.8em;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: #fff;
+    border: 3px solid var(--route);
+}
+
+.route-stops li.is-unist { font-weight: 800; font-size: 1.05rem; }
+.route-stops li.is-unist::before { background: var(--route); width: 14px; height: 14px; left: -31px; top: 0.7em; }
+.route-stops li.is-branch { font-style: italic; }
+.route-stops li.is-upcoming { opacity: 0.75; }
+.route-stops li a { color: inherit; text-decoration: underline; text-underline-offset: 3px; }
+.route-stops li a:hover, .route-stops li a:focus-visible { color: var(--route); }
+.route-stop-note {
+    margin-left: 6px;
+    color: #b26a00;
     font-weight: 700;
-    fill: #fff;
 }
 
 /* ── 정보 테이블 ──────────────────────────────────────────── */
