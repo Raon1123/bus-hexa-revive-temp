@@ -9,6 +9,7 @@
 * ``cache-refresh-loop`` -> 유휴 윈도(02–03시) 공휴일·시간표 재크롤 워커
 * ``init-db``            -> 스키마 생성(--reset 시 bus_timelog 비움)
 * ``crawl-timetable``    -> P2 / F10 (시간표 재크롤)
+* ``debug-running``      -> F05 운행 재구성 진단 (제외 정류장·분리·덮어쓰기 출력)
 
 설계(F09 §4.1)에 맞춰 ``crawl-loop``의 폴링 인자는 ``--poll``(기본 15초, 2026-06-06 10→15
 상향 — admin 크롤 주기 설정이 런타임 우선)이다. 신호 핸들러는
@@ -146,6 +147,86 @@ def cmd_crawl_timetable(args) -> int:
     return 0
 
 
+def _parse_cli_date(value: str | None):
+    """``YYYYMMDD``/``YYYY-MM-DD`` → date. 미지정 시 오늘(KST). 형식 오류는 argparse 에러."""
+    from datetime import date
+
+    from bushexa.time_utils import KSTClock
+
+    if value is None:
+        return KSTClock().now().date()
+    digits = "".join(ch for ch in value if ch.isdigit())
+    try:
+        return date(int(digits[:4]), int(digits[4:6]), int(digits[6:8]))
+    except (ValueError, IndexError):
+        raise argparse.ArgumentTypeError(f"날짜 형식 오류: {value!r} (YYYY-MM-DD)")
+
+
+def cmd_debug_running(args) -> int:
+    """/running 과 같은 재구성을 수행하고 그리드에 드러나지 않는 과정을 출력한다."""
+    from pathlib import Path
+
+    from bushexa.data.constants import ROUTEID, STOP_IDS
+    from bushexa.db.connection import _sqlite_path, create_connection, is_sqlite
+    from bushexa.db.repo import BusLogRepo
+    from bushexa.domain.running import explain_runs
+
+    if args.route not in ROUTEID:
+        print(f"알 수 없는 노선 ID: {args.route!r}. 사용 가능:")
+        for rid, info in ROUTEID.items():
+            print(f"  {rid}  {info[0]}번 {info[1]}행")
+        return 2
+    try:
+        day = _parse_cli_date(args.date)
+    except argparse.ArgumentTypeError as exc:
+        print(exc)
+        return 2
+
+    # --db 지정 시 config(API 키 등) 없이 스냅샷 DB만으로 동작
+    dsn = args.db or _load_config().database_url
+    # sqlite3.connect는 없는 파일을 빈 DB로 만들어 버리므로 경로 오타를 먼저 걸러낸다.
+    if is_sqlite(dsn) and _sqlite_path(dsn) != ":memory:" and not Path(_sqlite_path(dsn)).exists():
+        print(f"DB 파일 없음: {_sqlite_path(dsn)}")
+        return 2
+    conn = create_connection(dsn)
+    with BusLogRepo(conn) as repo:
+        rows = repo.get_by_route(args.route, day=day)
+    ex = explain_runs(rows, args.route)
+
+    busno, terminal, _dep, stops_order = ROUTEID[args.route]
+
+    print(f"route={args.route} ({busno}번 {terminal}행) date={day.isoformat()} "
+          f"rows={ex.total_rows} runs={len(ex.runs)}")
+
+    print(f"\n[제외] 노선 정류장 목록에 없는 stop_id: "
+          f"{sum(d.count for d in ex.dropped_stops)}행")
+    for d in ex.dropped_stops:
+        print(f"  {d.stop_id}  {d.stop_name or '-'}  x{d.count}")
+
+    if ex.unparsable_idx:
+        print(f"\n[제외] 파싱 불가 idx: {len(ex.unparsable_idx)}행")
+        for idx in ex.unparsable_idx[:10]:
+            print(f"  {idx!r}")
+
+    print(f"\n[운행] {len(ex.runs)}회 (그리드 열 순서)")
+    for i, run in enumerate(ex.runs, 1):
+        times = sorted(run.stops.values())
+        print(f"  #{i:<3} {run.vehicle_no}  {times[0]}–{times[-1]}  "
+              f"{len(run.stops)}/{len(stops_order)} 정류장")
+        if args.verbose:
+            for sid in stops_order:
+                print(f"         {run.stops.get(sid, 'レ'):>5}  {STOP_IDS.get(sid, sid)}")
+
+    print(f"\n[분리] 간격 초과로 나뉜 지점: {len(ex.splits)}")
+    for s in ex.splits:
+        print(f"  {s.vehicle_no}  {s.before_idx} → {s.after_idx}  ({s.gap_minutes:.0f}분)")
+
+    print(f"\n[덮어쓰기] 같은 운행 내 재통과: {len(ex.overwrites)}")
+    for o in ex.overwrites:
+        print(f"  {o.vehicle_no}  {STOP_IDS.get(o.stop_id, o.stop_id)}  {o.dropped} → {o.kept}")
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     """Construct the argument parser with every subcommand registered."""
     parser = argparse.ArgumentParser(
@@ -196,6 +277,15 @@ def build_parser() -> argparse.ArgumentParser:
 
     p_tt = sub.add_parser("crawl-timetable", help="Re-crawl Ulsan timetables")
     p_tt.add_argument("--vacation", action="store_true", help="방학 시간표 모드")
+
+    p_dbg = sub.add_parser(
+        "debug-running", help="Explain how /running reconstructs runs for a route/day",
+    )
+    p_dbg.add_argument("--route", required=True, help="ROUTEID 키 (예: 195000178)")
+    p_dbg.add_argument("--date", default=None, help="YYYY-MM-DD 또는 YYYYMMDD (기본: 오늘 KST)")
+    p_dbg.add_argument("--db", default=None,
+                       help="DB URL (예: sqlite:///data/debug/prod.db). 미지정 시 DATABASE_URL")
+    p_dbg.add_argument("-v", "--verbose", action="store_true", help="운행별 정류장 통과 시각 출력")
 
     return parser
 
@@ -265,6 +355,7 @@ def main(argv: list[str] | None = None) -> int:
         "arrival-loop": cmd_arrival_loop,
         "cache-refresh-loop": cmd_cache_refresh_loop,
         "crawl-timetable": cmd_crawl_timetable,
+        "debug-running": cmd_debug_running,
         "serve": cmd_serve,
     }
     # argparse가 required=True + 등록된 subparser만 허용하므로 KeyError 도달 불가

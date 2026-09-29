@@ -25,6 +25,44 @@ class VehicleRun:
 
 
 @dataclass
+class DroppedStop:
+    """노선 stop_ids에 없어 운행 재구성에서 제외된 정류장."""
+    stop_id: str
+    stop_name: str | None
+    count: int
+
+
+@dataclass
+class RunSplit:
+    """시간 간격 초과로 한 차량의 운행이 둘로 나뉜 지점."""
+    vehicle_no: str
+    before_idx: str   # 이전 run의 마지막 로그
+    after_idx: str    # 새 run의 첫 로그
+    gap_minutes: float
+
+
+@dataclass
+class StopOverwrite:
+    """같은 run 안에서 한 정류장을 다시 통과해 이전 시각이 덮어써진 경우."""
+    vehicle_no: str
+    stop_id: str
+    dropped: str      # 버려진 이전 "HH:MM"
+    kept: str         # 남은 나중 "HH:MM"
+
+
+@dataclass
+class RunsExplanation:
+    """parse_runs 결과 + 그리드에 드러나지 않는 재구성 과정 진단 정보."""
+    runs: list[VehicleRun]
+    total_rows: int = 0
+    unknown_route: bool = False
+    dropped_stops: list[DroppedStop] = field(default_factory=list)
+    unparsable_idx: list[str] = field(default_factory=list)
+    splits: list[RunSplit] = field(default_factory=list)
+    overwrites: list[StopOverwrite] = field(default_factory=list)
+
+
+@dataclass
 class RunningGrid:
     """정류장(행) × 운행 회차(열) 그리드."""
     stops_order: list[str]            # 정류장 ID 순서
@@ -80,21 +118,41 @@ def parse_runs(
     list[VehicleRun]
         F05 결함 수정: 마지막 운행 회차를 반드시 포함.
     """
+    return explain_runs(timelog_rows, route_id).runs
+
+
+def explain_runs(
+    timelog_rows,  # list[LogRow]
+    route_id: str,
+) -> RunsExplanation:
+    """parse_runs와 같은 재구성을 수행하면서 그 과정을 함께 기록한다.
+
+    그리드에는 드러나지 않는 정보(제외된 정류장, 파싱 불가 idx, 운행 분리 지점,
+    같은 run 내 재통과 덮어쓰기)를 돌려준다. parse_runs는 이 함수의 ``runs``만 쓰므로
+    두 결과는 항상 일치한다.
+    """
+    rows = list(timelog_rows)
     if route_id not in ROUTEID:
-        return []
+        return RunsExplanation(runs=[], total_rows=len(rows), unknown_route=True)
 
     _busno, _terminal, _dep, stop_ids = ROUTEID[route_id]
     stop_id_set = set(stop_ids)
+    explanation = RunsExplanation(runs=[], total_rows=len(rows))
+    dropped: dict[str, DroppedStop] = {}
 
     # 차량별 로그 그룹화
     vehicle_logs: dict[str, list] = {}
-    for row in timelog_rows:
+    for row in rows:
         # 미등록 stop_id 건너뜀
         if row.stop_id not in stop_id_set:
+            entry = dropped.setdefault(
+                row.stop_id, DroppedStop(row.stop_id, getattr(row, "stop_name", None), 0))
+            entry.count += 1
             continue
         vehicle_logs.setdefault(row.vehicle_no, []).append(row)
+    explanation.dropped_stops = sorted(dropped.values(), key=lambda d: -d.count)
 
-    runs: list[VehicleRun] = []
+    runs = explanation.runs
 
     for vehicle_no, logs in vehicle_logs.items():
         # idx(YYYYMMDD_HH:MM:SS) 기준 오름차순 정렬
@@ -102,17 +160,25 @@ def parse_runs(
 
         current_run_stops: dict[str, str] = {}
         prev_dt: datetime.datetime | None = None
+        prev_idx: str | None = None
 
         for log in logs:
             try:
                 curr_dt = _parse_timelog(log.idx)
             except (ValueError, AttributeError):
+                explanation.unparsable_idx.append(str(log.idx))
                 continue
 
             # 큰 시간 간격이면 현재 run을 저장하고 새 run 시작
             if prev_dt is not None:
                 gap_minutes = (curr_dt - prev_dt).total_seconds() / 60
                 if gap_minutes > _SPLIT_GAP_MINUTES:
+                    explanation.splits.append(RunSplit(
+                        vehicle_no=vehicle_no,
+                        before_idx=prev_idx,
+                        after_idx=log.idx,
+                        gap_minutes=gap_minutes,
+                    ))
                     if current_run_stops:
                         runs.append(VehicleRun(
                             vehicle_no=vehicle_no,
@@ -123,8 +189,16 @@ def parse_runs(
 
             # 통과 시각 기록 (HH:MM)
             time_str = curr_dt.strftime("%H:%M")
+            if log.stop_id in current_run_stops:
+                explanation.overwrites.append(StopOverwrite(
+                    vehicle_no=vehicle_no,
+                    stop_id=log.stop_id,
+                    dropped=current_run_stops[log.stop_id],
+                    kept=time_str,
+                ))
             current_run_stops[log.stop_id] = time_str
             prev_dt = curr_dt
+            prev_idx = log.idx
 
         # F05 결함 수정: 루프 종료 후 마지막 run도 반드시 추가
         if current_run_stops:
@@ -134,7 +208,7 @@ def parse_runs(
                 stops=dict(current_run_stops),
             ))
 
-    return runs
+    return explanation
 
 
 # ---------------------------------------------------------------------------
