@@ -17,7 +17,8 @@ audience: 이 저장소에서 작업하는 사람·AI 세션
  국토부 TAGO ──┤  worker-arrival (7s) ──┘                                 │
                │  worker-govtrack (15s) ─> bus_timelog (SQLite) + logs.tsv├─> web (gunicorn) ─> 브라우저
  특일정보 API ─┤  worker-cache-refresh ──> holiday_cache.json,            │     (HTMX 폴링 / /lite)
- 울산 시간표 ──┘   (하루 1회 02~03시)      data/timetable/*.json ─────────┘
+ 울산 시간표 ──┤   (하루 1회 02~03시)      data/timetable/*.json ─────────┤
+ TAGO 열차·지하철┘                          rail_timetable.json ───────────┘
                                           관리자 편집 JSON (data/*.json) ─┘
 ```
 
@@ -32,7 +33,7 @@ audience: 이 저장소에서 작업하는 사람·AI 세션
 | `web` | `python -m bushexa serve` (gunicorn sync, `BUSHEXA_WEB_WORKERS` 기본 2) | 요청 | 관리자 편집 파일, audit, lockout, recrawl 잡 |
 | `worker-govtrack` | `crawl-loop` | 15s, 01~05시 야간 60s | `bus_timelog`, `data/logs.tsv`, `govtrack_state.json`, `govtrack_status.json` |
 | `worker-arrival` | `arrival-loop` | 7s | `bus_arrival_cache`, `arrival_status.json` |
-| `worker-cache-refresh` | `cache-refresh-loop` | 600s 점검, 02~03시 KST 1회 갱신 | `holiday_cache.json`, `data/timetable/*.json` |
+| `worker-cache-refresh` | `cache-refresh-loop` | 600s 점검, 02~03시 KST 1회 갱신 (철도는 부팅 시에도 그날 미성공이면) | `holiday_cache.json`, `data/timetable/*.json`, `rail_timetable.json` |
 
 - 설정: [docker/supervisord.conf](../../docker/supervisord.conf), [docker/compose.yaml](../../docker/compose.yaml) (canonical podman 판은 루트 `compose.podman.yaml`).
 - 포트 **8017(호스트) → 8000(컨테이너)**, healthcheck 는 `/lite`.
@@ -87,6 +88,7 @@ audience: 이 저장소에서 작업하는 사람·AI 세션
 | `changelog.json` `[{"date","description"}]` (오래된 순) | services/changelog_editor | atomic | **추적** |
 | `holidays.json`(관리자 지정) / `holiday_cache.json`(API 캐시) | holiday_editor / holiday_service | atomic | 미추적 |
 | `via_overrides.json` | via_editor | atomic | 미추적 |
+| `rail_timetable.json` `{"trains": {"pairs": {"<출발>-<도착>": {"dates": {"YYYY-MM-DD": {"trains", "suspect"}}}}}, "metro": {"schedules": {"<역>:<U/D>:<01/02/03>": {"times"}}}}` | services/rail_timetable (cache-refresh·`crawl-rail`) | **locked_update_json** | ignore(런타임) |
 | `crawl_settings.json` (폴링 주기 3~600s) | services/crawl_settings | atomic | 미추적 |
 | `route_map_ab.json` `{"YYYY-MM-DD": {event: count}}` (노선도 A/B 노출·전환) | services/route_map_ab | locked | ignore |
 | `audit_log.json`, `admin_lockout.json`, `timetable_crawl_job.json` | audit_log, admin, recrawl_job | **locked_update_json** | 미추적 |

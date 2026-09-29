@@ -42,6 +42,52 @@ def _xml_reason_msg(text: str) -> str:
     return _xml_tag(text, "returnAuthMsg", "errMsg", "resultMsg") or text[:120].strip()
 
 
+def get_tago_json(url: str, api_key: str, params: dict, *, timeout: float) -> dict:
+    """TAGO(data.go.kr 1613000) JSON 호출 + 본문 검사 공용 경로. 정상이면 응답 dict.
+
+    버스·열차·지하철 클라이언트가 공유한다. 오류 형태 3가지를 모두 ``TagoError`` 로 올린다:
+    빈 본문 / XML(OpenAPI_ServiceResponse) / JSON 게이트웨이 봉투(신규 GW 엔드포인트는
+    키·서비스 오류를 HTTP 400·403 + JSON ``OpenAPI_ServiceResponse`` 로 준다).
+    """
+    resp = get_with_service_key(url, api_key, params, timeout=timeout)
+    text = resp.text or ""
+    stripped = text.lstrip()
+
+    # TAGO 장애·키오류·쿼터초과는 흔히 본문이 비거나 XML(OpenAPI_ServiceResponse)로 온다.
+    # 그대로 resp.json()하면 "Expecting value: line 1 column 1 (char 0)"라는 불투명한
+    # JSONDecodeError가 나므로, 파싱 전에 감지해 원인이 담긴 TagoError로 변환한다.
+    if not stripped:
+        raise TagoError("EMPTY", f"빈 응답 (HTTP {resp.status_code})")
+    if stripped[0] == "<":
+        raise TagoError(
+            _xml_reason_code(text),
+            f"비정상 XML 응답 (HTTP {resp.status_code}): {_xml_reason_msg(text)}",
+        )
+    try:
+        data = resp.json()
+    except ValueError as exc:
+        raise TagoError(
+            "NON_JSON",
+            f"JSON 파싱 실패 (HTTP {resp.status_code}): {text[:120]!r}",
+        ) from exc
+
+    gateway = data.get("OpenAPI_ServiceResponse") if isinstance(data, dict) else None
+    if isinstance(gateway, dict):
+        header = gateway.get("cmmMsgHeader") or {}
+        code = str(header.get("returnReasonCode") or "GATEWAY_ERROR")
+        msg = header.get("returnAuthMsg") or header.get("errMsg") or ""
+        raise TagoError(code, f"게이트웨이 오류 (HTTP {resp.status_code}): {code} {msg}".strip())
+
+    try:
+        header = data["response"]["header"]
+        result_code = header["resultCode"]
+    except (KeyError, TypeError) as exc:
+        raise TagoError("NO_HEADER", f"응답에 header 없음: {text[:120]!r}") from exc
+    if result_code != "00":
+        raise TagoError(result_code, f"{result_code} {header.get('resultMsg', '')}".strip())
+    return data
+
+
 @dataclass(frozen=True)
 class BusLocation:
     node_id: str  # USB prefix 제거됨
@@ -138,36 +184,7 @@ class TagoClient:
         }
 
     def _get_json(self, url: str, params: dict) -> dict:
-        resp = get_with_service_key(url, self.api_key, params, timeout=self.timeout)
-        text = resp.text or ""
-        stripped = text.lstrip()
-
-        # TAGO 장애·키오류·쿼터초과는 흔히 본문이 비거나 XML(OpenAPI_ServiceResponse)로 온다.
-        # 그대로 resp.json()하면 "Expecting value: line 1 column 1 (char 0)"라는 불투명한
-        # JSONDecodeError가 나므로, 파싱 전에 감지해 원인이 담긴 TagoError로 변환한다.
-        if not stripped:
-            raise TagoError("EMPTY", f"빈 응답 (HTTP {resp.status_code})")
-        if stripped[0] == "<":
-            raise TagoError(
-                _xml_reason_code(text),
-                f"비정상 XML 응답 (HTTP {resp.status_code}): {_xml_reason_msg(text)}",
-            )
-        try:
-            data = resp.json()
-        except ValueError as exc:
-            raise TagoError(
-                "NON_JSON",
-                f"JSON 파싱 실패 (HTTP {resp.status_code}): {text[:120]!r}",
-            ) from exc
-
-        try:
-            header = data["response"]["header"]
-            result_code = header["resultCode"]
-        except (KeyError, TypeError) as exc:
-            raise TagoError("NO_HEADER", f"응답에 header 없음: {text[:120]!r}") from exc
-        if result_code != "00":
-            raise TagoError(result_code, f"{result_code} {header.get('resultMsg', '')}".strip())
-        return data
+        return get_tago_json(url, self.api_key, params, timeout=self.timeout)
 
     def fetch_bus_locations(self, route_id: str, *, page: int = 1, rows: int = 70) -> TagoResponse:
         data = self._get_json(self.base_url, self._params(route_id, page, rows))

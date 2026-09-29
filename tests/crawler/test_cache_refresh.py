@@ -209,3 +209,57 @@ def test_refresh_holidays_writes_cache_for_current_and_next_month(app_config_tes
     assert result == {"20260606"}
     cache = HolidayCache(default_holiday_cache_path(app_config_test.data_dir))
     assert cache.load() == {"20260606"}
+
+
+def test_refresh_all_runs_rail_stale_only_on_boot_and_isolates_failure(monkeypatch):
+    """refresh_all 은 철도 갱신을 부팅(do_timetable=False)에는 only_if_stale 로, 새벽에는 강제로 부르고,
+    철도 실패가 버스 시간표 재크롤을 막지 않는다."""
+    from bushexa.crawler import cache_refresh
+
+    rail_calls, tt_calls = [], []
+    monkeypatch.setattr(cache_refresh, "refresh_holidays", lambda *a, **k: set())
+
+    def bad_rail(config, *, clock=None, only_if_stale=False):
+        rail_calls.append(only_if_stale)
+        raise RuntimeError("rail down")
+
+    monkeypatch.setattr(cache_refresh, "refresh_rail", bad_rail)
+    monkeypatch.setattr(cache_refresh, "refresh_timetables",
+                        lambda *a, **k: tt_calls.append(1) or [])
+    cache_refresh.refresh_all(None, do_timetable=False)
+    cache_refresh.refresh_all(None, do_timetable=True)
+    assert rail_calls == [True, False]
+    assert tt_calls == [1]
+
+
+def test_refresh_rail_isolates_train_failure_and_skips_fresh_sections(tmp_path):
+    """열차 조회 전체 실패가 동해선 갱신을 막지 않고, only_if_stale 면 오늘 성공한 절은 건너뛴다."""
+    from types import SimpleNamespace
+
+    from bushexa.crawler.cache_refresh import refresh_rail
+    from bushexa.services.rail_timetable import default_rail_path, refreshed_today
+
+    class _Trains:
+        calls = 0
+
+        def fetch_trains(self, *a):
+            _Trains.calls += 1
+            raise RuntimeError("down")
+
+    class _Metro:
+        calls = 0
+
+        def fetch_station_schedule(self, *a):
+            _Metro.calls += 1
+            return []
+
+    cfg = SimpleNamespace(data_dir=tmp_path, api_key="k")
+    clock = _Clock(datetime(2026, 9, 29, 2, 30, tzinfo=KST))
+    refresh_rail(cfg, clock=clock, train_client=_Trains(), subway_client=_Metro())
+    path = default_rail_path(tmp_path)
+    assert not refreshed_today(path, "trains", clock.now().date())
+    assert refreshed_today(path, "metro", clock.now().date())
+    metro_calls = _Metro.calls
+    refresh_rail(cfg, clock=clock, only_if_stale=True, train_client=_Trains(), subway_client=_Metro())
+    assert _Metro.calls == metro_calls          # 오늘 성공 → 건너뜀
+    assert _Trains.calls > 0
