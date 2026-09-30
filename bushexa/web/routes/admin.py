@@ -1773,3 +1773,5 @@ def worker_status() -> str:
         arrival_stale=_is_stale(arrival),
     )
 
+
+from bushexa.web.routes import admin_rail  # noqa: E402,F401  (/admin/rail 라우트를 bp 에 붙인다)

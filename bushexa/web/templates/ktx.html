@@ -124,12 +124,10 @@
     </div>
     {% endfor %}
     <p class="busan-note ktx-legend"><b>{{ t('ktx.legend.bold') }}</b> · {{ t('ktx.legend.est') }} · <span class="ktx-tight-mark">!</span> {{ t('ktx.tight.' ~ table.direction, transfer=table.transfer_min) }}</p>
-    {% if table.alt_state == 'ok' %}<p class="busan-note"><span class="ktx-best-key">09:00</span> {{ t('ktx.legend.best.' ~ table.direction) }} · {{ t('ktx.legend.5001', transfer=table.transfers.jinmok) }}</p>{% endif %}
-    {% if table.alt_proxied %}<div class="info-banner">{{ t('ktx.proxied_note') }}</div>{% endif %}
+    {% if table.alt_state == 'ok' %}<p class="busan-note">{{ t('ktx.legend.best.' ~ table.direction) }} · {{ t('ktx.legend.5001') }}</p>{% endif %}
     {% if table.stations %}<p class="busan-note">{{ t('ktx.legend.via') }}{% if table.stops_unknown %} {{ t('ktx.stops_unknown', n=table.stops_unknown) }}{% endif %}</p>{% endif %}
     {% endif %}
     {% if table.skipped %}<p class="busan-note">{{ t('ktx.skipped.' ~ table.direction, n=table.skipped) }}</p>{% endif %}
-    <p class="busan-note">{{ t('ktx.note.' ~ table.direction) }}</p>
 </section>
 
 {% if profile and profile.period %}

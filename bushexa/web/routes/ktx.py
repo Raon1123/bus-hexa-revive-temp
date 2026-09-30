@@ -5,7 +5,7 @@ GET /ktx?dir=out|in&to=busan|seoul|suseo&day=0|1|2&ts=5&tj=5
   - dir=in: KTX(부산·서울·수서발) → 울산역 → UNIST. 열차마다 이어 타는 첫 버스.
   - day 를 주지 않으면 오늘의 요일구분.
   - ts / tj: 환승 최소 시간(분) — ts 울산역 버스 정류장 ↔ KTX, tj 진목회관 길 건너 버스 ↔ 버스.
-    기본 5분, 0~``KTX_TRANSFER_MAX_MIN``.
+    기본은 관리자 설정(ktx_settings.json), 없으면 5분. 0~``KTX_TRANSFER_MAX_MIN``.
 
 공개 화면이므로 외부 API 를 부르지 않는다(ADR-010). 철도는 rail_timetable.json, 버스는
 timetable_provider_for, 소요는 ktx_leg_profile.json 만 읽는다.
@@ -18,6 +18,7 @@ from bushexa.data.constants import KTX_CONNECT_DESTS, KTX_TRANSFER_MAX_MIN
 from bushexa.domain.ktx_connect import DAYS, DIRECTIONS, Transfers, split_blocks
 from bushexa.services.holiday_service import read_effective_holidays
 from bushexa.services.ktx_connections import build_connect_table
+from bushexa.services.ktx_settings import KtxSettingsStore, default_ktx_settings_path
 from bushexa.time_utils import KSTClock, get_weekday
 
 bp = Blueprint("ktx", __name__)
@@ -49,12 +50,14 @@ def ktx_page() -> str:
     day_arg = request.args.get("day", "")
     day = int(day_arg) if day_arg.isdigit() and int(day_arg) in DAYS else today_day
 
-    base = Transfers()
-    transfers = Transfers(station=_minutes_arg("ts", base.station), jinmok=_minutes_arg("tj", base.jinmok))
+    saved = KtxSettingsStore(default_ktx_settings_path(config.data_dir)).effective()
+    transfers = Transfers(station=_minutes_arg("ts", saved["transfer_station_min"]),
+                          jinmok=_minutes_arg("tj", saved["transfer_jinmok_min"]))
 
     table, errors, profile = build_connect_table(
         config, today, holiday_set, direction=direction, dest=dest, day=day, transfers=transfers)
     return render_template(
         "ktx.html", table=table, blocks=split_blocks(table.rows, table.direction), errors=errors,
-        profile=profile, today_day=today_day, transfer_max=KTX_TRANSFER_MAX_MIN, dests=tuple(KTX_CONNECT_DESTS), days=DAYS,
+        profile=profile, today_day=today_day, transfer_max=KTX_TRANSFER_MAX_MIN,
+        dests=tuple(KTX_CONNECT_DESTS), days=DAYS,
     )

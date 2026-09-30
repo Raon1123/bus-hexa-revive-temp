@@ -154,11 +154,17 @@ def stop_pattern_dates(targets: list[date], holiday_set: set[str] | None) -> lis
 
 def refresh_trains(client, path, *, clock: Clock | None = None,
                    days: int = RAIL_HORIZON_DAYS,
-                   holiday_set: set[str] | None = None) -> RefreshSummary:
+                   holiday_set: set[str] | None = None,
+                   on_progress=None) -> RefreshSummary:
     """``RAIL_PAIRS`` × (오늘..오늘+days-1) 열차를 받아 ``trains`` 절에 병합한다.
 
     ``holiday_set`` 은 정차역 조회 날짜(요일구분별 첫 날짜)를 고르는 데만 쓴다.
+    ``on_progress`` 는 조회마다 ``{"stage", "label", "ok"}`` 를 받는다(관리자 진행 표시).
     """
+    def _progress(stage: str, label: str, ok: bool) -> None:
+        if on_progress is not None:
+            on_progress({"stage": stage, "label": label, "ok": ok})
+
     clock = clock or KSTClock()
     now = clock.now()
     today = now.date()
@@ -170,15 +176,19 @@ def refresh_trains(client, path, *, clock: Clock | None = None,
     for dep_id, arr_id in RAIL_PAIRS:
         candidates = RAIL_STOP_CANDIDATES.get((dep_id, arr_id))
         for d in stop_dates if candidates else []:
-            stop_maps[(pair_key(dep_id, arr_id), d.isoformat())] = _fetch_stop_map(
-                client, dep_id, candidates, d)
+            smap = _fetch_stop_map(client, dep_id, candidates, d)
+            stop_maps[(pair_key(dep_id, arr_id), d.isoformat())] = smap
+            _progress("stops", f"{RAIL_STATIONS.get(dep_id, dep_id)}→{RAIL_STATIONS.get(arr_id, arr_id)} "
+                               f"{d} 정차역", smap is not None)
         for d in targets:
             label = f"{RAIL_STATIONS.get(dep_id, dep_id)}→{RAIL_STATIONS.get(arr_id, arr_id)} {d}"
             try:
                 fetched[(pair_key(dep_id, arr_id), d.isoformat())] = client.fetch_trains(dep_id, arr_id, d)
+                _progress("trains", label, True)
             except Exception as exc:  # 한 날짜 실패가 나머지를 막지 않게(ADR-013)
                 logger.warning("열차 시간표 조회 실패(기존 유지) %s: %s", label, exc)
                 fetched[(pair_key(dep_id, arr_id), d.isoformat())] = exc
+                _progress("trains", label, False)
 
     summary = RefreshSummary()
 
@@ -229,7 +239,7 @@ def refresh_trains(client, path, *, clock: Clock | None = None,
     return summary
 
 
-def refresh_metro(client, path, *, clock: Clock | None = None) -> RefreshSummary:
+def refresh_metro(client, path, *, clock: Clock | None = None, on_progress=None) -> RefreshSummary:
     """``METRO_QUERIES`` × ``METRO_DAY_TYPES`` 역별 시간표를 받아 ``metro`` 절에 병합한다."""
     clock = clock or KSTClock()
     now = clock.now()
@@ -240,9 +250,14 @@ def refresh_metro(client, path, *, clock: Clock | None = None) -> RefreshSummary
             key = metro_key(station_id, direction, day_type)
             try:
                 fetched[key] = client.fetch_station_schedule(station_id, day_type, direction)
+                ok = True
             except Exception as exc:
                 logger.warning("동해선 시간표 조회 실패(기존 유지) %s: %s", key, exc)
                 fetched[key] = exc
+                ok = False
+            if on_progress is not None:
+                on_progress({"stage": "metro", "label": f"동해선 {METRO_STATIONS.get(station_id, station_id)} "
+                                                       f"{direction} {day_type}", "ok": ok})
 
     summary = RefreshSummary()
 

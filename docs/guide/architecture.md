@@ -89,7 +89,9 @@ audience: 이 저장소에서 작업하는 사람·AI 세션
 | `holidays.json`(관리자 지정) / `holiday_cache.json`(API 캐시) | holiday_editor / holiday_service | atomic | 미추적 |
 | `via_overrides.json` | via_editor | atomic | 미추적 |
 | `rail_timetable.json` `{"trains": {"pairs": {"<출발>-<도착>": {"dates": {"YYYY-MM-DD": {"trains", "suspect"}}}}}, "metro": {"schedules": {"<역>:<U/D>:<01/02/03>": {"times"}}}}` | services/rail_timetable (cache-refresh·`crawl-rail`) | **locked_update_json** | ignore(런타임) |
-| `ktx_leg_profile.json` `{"period", "sources", "legs": {구간: {"by_day": {"0/1/2": {"all", "hours": {H: {n,p10,p50,p90}}}}}}}` (513 구간 소요, /ktx 입력) | services/leg_profile (CLI `build-leg-profile`, 수동) | atomic | **추적** |
+| `ktx_leg_profile.json` `{"period", "sources", "legs": {구간: {"by_day": {"0/1/2": {"all", "hours": {H: {n,p10,p50,p90}}}}}}}` (513 구간 소요, /ktx 입력) | services/leg_profile (CLI `build-leg-profile`, `/admin/rail` 후보→적용) | atomic | **추적** |
+| `ktx_leg_profile.candidate.json` / `.prev.json` (관리자 재계산 후보·이전 값), `rail_crawl_*`·`ktx_profile_*` 잡 메타·진행 | admin_rail, recrawl_job | atomic / locked | ignore |
+| `ktx_settings.json` (연계표 환승 최소 시간 기본값 0~30분) | services/ktx_settings (`/admin/rail`) | atomic | 미추적 |
 | `crawl_settings.json` (폴링 주기 3~600s) | services/crawl_settings | atomic | 미추적 |
 | `route_map_ab.json` `{"YYYY-MM-DD": {event: count}}` (노선도 A/B 노출·전환) | services/route_map_ab | locked | ignore |
 | `notices.json` 기한형 공지 (표시 기간·시행일·대상 화면/노선). 없거나 깨지면 seed `bushexa/data/notices.seed.json` | services/notices, `/admin/notices` | **locked_update_json** | 미추적 |
@@ -99,7 +101,7 @@ audience: 이 저장소에서 작업하는 사람·AI 세션
 | `manager_password.txt` (Argon2id 해시) | services/auth | atomic | **ignore — 절대 커밋 금지** |
 | `bushexa.db*`, `timetable_backup/`, `debug/`(운영 DB 스냅샷) | db, timetable_editor, debug-running | — | ignore |
 
-- 백업 화이트리스트([services/backup.py](../../bushexa/services/backup.py)): `holidays.json`, `special_timetables.json`, `via_overrides.json`, `crawl_settings.json`, `notices.json`, `timetable/special/**`. `notices.json` 은 복구 때 항목 단위까지 검증한다.
+- 백업 화이트리스트([services/backup.py](../../bushexa/services/backup.py)): `holidays.json`, `special_timetables.json`, `via_overrides.json`, `crawl_settings.json`, `notices.json`, `ktx_settings.json`, `timetable/special/**`. `notices.json` 은 복구 때 항목 단위까지 검증한다.
 - `bushexa/web/static/data/changelog.json` 은 **시드(fallback)** 이며 2025-08 이후 갱신되지 않았다. 변경이력은 `data/changelog.json` 을 고친다.
 
 ## 5. 핵심 불변식 (Invariants)

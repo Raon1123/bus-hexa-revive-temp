@@ -89,7 +89,7 @@ audience: 화면·템플릿·CSS·노선도를 수정하는 사람·AI 세션
 | 칩 | `.bus-btn`, `.day-btn`(.active) |
 | 카드 | `.bus-card-grid`(3열), `.bus-card`, `.bus-card-header`(배경 `var(--route)`), `.entry-live`/`.entry-timetable`, 막차 후 `.bus-card.last-bus`(opacity .6) |
 | 정보 페이지 | `.info-table`, `.changelog-list`, `.route-note`, 노선도 `.route-view-toggle`, `.route-view`, `.route-map`, `.route-svg`(`.route-station`, `.route-pill-btn`, `.is-dim`), `.route-chip`, `.route-map-panel`, 목록 `.route-lines`, `.route-stops`(info.css) |
-| 관리자 | `.admin-table`, `.admin-form`, `.btn-danger-sm`(admin.css) |
+| 관리자 | `.admin-table`, `.admin-form`, `.btn-danger-sm`(admin.css). 몇 분 걸리는 작업은 `RecrawlJob(name=…)` + `/admin/<…>/job/<kind>` 스냅샷 폴링(예: `/admin/rail`) — SSE 는 sync 워커를 붙잡는다 |
 
 알려진 충돌: `.btn-primary` 가 `style.css`(`#1a237e`)와 `admin.css`(`#3182ce`)에서 다르다. 새 버튼은 기존 클래스를 재사용하고 새 색을 만들지 않는다.
 

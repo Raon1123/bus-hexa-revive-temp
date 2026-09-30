@@ -218,3 +218,18 @@ def test_stop_pattern_dates_adds_first_date_of_each_day_type():
     got = stop_pattern_dates(targets, {"20261003"})
     assert got == [date(2026, 9, 28), date(2026, 9, 29), date(2026, 9, 30),
                    date(2026, 10, 3), date(2026, 10, 10)]
+
+
+def test_refresh_trains_reports_progress_per_lookup(tmp_path):
+    """on_progress 는 열차 조회마다(성공·실패 모두) 호출된다 — 관리자 진행 표시."""
+    from bushexa.services.rail_timetable import refresh_trains
+
+    class _Fail:
+        def fetch_trains(self, dep, arr, d):
+            raise RuntimeError("down")
+
+    events = []
+    refresh_trains(_Fail(), tmp_path / "r.json", clock=_Clock(TODAY),
+                   days=1, on_progress=events.append)
+    trains = [e for e in events if e["stage"] == "trains"]
+    assert len(trains) == len(RAIL_PAIRS) and not any(e["ok"] for e in trains)

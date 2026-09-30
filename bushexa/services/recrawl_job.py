@@ -67,20 +67,25 @@ class RecrawlJob:
         잡 메타·진행 JSONL이 저장될 디렉터리.
     """
 
-    def __init__(self, crawl_fn, *, data_dir: Path) -> None:
+    def __init__(self, crawl_fn, *, data_dir: Path, name: str = "timetable_crawl") -> None:
+        """``name`` 은 잡 파일 이름 접두사(``<name>_job.json``·``<name>_progress.jsonl``).
+
+        같은 클래스로 서로 독립된 잡(시간표 재크롤, 철도 재수집, 구간 소요 재계산)을 돌린다.
+        """
         self._crawl_fn = crawl_fn
         self._data_dir = Path(data_dir)
+        self._name = name
         self._data_dir.mkdir(parents=True, exist_ok=True)
 
     # ── 파일 경로 헬퍼 ────────────────────────────────────────────
 
     @property
     def _meta_path(self) -> Path:
-        return self._data_dir / "timetable_crawl_job.json"
+        return self._data_dir / f"{self._name}_job.json"
 
     @property
     def _progress_path(self) -> Path:
-        return self._data_dir / "timetable_crawl_progress.jsonl"
+        return self._data_dir / f"{self._name}_progress.jsonl"
 
     # ── 내부 상태 관리 ────────────────────────────────────────────
 
@@ -196,10 +201,11 @@ class RecrawlJob:
 
     # ── 공개 API (TimetableCrawlJob 인터페이스 호환) ───────────────
 
-    def start(self, *, vacation: bool = False) -> str:
+    def start(self, *, vacation: bool = False, **params) -> str:
         """재크롤 잡을 시작하고 job_id를 반환한다.
 
         이미 실행 중인 잡이 있으면 ConflictError 발생 (크로스 워커 가드 #6).
+        ``params`` 는 그대로 ``crawl_fn`` 키워드 인자로 넘긴다(예: 철도 재수집 일수).
         백그라운드 스레드가 진행마다 JSONL에 append하고 heartbeat를 주기적으로 갱신.
         """
         job_id = uuid.uuid4().hex
@@ -221,11 +227,11 @@ class RecrawlJob:
                         self._update_heartbeat(job_id)
                         hb_time = now
 
-                crawl_fn(vacation=vacation, on_progress=on_progress)
+                crawl_fn(vacation=vacation, on_progress=on_progress, **params)
                 self._mark_done(job_id)
                 self._append_progress("done", None)
             except Exception as exc:
-                logger.error("시간표 재크롤 실패: %s", exc)
+                logger.error("%s 잡 실패: %s", self._name, redact_secrets(str(exc)))
                 self._mark_error(job_id, exc)
                 self._append_progress("error", str(exc))
 
@@ -320,6 +326,30 @@ class RecrawlJob:
                 return
 
             time.sleep(_POLL_INTERVAL)
+
+    def snapshot(self, limit: int = 30) -> dict:
+        """폴링용 상태(블로킹 없음): 메타 + 마지막 ``limit`` 개 진행 이벤트."""
+        meta = self._load_meta()
+        events: list[dict] = []
+        try:
+            with open(self._progress_path, "r", encoding="utf-8") as f:
+                lines = f.readlines()
+        except OSError:
+            lines = []
+        for line in lines[-limit:]:
+            try:
+                events.append(json.loads(line))
+            except ValueError:
+                continue
+        return {
+            "job_id": meta.get("job_id"),
+            "running": self._is_alive(meta),
+            "done": bool(meta.get("done")),
+            "error": meta.get("error"),
+            "started_at": meta.get("started_at"),
+            "heartbeat": meta.get("heartbeat"),
+            "events": events,
+        }
 
     @property
     def is_running(self) -> bool:
