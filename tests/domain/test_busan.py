@@ -106,3 +106,36 @@ def test_nopo_lists_743_753_unist_departures_in_time_order():
     """노포 루트는 743·753 UNIST 출발을 시각순으로 합친다."""
     snap = build_busan_snapshot(NOW, 0, timetable_provider=_provider(BASE_TT))
     assert [(r.busno, r.unist_dep) for r in snap.nopo_buses] == [("753", "08:05"), ("743", "08:10")]
+
+
+def _arr(route_id, seconds, vno="울산71자0000"):
+    return Arrival(route_id=route_id, present_stop="삼호교", vehicle_no=vno, arrival_time=seconds)
+
+
+def test_nopo_live_1224_at_transfer_stop_only_nopo_direction():
+    """좋은삼정병원앞 도착 캐시에서 1224 노포 방면(195000247)만 골라 시각순으로 보인다. 다른 노선은 제외."""
+    snap = build_busan_snapshot(
+        NOW, 0, timetable_provider=_provider(BASE_TT),
+        transfer_arrivals=[_arr("195000247", 900), _arr("196000374", 60), _arr("195000247", 300)],
+    )
+    assert [(b.at, b.eta_min) for b in snap.nopo_1224] == [("08:05", 5), ("08:15", 15)]
+
+
+def test_nopo_live_transfer_catches_first_1224_after_feeder_with_margin():
+    """743 이 4분 후 좋은삼정병원앞에 서면, 1분 여유 뒤 오는 첫 1224(6분 후)를 잇는다. 4분 30초 후 1224 는 놓친다."""
+    snap = build_busan_snapshot(
+        NOW, 0, timetable_provider=_provider(BASE_TT),
+        transfer_arrivals=[_arr("195000216", 240), _arr("195000247", 270), _arr("195000247", 360),
+                           _arr("195000222", 1200)],
+    )
+    rows = [(r.busno, r.feeder.at, r.bus_1224.at if r.bus_1224 else None) for r in snap.nopo_live]
+    assert rows == [("743", "08:04", "08:06"), ("753", "08:20", None)]
+
+
+def test_nopo_live_ignores_uni_direction_feeders():
+    """743·753 UNIST 방면 route_id 는 환승 연결에 넣지 않는다(노포 방면 정류장이 아님)."""
+    snap = build_busan_snapshot(
+        NOW, 0, timetable_provider=_provider(BASE_TT),
+        transfer_arrivals=[_arr("195000215", 120), _arr("195000221", 180)],
+    )
+    assert snap.nopo_live == [] and snap.nopo_1224 == []

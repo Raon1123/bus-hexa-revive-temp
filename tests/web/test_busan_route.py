@@ -110,3 +110,22 @@ def test_board_marquee_lists_stops_then_destination(client):
     html = c.get("/seoul?view=board").data.decode()
     assert "<span>동대구 - 대전 - 서울</span>" in html
     assert "정차 →" not in html
+
+
+def test_busan_page_shows_1224_live_at_samjeong_hospital(client, tmp_sqlite_db):
+    """arrival 워커가 좋은삼정병원앞(193030929) 캐시에 1224·743 을 넣어 두면 /busan 노포 루트에 실시간 환승을 보인다."""
+    c, _ = client
+    from bushexa.db.connection import create_connection
+    from bushexa.db.repo_arrival import BusArrivalRepo
+    from bushexa.db.schema import create_schema
+    from bushexa.time_utils import KSTClock
+    conn = create_connection(f"sqlite:///{tmp_sqlite_db}")
+    create_schema(conn)
+    BusArrivalRepo(conn).upsert("193030929", [
+        {"route_id": "195000216", "present_stop": "굴화마을", "vehicle_no": "a", "arrival_time": 240},
+        {"route_id": "195000247", "present_stop": "삼호교", "vehicle_no": "b", "arrival_time": 600},
+    ], KSTClock().now().isoformat())
+    html = c.get("/busan").data.decode()
+    assert "좋은삼정병원앞 1224(노포 방면) 실시간" in html
+    assert "10분 후" in html and "6분 대기" in html
+    assert "준비 중" not in html

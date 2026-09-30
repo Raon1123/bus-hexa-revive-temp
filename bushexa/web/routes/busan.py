@@ -13,6 +13,7 @@ from flask import Blueprint, current_app, render_template, request
 
 from bushexa.data.constants import (
     BUSAN_KTX_TRANSFER_MIN,
+    BUSAN_NOPO_TRANSFER_STOP_ID,
     BUSAN_UNIST_TO_ULSAN_STATION_MIN,
     METRO_QUERIES,
     RAIL_BUJEON,
@@ -52,10 +53,13 @@ def _build_snapshot():
     day_type = metro_day_type(today, holiday_set)
 
     arrivals, fetched_at, errors = [], None, []
+    transfer, transfer_at = [], None
     try:
         client = arrival_client(config)
         arrivals = client.fetch_arrivals(UNIST_VIA_STOP_ID)
         fetched_at = client.last_fetched_at(UNIST_VIA_STOP_ID)
+        transfer = client.fetch_arrivals(BUSAN_NOPO_TRANSFER_STOP_ID)
+        transfer_at = client.last_fetched_at(BUSAN_NOPO_TRANSFER_STOP_ID)
     except Exception as exc:  # 캐시 장애여도 시간표·철도 안내는 보여 준다(500 금지)
         log.warning("부산 페이지 도착 캐시 조회 실패: %s", exc)
         errors.append("arrival")
@@ -65,6 +69,8 @@ def _build_snapshot():
         timetable_provider=timetable_provider_for(config, today, holiday_set),
         unist_arrivals=arrivals,
         arrival_fetched_at=fetched_at,
+        transfer_arrivals=transfer,
+        transfer_fetched_at=transfer_at,
         ktx_day=trains_on(store, RAIL_ULSAN, RAIL_BUSAN, today),
         intercity_day=trains_on(store, RAIL_TAEHWAGANG, RAIL_BUJEON, today),
         metro_to_bexco=metro_trips(store, metro_origin, bexco_id, day_type),

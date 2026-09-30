@@ -76,7 +76,41 @@
         <span class="busan-dest">🚌 {{ t('busan.r2.title') }}</span>
         <span class="busan-via">{{ t('busan.r2.via') }}</span>
     </header>
-    <div class="info-banner">{{ t('busan.r2.pending') }}</div>
+
+    <h3>{{ t('busan.r2.live_1224') }}</h3>
+    {% if snapshot.nopo_1224 %}
+    <p class="busan-origin">
+        {% for b in snapshot.nopo_1224 %}<span class="busan-chip route-1224"><b>{{ b.at }}</b> {{ t('busan.in_min', min=b.eta_min) }}</span>{% endfor %}
+    </p>
+    {% else %}
+    <p class="empty-state">{{ t('busan.r2.no_live_1224') }}</p>
+    {% endif %}
+
+    <h3>{{ t('busan.r2.live_transfer') }}</h3>
+    {% if snapshot.nopo_live %}
+    <table class="timetable busan-table">
+        <thead><tr>
+            <th>{{ t('busan.col.bus') }}</th><th>{{ t('busan.col.transfer_arr') }}</th><th>{{ t('busan.col.bus_1224') }}</th>
+        </tr></thead>
+        <tbody>
+        {% for r in snapshot.nopo_live %}
+        <tr>
+            <td><span class="busan-busno route-{{ r.busno }}">{{ r.busno }}</span></td>
+            <td><strong>{{ r.feeder.at }}</strong> <span class="busan-sub">{{ t('busan.in_min', min=r.feeder.eta_min) }}</span></td>
+            {% if r.bus_1224 %}
+            <td>{{ r.bus_1224.at }} <span class="busan-sub">{{ t('busan.r2.wait_min', min=r.bus_1224.eta_min - r.feeder.eta_min) }}</span></td>
+            {% else %}
+            <td class="busan-muted">{{ t('busan.r2.no_1224_yet') }}</td>
+            {% endif %}
+        </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p class="empty-state">{{ t('busan.r2.no_live_feeder') }}</p>
+    {% endif %}
+
+    <h3>{{ t('busan.r2.unist_dep') }}</h3>
     {% if snapshot.nopo_buses %}
     <p class="busan-origin">
         {% for r in snapshot.nopo_buses %}<span class="busan-chip route-{{ r.busno }}"><b>{{ r.busno }}</b> {{ r.unist_dep }}</span>{% endfor %}
@@ -84,6 +118,7 @@
     {% else %}
     <p class="empty-state">{{ t('busan.no_more_buses') }}</p>
     {% endif %}
+    <p class="busan-note">{{ t('busan.r2.note') }}</p>
 </section>
 
 {# ── 루트 3: 버스 → 태화강역 → 동해선 ── #}
