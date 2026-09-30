@@ -1,0 +1,175 @@
+{% extends "admin/_admin_base.html" %}
+
+{% block admin_title %}공지 관리{% endblock %}
+{% block page_title %}공지 관리{% endblock %}
+
+{% set status_label = {"active": "표시 중", "scheduled": "예정", "expired": "만료", "disabled": "꺼짐"} %}
+{% set phase_label = {"upcoming": "시행 전", "effective": "시행 후"} %}
+{% set kind_label = {"info": "안내", "route_change": "노선 변경", "warning": "주의", "suspension": "운행 중단"} %}
+{% set surface_label = {"board": "출발 게시판", "lite": "게시판 Lite", "unist": "UNIST 출발", "stops": "정류소별",
+                        "timetable": "전체 시간표", "busno": "버스번호별", "info": "버스정보", "running": "운행 기록"} %}
+
+{% block content %}
+<h2>기한형 공지 관리</h2>
+<p>공지는 <strong>표시 기간</strong>(시작~종료) 동안만 공개 화면 상단에 나타나고, 종료일이 지나면 자동으로 사라집니다.
+<strong>시행일</strong>을 넣으면 그 시각부터 '시행 후 문구'로 바뀝니다. 문구의 <code>{date}</code>는 시행일(없으면 표시 시작일)을
+'10월 3일' / 'Oct 3' 형식으로, <code>{dow}</code>는 그 요일로 바꿔 줍니다.</p>
+
+{% if health.corrupt %}
+<p class="error-msg"><strong>공지 파일(notices.json)을 읽지 못했습니다.</strong> 공개 화면에는 기본(seed) 공지를 대신 보여 주고 있으며,
+파일을 고치거나 백업에서 복구하기 전까지 저장이 막힙니다.</p>
+{% elif health.rejected %}
+<div class="error-msg"><strong>공지 파일에 무시된 항목이 있습니다.</strong> 이 항목들은 공개 화면에 나오지 않고, 고치기 전까지 저장이 막힙니다(저장하면 사라지기 때문).
+    <ul>{% for r in health.rejected %}<li>{{ r }}</li>{% endfor %}</ul>
+</div>
+{% endif %}
+{% if health.source == 'seed' and not health.corrupt %}
+<p>아직 관리자 편집본이 없어 배포 이미지의 기본 공지를 보여 주고 있습니다. 처음 저장하면 기본 공지가 편집본으로 옮겨집니다.</p>
+{% endif %}
+
+{% if seed_drift %}
+<section class="notice-admin-drift">
+    <h3>배포 이미지의 기본 공지와 다른 항목</h3>
+    <p>편집본이 생긴 뒤에는 기본 공지(seed)가 자동으로 반영되지 않습니다. 필요하면 가져오세요.</p>
+    <ul>
+    {% for d in seed_drift %}
+        <li><code>{{ d.entry.id }}</code> — {{ '편집본에 없음' if d.state == 'missing' else '내용이 다름' }}:
+            {{ d.entry.text.ko }}
+            <form method="post" action="{{ url_for('admin.notices_import_seed') }}" class="notice-admin-inline">
+                <input type="hidden" name="csrf_token" value="{{ session['csrf_token'] }}">
+                <input type="hidden" name="id" value="{{ d.entry.id }}">
+                <button type="submit" class="btn-primary">기본 공지로 {{ '추가' if d.state == 'missing' else '덮어쓰기' }}</button>
+            </form>
+        </li>
+    {% endfor %}
+    </ul>
+</section>
+{% endif %}
+
+<section>
+    <h3>등록된 공지</h3>
+    <form method="get" action="{{ url_for('admin.notices_index') }}" class="admin-form admin-filter">
+        <label for="notice-at">기준 시각 미리보기</label>
+        <input type="text" id="notice-at" name="at" value="{{ at_raw }}"
+               placeholder="YYYY-MM-DD 또는 YYYY-MM-DDTHH:MM (비우면 지금)">
+        <button type="submit">보기</button>
+        <span>기준: {{ at.strftime('%Y-%m-%d %H:%M') }} KST</span>
+    </form>
+
+    {% if rows %}
+    <table class="admin-table notice-admin-table">
+        <thead>
+            <tr><th>ID · 종류</th><th>대상</th><th>기간 · 시행일</th><th>상태</th><th>표시 문구 (기준 시각)</th><th>관리</th></tr>
+        </thead>
+        <tbody>
+        {% for row in rows %}
+            {% set e = row.entry %}
+            <tr>
+                <td><code>{{ e.id }}</code><br>{{ kind_label.get(e.kind, e.kind) }}{% if e.priority %} · 우선순위 {{ e.priority }}{% endif %}</td>
+                <td>
+                    노선: {{ e.routes | join(', ') if e.routes else '전체' }}<br>
+                    화면: {% if 'all' in e.surfaces %}전체{% else %}{% for s in e.surfaces %}{{ surface_label.get(s, s) }}{% if not loop.last %}, {% endif %}{% endfor %}{% endif %}
+                </td>
+                <td>
+                    {{ e.show_from or '즉시' }} ~ {{ e.show_until or '무기한' }}
+                    {% if e.effective_from %}<br>시행: {{ e.effective_from }}{% endif %}
+                </td>
+                <td>
+                    <span class="notice-status notice-status-{{ row.status }}">{{ status_label[row.status] }}</span>
+                    {% if row.phase %}<br>{{ phase_label[row.phase] }}{% endif %}
+                </td>
+                <td>{{ row.text_ko }}{% if row.text_en %}<br><span class="notice-admin-en">{{ row.text_en }}</span>{% endif %}</td>
+                <td class="notice-admin-actions">
+                    <a href="{{ url_for('admin.notices_index', edit=e.id) }}#notice-form">수정</a>
+                    <form method="post" action="{{ url_for('admin.notices_toggle') }}">
+                        <input type="hidden" name="csrf_token" value="{{ session['csrf_token'] }}">
+                        <input type="hidden" name="id" value="{{ e.id }}">
+                        <input type="hidden" name="enabled" value="{{ '0' if e.enabled else '1' }}">
+                        <button type="submit" class="btn-primary">{{ '끄기' if e.enabled else '켜기' }}</button>
+                    </form>
+                    <form method="post" action="{{ url_for('admin.notices_remove') }}">
+                        <input type="hidden" name="csrf_token" value="{{ session['csrf_token'] }}">
+                        <input type="hidden" name="id" value="{{ e.id }}">
+                        <button type="submit" class="btn-danger-sm">삭제</button>
+                    </form>
+                </td>
+            </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p><em>등록된 공지가 없습니다.</em></p>
+    {% endif %}
+</section>
+
+{% set f = editing or {} %}
+<section class="notice-admin-form-section" id="notice-form">
+    <h3>{{ '공지 수정: ' ~ f.id if editing else '새 공지 추가' }}</h3>
+    <p>{{ 'ID를 바꾸면 이 공지의 ID가 바뀝니다(새 공지가 생기지 않음).' if editing else '이미 있는 ID로 저장하면 그 공지를 덮어씁니다.' }}</p>
+    <form method="post" action="{{ url_for('admin.notices_save') }}" class="admin-form notice-admin-form">
+        <input type="hidden" name="csrf_token" value="{{ session['csrf_token'] }}">
+        {% if editing %}<input type="hidden" name="original_id" value="{{ f.id }}">{% endif %}
+
+        <label for="n-id">ID (영문·숫자·_·-)</label>
+        <input type="text" id="n-id" name="id" value="{{ f.id or '' }}" required pattern="[A-Za-z0-9_\-]{1,64}"
+               placeholder="예: 743-beomseo-2026">
+
+        <label for="n-kind">종류</label>
+        <select id="n-kind" name="kind">
+            {% for k in kinds %}
+            <option value="{{ k }}" {% if (f.kind or 'info') == k %}selected{% endif %}>{{ kind_label.get(k, k) }}</option>
+            {% endfor %}
+        </select>
+
+        <fieldset>
+            <legend>관련 노선 (선택 안 하면 전체)</legend>
+            {% for b in busnos %}
+            <label><input type="checkbox" name="routes" value="{{ b }}" {% if b in (f.routes or []) %}checked{% endif %}> {{ b }}</label>
+            {% endfor %}
+        </fieldset>
+
+        <fieldset>
+            <legend>표시 화면 (선택 안 하면 전체)</legend>
+            {% for s in surfaces %}
+            <label><input type="checkbox" name="surfaces" value="{{ s }}" {% if s in (f.surfaces or []) %}checked{% endif %}> {{ surface_label.get(s, s) }}</label>
+            {% endfor %}
+        </fieldset>
+
+        <label for="n-from">표시 시작 (비우면 즉시)</label>
+        <input type="text" id="n-from" name="show_from" value="{{ f.show_from or '' }}" placeholder="YYYY-MM-DD 또는 YYYY-MM-DDTHH:MM">
+
+        <label for="n-until">표시 종료 (날짜만 쓰면 그날 끝까지, 비우면 무기한)</label>
+        <input type="text" id="n-until" name="show_until" value="{{ f.show_until or '' }}" placeholder="YYYY-MM-DD 또는 YYYY-MM-DDTHH:MM">
+
+        <label for="n-eff">시행일 (선택 — 이 시각부터 '시행 후 문구' 사용)</label>
+        <input type="text" id="n-eff" name="effective_from" value="{{ f.effective_from or '' }}" placeholder="YYYY-MM-DD 또는 YYYY-MM-DDTHH:MM">
+
+        <label for="n-text-ko">문구 (한국어, 필수)</label>
+        <textarea id="n-text-ko" name="text_ko" rows="2" cols="70" required>{{ (f.text or {}).get('ko', '') }}</textarea>
+        <label for="n-text-en">문구 (English)</label>
+        <textarea id="n-text-en" name="text_en" rows="2" cols="70">{{ (f.text or {}).get('en', '') }}</textarea>
+
+        <p>시행 후 문구는 선택입니다. 쓰려면 위에서 채운 언어를 모두 채우세요.</p>
+        <label for="n-after-ko">시행 후 문구 (한국어, 선택)</label>
+        <textarea id="n-after-ko" name="text_after_ko" rows="2" cols="70">{{ (f.text_after or {}).get('ko', '') }}</textarea>
+        <label for="n-after-en">시행 후 문구 (English, 선택)</label>
+        <textarea id="n-after-en" name="text_after_en" rows="2" cols="70">{{ (f.text_after or {}).get('en', '') }}</textarea>
+
+        <label for="n-link">'자세히' 링크 (선택)</label>
+        <select id="n-link" name="link">
+            <option value="">없음</option>
+            {% for s in link_targets %}
+            <option value="{{ s }}" {% if f.link == s %}selected{% endif %}>{{ surface_label.get(s, s) }}</option>
+            {% endfor %}
+        </select>
+
+        <label for="n-priority">우선순위 (같은 종류 안에서 큰 값이 위)</label>
+        <input type="number" id="n-priority" name="priority" value="{{ f.priority or 0 }}">
+
+        <label><input type="checkbox" name="enabled" value="1" {% if not editing or f.enabled %}checked{% endif %}> 켜기</label>
+
+        <button type="submit">저장</button>
+        {% if editing %}<a href="{{ url_for('admin.notices_index') }}">새 공지로 전환</a>{% endif %}
+    </form>
+</section>
+{% endblock %}

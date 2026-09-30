@@ -8,7 +8,7 @@ GET /busno?bus=&day=&dep=
 
 from __future__ import annotations
 
-from flask import Blueprint, current_app, render_template, request
+from flask import Blueprint, current_app, g, render_template, request
 
 from bushexa.domain.busno import get_busno_page_data
 from bushexa.services.board_support import timetable_provider_for
@@ -58,4 +58,6 @@ def busno_page() -> str:
         timetable_provider=timetable_provider,
         holiday_set=holiday_set,
     )
+    # 공지 노선 필터: 쿼리값이 아니라 실제로 보여 주는 노선(폴백 반영) 기준.
+    g.notice_routes = [timetable.selected_bus] if timetable.selected_bus else None
     return render_template("busno.html", timetable=timetable)

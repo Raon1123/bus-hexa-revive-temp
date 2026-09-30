@@ -89,6 +89,8 @@
                     {% endif %}
                 {% endwith %}
 
+                {% block notices %}{% include "partial/notices.html" %}{% endblock %}
+
                 {% block content %}{% endblock %}
             </main>
 

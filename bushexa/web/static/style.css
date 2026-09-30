@@ -330,6 +330,21 @@ footer {
     font-size: 0.9rem;
     color: #6d4c00;
 }
+
+/* 기한형 공지 (partial/notices.html) — 종류별 색은 클래스로만 */
+.notice-list { margin-bottom: 1rem; }
+.notice {
+    padding: 0.6rem 1rem;
+    margin: 0 0 0.5rem;
+    font-size: 0.9rem;
+    border-left: 4px solid #1976d2;
+    background: #e3f2fd;
+    color: #0d47a1;
+}
+.notice-kind { margin-right: 0.4rem; }
+.notice-link { color: inherit; font-weight: 600; white-space: nowrap; }
+.notice-warning { background: #fff8e1; border-left-color: #f9a825; color: #6d4c00; }
+.notice-suspension { background: #ffebee; border-left-color: #c62828; color: #8e0000; }
 .running-form {
     display: flex;
     align-items: center;
