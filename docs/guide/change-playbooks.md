@@ -21,7 +21,7 @@ audience: 반복되는 변경 작업을 수행하는 사람·AI 세션
 | # | 파일 | 무엇을 |
 |---|---|---|
 | 1 | `bushexa/data/constants.py` `VIA_STOPS[노선][종점]` | 게시판 경유지 문구. 관리자 override(`data/via_overrides.json`)가 있으면 그것이 우선하므로 확인 |
-| 2 | `bushexa/data/constants.py` `ROUTEID`, `STOP_IDS`, `SERACH_STOPS` | 정류장이 새로 생기거나 추적 대상이 바뀌는 경우만 |
+| 2 | `bushexa/data/constants.py` `ROUTEID`(UNIST 노선)·`EXTRA_TRACKED_ROUTES`(수집 전용, 예: 1224), `STOP_IDS`, `SERACH_STOPS` | 정류장이 새로 생기거나 추적 대상이 바뀌는 경우만 |
 | 3 | `bushexa/web/route_diagram.py` `NODES`, `LINE_PATHS`, `ROUTE_CHANGES`, `STOP_NOTE` (+ `route_lines.STOP_LABEL`, `constants.ROUTE_MAP_STOP_LINK`) | 노선도(지도·목록 공용 데이터). 정차 지점이 다르면 다른 노드, 선은 가로·세로·45°, 링크 stop_id 는 `SERACH_STOPS` 안(ui-design §6) |
 | 4 | `bushexa/web/templates/info.html` | "For Destination" 표, "For Bus Number" 노선 표, 안내 배너(한/영) |
 | 5 | `data/changelog.json` | `{"date":"YYYY-MM-DD","description":"…"}` 를 **맨 뒤**에 추가(오래된 순). 파일 끝 개행 없음 |

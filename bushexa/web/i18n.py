@@ -137,6 +137,7 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
                                 "en": "No live bus 743/753 (toward Myeongchon) approaching Joeun Samjeong Hospital right now."},
     "busan.r2.wait_min":    {"ko": "{min}분 대기", "en": "{min} min wait"},
     "busan.r2.no_1224_yet": {"ko": "아직 운행 중인 1224 없음", "en": "No bus 1224 on the way yet"},
+    "busan.r2.running_link": {"ko": "1224 운행 기록 보기", "en": "Bus 1224 run records"},
     "busan.r2.unist_dep":   {"ko": "743·753 UNIST 출발(시간표)", "en": "Bus 743/753 departures from UNIST (timetable)"},
     "busan.r2.note":        {"ko": "743·753(명촌 방면)과 1224(노포 방면)는 같은 좋은삼정병원앞 정류장에 섭니다. 내린 자리에서 기다리면 됩니다. 실시간 도착은 지금 운행 중인 차만 보입니다.",
                              "en": "Bus 743/753 (toward Myeongchon) and 1224 (toward Nopo) use the same Joeun Samjeong Hospital stop — wait where you get off. Live arrivals only show buses already on the way."},

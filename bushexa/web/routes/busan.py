@@ -12,6 +12,7 @@ import logging
 from flask import Blueprint, current_app, render_template, request
 
 from bushexa.data.constants import (
+    BUSAN_1224_ROUTE_ID,
     BUSAN_KTX_TRANSFER_MIN,
     BUSAN_NOPO_TRANSFER_STOP_ID,
     BUSAN_UNIST_TO_ULSAN_STATION_MIN,
@@ -93,4 +94,5 @@ def busan_page() -> str:
         view="board" if request.args.get("view") == "board" else "table",
         unist_to_station_min=BUSAN_UNIST_TO_ULSAN_STATION_MIN,
         ktx_transfer_min=BUSAN_KTX_TRANSFER_MIN,
+        nopo_route_id=BUSAN_1224_ROUTE_ID,
     )

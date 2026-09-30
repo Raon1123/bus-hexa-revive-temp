@@ -15,7 +15,7 @@ from datetime import date
 
 from flask import Blueprint, current_app, render_template, request
 
-from bushexa.data.constants import ROUTEID, STOP_IDS
+from bushexa.data.constants import ROUTEID, STOP_IDS, TRACKED_ROUTES
 from bushexa.db.connection import create_connection
 from bushexa.db.repo import BusLogRepo
 from bushexa.domain.running import build_running_grid, parse_runs
@@ -56,12 +56,12 @@ def running_page() -> str:
     # 노선 목록 (선택 UI용)
     route_options = [
         (rid, f"{info[0]}번 {info[1]}행")
-        for rid, info in ROUTEID.items()
+        for rid, info in TRACKED_ROUTES.items()
     ]
 
     # route_id 검증 및 기본값
     warning: str | None = None
-    if route_id_param is None or route_id_param not in ROUTEID:
+    if route_id_param is None or route_id_param not in TRACKED_ROUTES:
         if route_id_param is not None:
             warning = f"유효하지 않은 노선 ID: {route_id_param!r}."
         route_id = next(iter(ROUTEID))
@@ -74,7 +74,7 @@ def running_page() -> str:
         warning = (warning or "") + " " + date_warn
 
     # 정류장 ID → 표시 명칭 (STOP_IDS, 없으면 ID 그대로)
-    _, _, _, stops_order = ROUTEID[route_id]
+    _, _, _, stops_order = TRACKED_ROUTES[route_id]
     stop_names = {sid: STOP_IDS.get(sid, sid) for sid in stops_order}
 
     # DB 조회 + 도메인 처리

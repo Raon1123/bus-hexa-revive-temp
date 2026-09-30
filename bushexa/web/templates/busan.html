@@ -118,7 +118,8 @@
     {% else %}
     <p class="empty-state">{{ t('busan.no_more_buses') }}</p>
     {% endif %}
-    <p class="busan-note">{{ t('busan.r2.note') }}</p>
+    <p class="busan-note">{{ t('busan.r2.note') }}
+        <a href="{{ url_for('running.running_page', route_id=nopo_route_id) }}">{{ t('busan.r2.running_link') }}</a></p>
 </section>
 
 {# ── 루트 3: 버스 → 태화강역 → 동해선 ── #}
