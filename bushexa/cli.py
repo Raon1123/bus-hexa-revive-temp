@@ -176,51 +176,26 @@ def cmd_crawl_rail(args) -> int:
     return 1 if trains.failed or metro.failed else 0
 
 
-def _source_meta(name: str, rows) -> dict:
-    """프로필 출처 한 줄: 이름·513 기록 수·기간(같은 이름의 TSV 가 여럿이어도 구분되게)."""
-    days = sorted(p.at.date().isoformat() for p in rows)
-    return {"name": name, "rows": len(rows), "period": [days[0], days[-1]] if days else None}
-
-
 def cmd_build_leg_profile(args) -> int:
     """통과기록(TSV·DB) → 513 구간 소요 프로필 ``ktx_leg_profile.json``(요일별 KTX 연계표 입력)."""
     from pathlib import Path
 
-    from bushexa.data.constants import KTX_LEGS
     from bushexa.services.leg_profile import (
         build_leg_profile,
+        collect_passages,
         default_profile_path,
         holidays_for_span,
-        read_db_passages,
-        read_tsv_passages,
         save_profile,
     )
     from bushexa.services.holiday_service import read_effective_holidays
     from bushexa.time_utils import KSTClock
 
-    route_ids = {leg[0] for leg in KTX_LEGS.values()}
-    passages, sources = [], []
-    for path in args.tsv or []:
-        rows = read_tsv_passages(path, route_ids)
-        print(f"  {path}: 대상 노선 통과기록 {len(rows)}건")
-        passages += rows
-        sources.append(_source_meta(Path(path).name, rows))
-    if args.db:
-        from bushexa.db.connection import create_connection
-
-        conn = create_connection(args.db)
-        try:
-            rows = read_db_passages(conn, route_ids)
-        finally:
-            conn.close()
-        print(f"  bus_timelog: 대상 노선 통과기록 {len(rows)}건")
-        passages += rows
-        sources.append(_source_meta("bus_timelog", rows))
+    passages, sources = collect_passages(
+        db_url=args.db, tsv_paths=args.tsv or [],
+        on_progress=lambda e: print(f"  {e['label']}"))
     if not passages:
         print("통과기록이 없습니다 — --tsv 또는 --db 를 지정하세요(기존 프로필은 그대로 둡니다).")
         return 1
-    # 같은 통과가 TSV·DB 에 겹쳐 있어도 한 번만 센다.
-    passages = sorted(set(passages), key=lambda p: (p.route_id, p.vehicle, p.at))
 
     config = _load_config()
     holidays = holidays_for_span(passages, read_effective_holidays(config.data_dir))
@@ -248,7 +223,12 @@ def cmd_ktx_connections(args) -> int:
     config = _load_config()
     today = KSTClock().now().date()
     holidays = read_effective_holidays(config.data_dir)
-    transfers = Transfers(station=args.transfer_station, jinmok=args.transfer_jinmok)
+    from bushexa.services.ktx_settings import KtxSettingsStore, default_ktx_settings_path
+
+    saved = KtxSettingsStore(default_ktx_settings_path(config.data_dir)).effective()
+    transfers = Transfers(
+        station=saved["transfer_station_min"] if args.transfer_station is None else args.transfer_station,
+        jinmok=saved["transfer_jinmok_min"] if args.transfer_jinmok is None else args.transfer_jinmok)
     table, errors, _ = build_connect_table(config, today, holidays, direction=args.dir,
                                            dest=args.to, day=args.day, transfers=transfers)
     if args.json:
@@ -441,10 +421,10 @@ def build_parser() -> argparse.ArgumentParser:
     p_ktx.add_argument("--to", choices=["busan", "seoul", "suseo"], default="busan")
     p_ktx.add_argument("--day", type=int, choices=[0, 1, 2], default=0, help="0 평일 / 1 토 / 2 일·공휴일")
     p_ktx.add_argument("--json", action="store_true", help="JSON 으로 출력")
-    p_ktx.add_argument("--transfer-station", type=int, default=5,
-                       help="울산역 버스 정류장 ↔ KTX 환승 최소 시간(분, 기본 5)")
-    p_ktx.add_argument("--transfer-jinmok", type=int, default=5,
-                       help="진목회관 길 건너 버스 ↔ 버스 환승 최소 시간(분, 기본 5)")
+    p_ktx.add_argument("--transfer-station", type=int, default=None,
+                       help="울산역 버스 정류장 ↔ KTX 환승 최소 시간(분, 기본: 관리자 설정 또는 5)")
+    p_ktx.add_argument("--transfer-jinmok", type=int, default=None,
+                       help="진목회관 길 건너 버스 ↔ 버스 환승 최소 시간(분, 기본: 관리자 설정 또는 5)")
 
     return parser
 

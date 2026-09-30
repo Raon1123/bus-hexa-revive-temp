@@ -59,8 +59,7 @@
     display: inline-block; margin-left: 0.2rem; padding: 0 0.2rem; border-radius: 3px;
     font-size: 0.66rem; line-height: 1.3; background: #eef0f5; color: #555; vertical-align: 1px;
 }
-.ktx-sheet td.ktx-best, .ktx-best-key { background: #e3f4e8; color: #1d6b3a; font-weight: 800; }
-.ktx-best-key { padding: 0 0.3rem; border-radius: 3px; font-variant-numeric: tabular-nums; }
+.ktx-sheet td.ktx-best { background: #e3f4e8; color: #1d6b3a; font-weight: 800; }
 
 .ktx-transfer-form {
     display: flex; flex-wrap: wrap; gap: 0.4rem 1rem; align-items: center;

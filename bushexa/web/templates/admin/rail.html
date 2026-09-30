@@ -1,0 +1,194 @@
+{% extends "admin/_admin_base.html" %}
+
+{% block admin_title %}철도·KTX 연계{% endblock %}
+{% block page_title %}철도·KTX 연계{% endblock %}
+
+{% block admin_head %}
+<style>
+    .rail-card { border: 1px solid #ccc; border-radius: 4px; padding: 1em; margin: 0 0 1.5em; }
+    .rail-card h3 { margin-top: 0; }
+    .rail-table { border-collapse: collapse; width: 100%; font-size: .88em; }
+    .rail-table th, .rail-table td { border: 1px solid #e0e0e0; padding: .3em .5em; text-align: left; vertical-align: top; }
+    .rail-table td.num { text-align: right; font-variant-numeric: tabular-nums; }
+    .rail-warn { color: #b7791f; font-weight: bold; }
+    .rail-ok { color: #2f855a; font-weight: bold; }
+    .rail-bad { color: #c53030; font-weight: bold; }
+    .rail-muted { color: #718096; font-size: .85em; }
+    .rail-actions { display: flex; flex-wrap: wrap; gap: .6em; align-items: center; margin: .6em 0; }
+    .rail-actions form { display: inline-flex; gap: .4em; align-items: center; margin: 0; }
+    .rail-actions input[type=number] { width: 4.5em; }
+    .job-log { max-height: 16em; overflow: auto; background: #f7f8fb; border: 1px solid #e0e3ea;
+               padding: .4em .6em; font-size: .82em; margin: .5em 0 0; }
+    .job-log li.fail { color: #c53030; }
+    .pick-candidate { background: #e3f4e8; }
+</style>
+{% endblock %}
+
+{% macro job_box(id, job) -%}
+<div id="{{ id }}" class="job-box" data-url="{{ url_for('admin.rail_job_status', kind='rail' if id == 'rail-job' else 'profile') }}" data-running="{{ 'true' if job.running else 'false' }}">
+    <p class="job-state">
+        {% if job.running %}<span class="rail-warn">진행 중…</span>
+        {% elif job.error %}<span class="rail-bad">실패:</span> {{ job.error }}
+        {% elif job.done %}<span class="rail-ok">마지막 작업 완료</span>
+        {% else %}<span class="rail-muted">실행 기록 없음</span>{% endif %}
+    </p>
+    {% if job.events %}
+    <ol class="job-log">
+        {% for e in job.events if e.kind == 'progress' %}
+        <li class="{{ '' if (e.payload or {}).get('ok', true) else 'fail' }}">{{ (e.payload or {}).get('label', '') }}</li>
+        {% endfor %}
+    </ol>
+    {% endif %}
+</div>
+{%- endmacro %}
+
+{% block content %}
+<h2>철도·KTX 연계 운영</h2>
+<p class="rail-muted">배포 직후나 표가 비었을 때 여기서 철도 시간표를 다시 받고, 운행 기록으로 구간 소요를 다시 계산합니다.
+   컨테이너 재기동(down → up)은 서버에서 해야 합니다.</p>
+
+<section class="rail-card" id="rail-status">
+    <h3>철도 시간표 (rail_timetable.json)</h3>
+    <p>마지막 갱신 {{ (rail.updated_at or '없음')[:16] }} ·
+       오늘 갱신 {% if rail.ok_today %}<span class="rail-ok">성공</span>{% else %}<span class="rail-warn">안 됨</span>{% endif %}
+       <span class="rail-muted">(마지막 성공일 {{ rail.last_success_date or '없음' }}, 매일 02~03시 자동)</span></p>
+    <table class="rail-table">
+        <thead><tr><th>구간</th><th>날짜</th><th>오늘 편수</th><th>정차역</th><th>저장 시각</th><th>경고</th></tr></thead>
+        <tbody>
+        {% for p in rail.pairs %}
+        <tr>
+            <td>{{ p.label }}</td>
+            <td class="num">{{ p.dates }}{% if p.first %} <span class="rail-muted">({{ p.first }} ~ {{ p.last }})</span>{% endif %}</td>
+            <td class="num">{{ '–' if p.today_trains is none else p.today_trains }}</td>
+            <td>{% if p.wants_stops %}{{ p.stop_dates | length }}일 확인{% if p.stops_unknown_today %} · 오늘 모름 {{ p.stops_unknown_today }}편{% endif %}{% else %}<span class="rail-muted">해당 없음</span>{% endif %}</td>
+            <td class="rail-muted">{{ (p.fetched_at or '')[:16] }}</td>
+            <td>{% for w in p.warnings %}<span class="rail-warn">{{ w }}</span>{% if not loop.last %}<br>{% endif %}{% endfor %}</td>
+        </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+    <details><summary>동해선 역별 시간표 ({{ rail.metro_last_success_date or '성공 기록 없음' }})</summary>
+        <table class="rail-table">
+            {% for m in rail.metro %}<tr><td>{{ m.label }}</td><td class="num">{{ '없음' if m.count is none else m.count ~ '건' }}</td><td class="rail-muted">{{ (m.fetched_at or '')[:16] }}</td></tr>{% endfor %}
+        </table>
+    </details>
+    <div class="rail-actions">
+        <form method="post" action="{{ url_for('admin.rail_recrawl') }}">
+            <input type="hidden" name="csrf_token" value="{{ session['csrf_token'] }}">
+            <label>오늘부터 <input type="number" name="days" min="1" max="{{ horizon }}" value="{{ horizon }}">일치</label>
+            <button type="submit" class="btn-primary" {% if rail_job.running %}disabled{% endif %}>지금 다시 받기</button>
+        </form>
+        <span class="rail-muted">TAGO 열차정보 약 300회 호출 · 몇 분 · 실패한 날짜와 정차역은 기존 값 유지</span>
+    </div>
+    {{ job_box('rail-job', rail_job) }}
+</section>
+
+<section class="rail-card" id="ktx-settings">
+    <h3>KTX 연계표 기본 환승 최소 시간</h3>
+    <p class="rail-muted">/ktx 의 기본값입니다. 방문자가 화면에서 바꾼 값(?ts=&tj=)이 우선합니다. 빈 값은 코드 기본값(5분).</p>
+    <form method="post" action="{{ url_for('admin.rail_settings_save') }}" class="rail-actions">
+        <input type="hidden" name="csrf_token" value="{{ session['csrf_token'] }}">
+        <label>울산역 정류장 ↔ KTX <input type="number" name="transfer_station_min" min="0" max="{{ transfer_max }}"
+               value="{{ settings_saved.get('transfer_station_min', '') }}" placeholder="{{ settings.transfer_station_min }}">분</label>
+        <label>진목회관 길 건너 <input type="number" name="transfer_jinmok_min" min="0" max="{{ transfer_max }}"
+               value="{{ settings_saved.get('transfer_jinmok_min', '') }}" placeholder="{{ settings.transfer_jinmok_min }}">분</label>
+        <button type="submit" class="btn-primary">저장</button>
+        <span class="rail-muted">현재: {{ settings.transfer_station_min }}분 / {{ settings.transfer_jinmok_min }}분</span>
+    </form>
+</section>
+
+<section class="rail-card" id="ktx-profile">
+    <h3>구간 소요 프로필 (ktx_leg_profile.json)</h3>
+    {% if current %}
+    <p>기간 {{ current.period[0] }} ~ {{ current.period[1] }} · 생성 {{ (current.generated_at or '')[:16] }}{% if current.merged %} · 병합본{% endif %}</p>
+    {% else %}<p class="rail-bad">프로필 없음 — /ktx 가 연계를 계산하지 못합니다.</p>{% endif %}
+
+    <p>5001 실측 표본 <span class="rail-muted">(요일구분당 {{ real_min }}건 이상이면 근사 대신 실측을 씀)</span></p>
+    <table class="rail-table">
+        <thead><tr><th>구간</th><th>평일</th><th>토</th><th>일·공휴일</th></tr></thead>
+        <tbody>
+        {% for r in real_5001 %}
+        <tr><td>{{ leg_labels.get(r.leg, r.leg) }}</td>
+            {% for d in ('0', '1', '2') %}<td class="num {{ 'rail-ok' if r.real[d] else 'rail-muted' }}">{{ r.days[d] }}{% if r.real[d] %} 실측{% endif %}</td>{% endfor %}</tr>
+        {% endfor %}
+        </tbody>
+    </table>
+
+    <div class="rail-actions">
+        <form method="post" action="{{ url_for('admin.rail_profile_rebuild') }}">
+            <input type="hidden" name="csrf_token" value="{{ session['csrf_token'] }}">
+            <label><input type="checkbox" name="use_tsv" {% if not tsv_exists %}disabled{% endif %}> logs.tsv 도 포함{% if tsv_size_mb is not none %} ({{ tsv_size_mb }}MB){% endif %}</label>
+            <button type="submit" class="btn-primary" {% if profile_job.running %}disabled{% endif %}>운행 기록으로 후보 계산</button>
+        </form>
+        {% if has_prev %}
+        <form method="post" action="{{ url_for('admin.rail_profile_rollback') }}">
+            <input type="hidden" name="csrf_token" value="{{ session['csrf_token'] }}">
+            <button type="submit">이전 프로필로 되돌리기</button>
+        </form>
+        {% endif %}
+    </div>
+    {{ job_box('profile-job', profile_job) }}
+
+    {% if candidate %}
+    <h4>후보와 비교 <span class="rail-muted">(후보 기간 {{ candidate.period[0] }} ~ {{ candidate.period[1] }})</span></h4>
+    <div class="rail-actions">
+        <form method="post" action="{{ url_for('admin.rail_profile_apply') }}">
+            <input type="hidden" name="csrf_token" value="{{ session['csrf_token'] }}">
+            <select name="mode">
+                <option value="merge">구간·요일별로 표본 많은 쪽 병합 (권장)</option>
+                <option value="replace">후보로 통째 교체</option>
+            </select>
+            <button type="submit" class="btn-primary">적용</button>
+        </form>
+        <form method="post" action="{{ url_for('admin.rail_profile_discard') }}">
+            <input type="hidden" name="csrf_token" value="{{ session['csrf_token'] }}">
+            <button type="submit">후보 버리기</button>
+        </form>
+    </div>
+    {% endif %}
+    {% if compare %}
+    <table class="rail-table">
+        <thead><tr><th>구간</th><th>요일</th><th>현재 n</th><th>현재 중앙값</th><th>후보 n</th><th>후보 중앙값</th></tr></thead>
+        <tbody>
+        {% for r in compare %}
+        <tr class="{{ 'pick-candidate' if r.pick == 'candidate' else '' }}">
+            <td>{{ leg_labels.get(r.leg, r.leg) }}</td><td>{{ {'0': '평일', '1': '토', '2': '일·공휴일'}[r.day] }}</td>
+            <td class="num">{{ r.current.n if r.current else '–' }}</td><td class="num">{{ (r.current.p50 ~ '분') if r.current else '–' }}</td>
+            <td class="num">{{ r.candidate.n if r.candidate else '–' }}</td><td class="num">{{ (r.candidate.p50 ~ '분') if r.candidate else '–' }}</td>
+        </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+    {% if candidate %}<p class="rail-muted">초록 줄: 병합 시 후보 값을 씁니다.</p>{% endif %}
+    {% endif %}
+</section>
+
+<script>
+(function () {
+    function render(box, s) {
+        var state = box.querySelector('.job-state');
+        if (s.running) { state.innerHTML = '<span class="rail-warn">진행 중…</span>'; }
+        var log = box.querySelector('.job-log');
+        if (!log) { log = document.createElement('ol'); log.className = 'job-log'; box.appendChild(log); }
+        log.innerHTML = '';
+        (s.events || []).forEach(function (e) {
+            if (e.kind !== 'progress' || !e.payload) return;
+            var li = document.createElement('li');
+            li.textContent = e.payload.label || '';
+            if (e.payload.ok === false) li.className = 'fail';
+            log.appendChild(li);
+        });
+        log.scrollTop = log.scrollHeight;
+    }
+    document.querySelectorAll('.job-box[data-running="true"]').forEach(function (box) {
+        var url = box.dataset.url;
+        var timer = setInterval(function () {
+            fetch(url, {credentials: 'same-origin'}).then(function (r) { return r.json(); }).then(function (s) {
+                render(box, s);
+                if (!s.running) { clearInterval(timer); location.reload(); }
+            }).catch(function () {});
+        }, 2500);
+    });
+})();
+</script>
+{% endblock %}

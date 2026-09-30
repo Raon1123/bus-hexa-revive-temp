@@ -399,6 +399,23 @@ KTX_LEGS.update({
     "samnam_unist":         ("196000422", "196015417", "196040234"),
     "unist_jinmok_513":     ("196000422", "196040234", "196040205"),
 })
+# 관리자 화면 표시 이름
+KTX_LEG_LABELS = {
+    "deokha_unist": "513 덕하 → UNIST", "unist_station": "513 UNIST → 울산역",
+    "deokha_station": "513 덕하 → 울산역", "samnam_station": "513 삼남 → 울산역",
+    "station_unist": "513 울산역 → UNIST",
+    "l5001_station_jinmok": "5001 울산역 → 진목회관", "l5001_origin_jinmok": "5001 꽃바위 → 진목회관",
+    "l5001_jinmok_station": "5001 진목회관 → 울산역",
+    "p513_station_jinmok": "(근사) 513 울산역 → 진목회관", "p1115_kkotbawi_gulhwa": "(근사) 1115 꽃바위 → 굴화주공",
+    "p513_gulhwa_jinmok": "(근사) 513 굴화주공 → 진목회관", "p513_jinmok_station": "(근사) 513 진목회관 → 울산역",
+    "deokha_jinmok": "513 덕하 → 진목회관", "jinmok_unist_513": "513 진목회관 → UNIST",
+    "myeongchon_jinmok_713": "713 명촌 → 진목회관", "jinmok_unist_713": "713 진목회관 → UNIST",
+    "myeongchon_jinmok_743": "743 명촌 → 진목회관", "jinmok_unist_743": "743 진목회관 → UNIST",
+    "myeongchon_jinmok_753": "753 명촌 → 진목회관", "jinmok_unist_753": "753 진목회관 → UNIST",
+    "unist_jinmok_713": "713 UNIST → 진목회관", "unist_jinmok_743": "743 UNIST → 진목회관",
+    "unist_jinmok_753": "753 UNIST → 진목회관", "samnam_unist": "513 삼남 → UNIST",
+    "unist_jinmok_513": "513 UNIST → 진목회관",
+}
 # 5001 구간 → 기록이 모자랄 때 이어 붙일 근사 구간(순서대로 더한다).
 KTX_LEG_PROXIES = {
     "l5001_station_jinmok": ("p513_station_jinmok",),

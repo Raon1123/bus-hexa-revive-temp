@@ -1,6 +1,6 @@
 """설정 백업/복구 서비스 (Feature 3).
 
-백업 번들: holidays.json, special_timetables.json, via_overrides.json, crawl_settings.json, notices.json,
+백업 번들: holidays.json, special_timetables.json, via_overrides.json, crawl_settings.json, notices.json, ktx_settings.json,
           timetable/special/**/*.json (특별 에디션 시간표)
 
 보안:
@@ -34,6 +34,7 @@ _FLAT_FILES = frozenset([
     "crawl_settings.json",
     # 기한형 공지(services/notices.py) — 관리자 편집 데이터.
     "notices.json",
+    "ktx_settings.json",
 ])
 
 # 특별 시간표 파일은 timetable_dir / special / <edition> / <busno>.json 패턴

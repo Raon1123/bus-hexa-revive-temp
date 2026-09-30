@@ -31,3 +31,13 @@ data/route_map_ab.json*
 # 철도 시간표 캐시 (cache-refresh 워커가 TAGO 에서 매일 재생성)
 data/rail_timetable.json
 data/rail_timetable.json.lock
+
+# /admin/rail 런타임(후보·이전 프로필, 잡 메타·진행)
+data/ktx_leg_profile.candidate.json
+data/ktx_leg_profile.prev.json
+data/rail_crawl_job.json
+data/rail_crawl_progress.jsonl
+data/ktx_profile_job.json
+data/ktx_profile_progress.jsonl
+data/rail_crawl_job.json.lock
+data/ktx_profile_job.json.lock

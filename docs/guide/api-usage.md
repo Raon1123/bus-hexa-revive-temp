@@ -18,7 +18,7 @@ audience: 크롤러·API 클라이언트를 수정하거나 수집 장애를 진
 | TAGO 노선별 경유정류소 `getRouteAcctoThrghSttnList` | `…/BusRouteInfoInqireService/getRouteAcctoThrghSttnList` | 동일 | nodeord, nodeid, nodenm | **운영 미사용**(클라이언트만 존재) |
 | **울산 BIS 도착정보** `getBusArrivalInfo.xo` | `http://openapi.its.ulsan.kr/UlsanAPI/getBusArrivalInfo.xo` | serviceKey, pageNo=1, numOfRows=50, `stopid` | `<row>` → `routeid`, `presentstopnm`, `vehicleno`, `arrivaltime`(초) | worker-arrival, govtrack 폴백 |
 | **울산 BIS 시간표** `BusTimetable.xo` | `http://openapi.its.ulsan.kr/UlsanAPI/BusTimetable.xo` | pageNo, numOfRows=50, `routeNo`(버스 번호), `dayOfWeek` | `<row>` TIME(`HHMM`), DIRECTION(1 정/2 역), `totalcnt`(페이징) | worker-cache-refresh, CLI, 관리자 재크롤 |
-| **TAGO 열차정보** `GetStrtpntAlocFndTrainInfo` | `https://apis.data.go.kr/1613000/TrainInfo/GetStrtpntAlocFndTrainInfo` | serviceKey, `_type=json`, numOfRows=500, pageNo, `depPlaceId`, `arrPlaceId`, `depPlandTime`(YYYYMMDD) | `trainno`, `traingradename`, `depplandtime`/`arrplandtime`(YYYYMMDDHHMMSS), `adultcharge` | worker-cache-refresh, CLI `crawl-rail` |
+| **TAGO 열차정보** `GetStrtpntAlocFndTrainInfo` | `https://apis.data.go.kr/1613000/TrainInfo/GetStrtpntAlocFndTrainInfo` | serviceKey, `_type=json`, numOfRows=500, pageNo, `depPlaceId`, `arrPlaceId`, `depPlandTime`(YYYYMMDD) | `trainno`, `traingradename`, `depplandtime`/`arrplandtime`(YYYYMMDDHHMMSS), `adultcharge` | worker-cache-refresh, CLI `crawl-rail`, 관리자 `/admin/rail` |
 | **TAGO 지하철정보** `GetSubwaySttnAcctoSchdulList` | `https://apis.data.go.kr/1613000/SubwayInfo/GetSubwaySttnAcctoSchdulList` | serviceKey, `_type=json`, numOfRows=500, pageNo, `subwayStationId`, `dailyTypeCode`(01/02/03), `upDownTypeCode`(U/D) | `depTime`/`arrTime`(HHMMSS, 없으면 `"0"`), `endSubwayStationId`/`Nm` | worker-cache-refresh, CLI `crawl-rail` |
 | **특일정보(한국천문연구원)** `getRestDeInfo` | `http://apis.data.go.kr/B090041/openapi/service/SpcdeInfoService/getRestDeInfo` | serviceKey, solYear, solMonth(`%02d`) | `<locdate>` YYYYMMDD, resultCode `00` | worker-cache-refresh(부팅 + 매일), 관리자 미리보기 |
 
@@ -144,7 +144,7 @@ audience: 크롤러·API 클라이언트를 수정하거나 수집 장애를 진
 - 실응답 샘플 픽스처: `tests/fixtures/tago/`(normal, empty, error_99, single_dict, single_list, route_stops), `tests/fixtures/tago_rail/`(열차 정상·빈·중복행·GW 키오류, 동해선 태화강 평일·토요일 빈 응답), `tests/fixtures/ulsan/`(arrival_normal, arrival_no_bus, timetable_normal), `tests/fixtures/holiday/2026.xml`.
   - **주의:** 울산 도착정보 픽스처는 실제 형식(`<tableInfo><resultCode>200`)이 아닌 임의 스키마다. `check_response` 가 모르는 형식을 통과시키기 때문에 통과하고 있을 뿐이다. 울산 응답 처리를 고칠 때는 실응답으로 픽스처를 교체한다.
 - 새 오류 형식을 만나면: 응답 본문을 **키를 지운 뒤** 픽스처로 저장하고, 그 픽스처로 "예외가 난다" 또는 "캐시를 보존한다" 테스트를 먼저 쓴다.
-- 철도 라이브 확인: `uv run bushexa crawl-rail`(요약만 출력, `data/rail_timetable.json` 에 병합).
+- 철도 라이브 확인: `uv run bushexa crawl-rail`(요약만 출력, `data/rail_timetable.json` 에 병합). 운영에서는 관리자 `/admin/rail` 의 "지금 다시 받기"(같은 규칙, 백그라운드 잡·진행 표시).
 - KTX 연계표 점검(네트워크 없음): `uv run bushexa ktx-connections --dir out|in --to busan|seoul|suseo --day 0|1|2 [--json]`. 열차번호(`no`)는 TAGO 열차정보 응답에 이미 있어 별도 수집이 없다 — 표기는 `/ktx` 에서만 하고 `/busan`·`/seoul` 은 시각으로 잇는다(소유자 결정).
 - 라이브 확인은 `scripts/smoke_compose.sh`(키 필요, `SMOKE_SKIP_FEED=1` 이면 HTTP 200 만)와 `uv run bushexa crawl-once --route 195000177 --dry-run`.
 
