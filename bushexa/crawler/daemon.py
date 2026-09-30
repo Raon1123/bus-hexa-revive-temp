@@ -19,7 +19,7 @@ from typing import Callable
 
 from bushexa.crawler.recorder import GovtrackRecorder
 from bushexa.crawler.state import JSONFileStore, VehicleTimeline
-from bushexa.data.constants import ROUTEID, STOP_IDS
+from bushexa.data.constants import STOP_IDS, TRACKED_ROUTES
 from bushexa.db.connection import create_connection
 from bushexa.db.repo import BusLogRepo
 from bushexa.db.schema import create_schema
@@ -65,8 +65,11 @@ def make_tsv_sink(path) -> Callable:
 
 
 def tracked_stops_by_route() -> dict[str, set[str]]:
-    """ROUTEID[rid][3](추적 정류장 목록)을 ``{route_id: set(node_id)}``로 변환."""
-    return {rid: set(meta[3]) for rid, meta in ROUTEID.items()}
+    """TRACKED_ROUTES[rid][3](추적 정류장 목록)을 ``{route_id: set(node_id)}``로 변환.
+
+    UNIST 경유 노선(ROUTEID)에 수집 전용 노선(EXTRA_TRACKED_ROUTES, 예: 1224)을 더한 것이다.
+    """
+    return {rid: set(meta[3]) for rid, meta in TRACKED_ROUTES.items()}
 
 
 def build_recorder(config, *, repo=None, client=None, state=None, clock=None,
@@ -97,9 +100,9 @@ def build_recorder(config, *, repo=None, client=None, state=None, clock=None,
         create_schema(conn)
         return BusLogRepo(conn)
 
-    # 감사 2-3: route_id → 버스 번호 매핑을 ROUTEID에서 추출해 recorder에 주입한다.
-    # ROUTEID[rid][0] = 버스 번호(예: "713"). 의존성 주입으로 테스트 격리 유지.
-    _route_names = {rid: meta[0] for rid, meta in ROUTEID.items()}
+    # 감사 2-3: route_id → 버스 번호 매핑을 TRACKED_ROUTES에서 추출해 recorder에 주입한다.
+    # TRACKED_ROUTES[rid][0] = 버스 번호(예: "713"). 의존성 주입으로 테스트 격리 유지.
+    _route_names = {rid: meta[0] for rid, meta in TRACKED_ROUTES.items()}
 
     recorder = GovtrackRecorder(
         client, state, repo, clock,

@@ -10,7 +10,7 @@ from __future__ import annotations
 import datetime
 from dataclasses import dataclass, field
 
-from bushexa.data.constants import ROUTEID
+from bushexa.data.constants import TRACKED_ROUTES
 
 # ---------------------------------------------------------------------------
 # Data types
@@ -111,7 +111,7 @@ def parse_runs(
     timelog_rows :
         BusLogRepo.get_by_route 반환값 (LogRow 목록).
     route_id : str
-        노선 ID. ROUTEID에서 stop_ids 목록을 가져옴.
+        노선 ID. TRACKED_ROUTES에서 stop_ids 목록을 가져옴.
 
     Returns
     -------
@@ -132,10 +132,10 @@ def explain_runs(
     두 결과는 항상 일치한다.
     """
     rows = list(timelog_rows)
-    if route_id not in ROUTEID:
+    if route_id not in TRACKED_ROUTES:
         return RunsExplanation(runs=[], total_rows=len(rows), unknown_route=True)
 
-    _busno, _terminal, _dep, stop_ids = ROUTEID[route_id]
+    _busno, _terminal, _dep, stop_ids = TRACKED_ROUTES[route_id]
     stop_id_set = set(stop_ids)
     explanation = RunsExplanation(runs=[], total_rows=len(rows))
     dropped: dict[str, DroppedStop] = {}

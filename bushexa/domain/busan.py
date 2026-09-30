@@ -1,7 +1,7 @@
 """부산 가는 길(/busan) 뷰모델 — 세 루트를 "지금 출발하면" 기준으로 엮는다(순수 함수).
 
 - 루트 1 (부산역): 513 울산역 방면 → 울산역 → KTX 울산→부산
-- 루트 2 (노포):   743·753 → 좋은삼정병원앞 → 1224 (1224 데이터는 준비 중)
+- 루트 2 (노포):   743·753 → 좋은삼정병원앞 → 1224 (좋은삼정병원앞 실시간 도착으로 환승을 잇는다)
 - 루트 3 (벡스코·부전): 713·743·753·1115 → 태화강역 → 동해선 광역전철 (+ KTX-이음·ITX-마음·무궁화)
 
 입력은 모두 주입한다(도착 캐시·시간표 provider·철도 시간표 dict). 외부 API·파일·DB 를
@@ -17,8 +17,11 @@ from typing import Callable
 from bushexa.data.constants import (
     BUSAN_513_ORIGIN,
     BUSAN_513_ROUTE_ID,
+    BUSAN_1224_ROUTE_ID,
     BUSAN_KTX_TRANSFER_MIN,
     BUSAN_NOPO_FEEDER_BUSES,
+    BUSAN_NOPO_FEEDER_ROUTE_IDS,
+    BUSAN_NOPO_TRANSFER_MIN,
     BUSAN_TAEHWAGANG_BUS_MIN,
     BUSAN_TAEHWAGANG_WALK_MIN,
     BUSAN_UNIST_TO_ULSAN_STATION_MIN,
@@ -62,6 +65,19 @@ class NopoRow:
 
 
 @dataclass(frozen=True)
+class LiveBus:
+    eta_min: int              # 좋은삼정병원앞 도착까지 분(실시간)
+    at: str                   # "HH:MM"
+
+
+@dataclass(frozen=True)
+class NopoLiveRow:
+    busno: str                # 743 / 753
+    feeder: LiveBus           # 좋은삼정병원앞 도착(실시간)
+    bus_1224: LiveBus | None  # 내린 뒤 탈 수 있는 첫 1224 (지금 운행 중인 차 중에서)
+
+
+@dataclass(frozen=True)
 class BusanSnapshot:
     now: str
     weekday: int
@@ -73,6 +89,9 @@ class BusanSnapshot:
     arrival_fetched_at: str | None = None
     # 루트 2
     nopo_buses: list[NopoRow] = field(default_factory=list)
+    nopo_1224: list[LiveBus] = field(default_factory=list)      # 좋은삼정병원앞 1224 노포 방면
+    nopo_live: list[NopoLiveRow] = field(default_factory=list)  # 743·753 → 1224 실시간 연결
+    transfer_fetched_at: str | None = None
     # 루트 3
     donghae: list[DonghaeRow] = field(default_factory=list)
     metro_state: str = "missing"                           # ok / saturday_fallback / missing
@@ -137,6 +156,8 @@ def build_busan_snapshot(
     timetable_provider: TimetableProvider,
     unist_arrivals: list | None = None,
     arrival_fetched_at: str | None = None,
+    transfer_arrivals: list | None = None,
+    transfer_fetched_at: str | None = None,
     ktx_day: dict | None = None,
     intercity_day: dict | None = None,
     metro_to_bexco: dict | None = None,
@@ -147,6 +168,7 @@ def build_busan_snapshot(
 
     ``ktx_day``/``intercity_day`` 는 ``rail_timetable.trains_on`` 결과, ``metro_to_*`` 는
     ``rail_timetable.metro_trips`` 결과(``{"day_type", "trips": [{"dep", "arr"}]}``)다.
+    ``transfer_arrivals`` 는 좋은삼정병원앞(노포 방면) 도착 캐시다.
     """
     errors: list[str] = []
     now_min = _now_minutes(now)
@@ -174,6 +196,23 @@ def build_busan_snapshot(
         for t in _upcoming(_safe_times(timetable_provider, busno, weekday, "UNIST", errors), now_min):
             nopo.append(NopoRow(busno, t))
     nopo.sort(key=lambda r: r.unist_dep)
+
+    # 좋은삼정병원앞 실시간: 743·753 명촌 방면과 1224 노포 방면이 같은 정류장에 선다.
+    def as_live_bus(a) -> LiveBus:
+        return LiveBus(max(0, round(a.arrival_time / 60)),
+                       (now + datetime.timedelta(seconds=a.arrival_time)).strftime("%H:%M"))
+
+    transfer = sorted((a for a in (transfer_arrivals or []) if a.arrival_time >= 0),
+                      key=lambda a: a.arrival_time)
+    buses_1224 = [a for a in transfer if a.route_id == BUSAN_1224_ROUTE_ID]
+    nopo_live: list[NopoLiveRow] = []
+    for a in transfer:
+        busno = BUSAN_NOPO_FEEDER_ROUTE_IDS.get(a.route_id)
+        if busno is None:
+            continue
+        ready = a.arrival_time + BUSAN_NOPO_TRANSFER_MIN * 60
+        catch = next((b for b in buses_1224 if b.arrival_time >= ready), None)
+        nopo_live.append(NopoLiveRow(busno, as_live_bus(a), as_live_bus(catch) if catch else None))
 
     # ── 루트 3: 버스 → 태화강역 → 동해선 ────────────────────────────────
     bexco = {t["dep"]: t.get("arr") for t in (metro_to_bexco or {}).get("trips", [])}
@@ -211,6 +250,9 @@ def build_busan_snapshot(
         ktx_state=ktx_state,
         arrival_fetched_at=arrival_fetched_at,
         nopo_buses=nopo[:rows],
+        nopo_1224=[as_live_bus(a) for a in buses_1224][:rows],
+        nopo_live=nopo_live[:rows],
+        transfer_fetched_at=transfer_fetched_at,
         donghae=donghae[:rows + 1],
         metro_state=metro_state,
         intercity_trains=intercity[:4],
