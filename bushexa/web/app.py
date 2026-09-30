@@ -22,6 +22,7 @@ from bushexa.config import AppConfig
 from bushexa.logging_setup import setup_logging
 from bushexa.services.stop_name_dict import get_stop_names
 from bushexa.web.i18n import SUPPORTED_LANGS, lang_url, localize_stop, resolve_lang, translate
+from bushexa.time_utils import get_now
 from bushexa.web.timing import record, server_timing_header
 
 _HERE = Path(__file__).parent
@@ -131,6 +132,41 @@ def create_app(config: AppConfig) -> Flask:
             return name
         return localize_stop(str(name), lang, get_stop_names(config.data_dir))
 
+    # --- 기한형 공지: 공개 화면(endpoint→surface)마다 표시할 공지 --------
+    # 부분 갱신(partial)·admin endpoint 는 surface 가 없어 빈 목록. 어떤 오류도
+    # 페이지를 깨뜨리지 않도록 삼킨다(공지는 부가 정보).
+    @app.context_processor
+    def _inject_notices() -> dict:
+        from bushexa.services.notices import (
+            ENDPOINT_SURFACES, LINK_ENDPOINTS, POLL_SURFACES, NoticeStore,
+            default_notices_path, select_notices,
+        )
+        endpoint = request.endpoint or ""
+        if endpoint == "notices.notices_partial":
+            # 부분 갱신 요청: ?surface= 로 원래 화면을 지정받는다(POLL_SURFACES 만).
+            surface = request.args.get("surface")
+            surface = surface if surface in POLL_SURFACES else None
+        else:
+            surface = ENDPOINT_SURFACES.get(endpoint)
+        ctx = {
+            "notices": [],
+            "notice_link_endpoints": LINK_ENDPOINTS,
+            "notice_poll_surface": surface if surface in POLL_SURFACES else None,
+        }
+        if surface is None:
+            return ctx
+        try:
+            store = NoticeStore(default_notices_path(config.data_dir))
+            # 노선을 고른 화면은 라우트가 g.notice_routes 에 **실제로 보여 주는** 노선을 넣는다
+            # (예: /busno 는 bus 미지정·오류 시 기본 노선으로 폴백하므로 쿼리값을 쓰면 안 된다).
+            ctx["notices"] = select_notices(
+                store.load(), surface=surface, now=get_now(),
+                lang=getattr(g, "lang", "ko"), routes=getattr(g, "notice_routes", None),
+            )
+        except Exception as exc:  # noqa: BLE001 — 공지 실패가 페이지를 막으면 안 된다
+            app.logger.error("공지 로드 실패: %s", exc)
+        return ctx
+
     # --- i18n: persist lang cookie on valid ?lang= ----------------------
     # Sets a 1-year cookie only when the user explicitly sends ?lang=.
     # This is done in after_request so we always return a response object.
@@ -203,5 +239,8 @@ def create_app(config: AppConfig) -> Flask:
 
     from bushexa.web.routes.admin import bp as admin_bp
     app.register_blueprint(admin_bp)
+
+    from bushexa.web.routes.notices import bp as notices_bp
+    app.register_blueprint(notices_bp)
 
     return app
