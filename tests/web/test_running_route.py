@@ -182,3 +182,12 @@ def test_bad_date_handled(empty_client):
             or "검색된 버스가 없습니다" in html
             or "날짜 형식" in html
         ), "No warning/fallback indication for bad date"
+
+
+def test_running_offers_1224_tracked_route(empty_client):
+    """수집 전용 노선 1224(EXTRA_TRACKED_ROUTES)도 /running 에서 고를 수 있고, 그 노선을 요청하면 경고 없이 200."""
+    resp = empty_client.get("/running?route_id=195000247&date=20260930")
+    html = resp.data.decode("utf-8")
+    assert resp.status_code == 200
+    assert "1224번" in html and 'value="195000247"' in html
+    assert "유효하지 않은 노선 ID" not in html

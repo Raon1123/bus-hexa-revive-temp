@@ -288,14 +288,14 @@ def cmd_debug_running(args) -> int:
     """/running 과 같은 재구성을 수행하고 그리드에 드러나지 않는 과정을 출력한다."""
     from pathlib import Path
 
-    from bushexa.data.constants import ROUTEID, STOP_IDS
+    from bushexa.data.constants import STOP_IDS, TRACKED_ROUTES
     from bushexa.db.connection import _sqlite_path, create_connection, is_sqlite
     from bushexa.db.repo import BusLogRepo
     from bushexa.domain.running import explain_runs
 
-    if args.route not in ROUTEID:
+    if args.route not in TRACKED_ROUTES:
         print(f"알 수 없는 노선 ID: {args.route!r}. 사용 가능:")
-        for rid, info in ROUTEID.items():
+        for rid, info in TRACKED_ROUTES.items():
             print(f"  {rid}  {info[0]}번 {info[1]}행")
         return 2
     try:
@@ -315,7 +315,7 @@ def cmd_debug_running(args) -> int:
         rows = repo.get_by_route(args.route, day=day)
     ex = explain_runs(rows, args.route)
 
-    busno, terminal, _dep, stops_order = ROUTEID[args.route]
+    busno, terminal, _dep, stops_order = TRACKED_ROUTES[args.route]
 
     print(f"route={args.route} ({busno}번 {terminal}행) date={day.isoformat()} "
           f"rows={ex.total_rows} runs={len(ex.runs)}")
@@ -370,7 +370,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
 
     p_once = sub.add_parser("crawl-once", help="Run one govtrack crawl cycle and exit")
-    p_once.add_argument("--route", required=True, help="ROUTEID 키 (예: 195000177)")
+    p_once.add_argument("--route", required=True, help="TRACKED_ROUTES 키 (예: 195000177)")
     p_once.add_argument("--dry-run", action="store_true", help="INSERT 없이 결과만 출력")
 
     p_loop = sub.add_parser("crawl-loop", help="Run the govtrack crawl daemon")
@@ -407,7 +407,7 @@ def build_parser() -> argparse.ArgumentParser:
     p_dbg = sub.add_parser(
         "debug-running", help="Explain how /running reconstructs runs for a route/day",
     )
-    p_dbg.add_argument("--route", required=True, help="ROUTEID 키 (예: 195000178)")
+    p_dbg.add_argument("--route", required=True, help="TRACKED_ROUTES 키 (예: 195000178)")
     p_dbg.add_argument("--date", default=None, help="YYYY-MM-DD 또는 YYYYMMDD (기본: 오늘 KST)")
     p_dbg.add_argument("--db", default=None,
                        help="DB URL (예: sqlite:///data/debug/prod.db). 미지정 시 DATABASE_URL")

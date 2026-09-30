@@ -111,7 +111,7 @@ audience: 이 저장소에서 작업하는 사람·AI 세션
 | I-4 | 공개 라우트는 외부 API 호출 금지. `board_support.arrival_client`(DB 캐시)만 사용. 예외는 관리자 recrawl·특별시간표 미리보기뿐. | ADR-010 |
 | I-5 | 시간표 선택 우선순위는 **특별편 > 공휴일 > 요일**이며 `services/board_support.timetable_provider_for` 하나로만 결정한다. 라우트에서 `get_timetable` 을 직접 부르지 않는다. | board_support.py, review #4·#5 |
 | I-6 | 시간대는 `time_utils.KST` 하나. `ZoneInfo("Asia/Seoul")` 리터럴·naive `datetime.now()` 금지. 시간 의존 코드는 `Clock` 주입. | ADR-008 |
-| I-7 | 노선·정류장 ID와 문구는 `data/constants.py` 에만 둔다(`UNIST_VIA_STOP_ID`, `ROUTEID`, `VIA_STOPS`, `SERACH_STOPS`, `STOP_IDS`, `clean_stop_name`). `STOP_IDS[...]` 직접 인덱싱 금지, `.get` 사용. | ADR-011, PM-001 H3 |
+| I-7 | 노선·정류장 ID와 문구는 `data/constants.py` 에만 둔다(`UNIST_VIA_STOP_ID`, `ROUTEID`, `EXTRA_TRACKED_ROUTES`·`TRACKED_ROUTES`(수집 전용 노선, UNIST 화면 제외), `VIA_STOPS`, `SERACH_STOPS`, `STOP_IDS`, `clean_stop_name`). `STOP_IDS[...]` 직접 인덱싱 금지, `.get` 사용. | ADR-011, PM-001 H3 |
 | I-8 | 데몬 루프는 예외로 죽지 않는다. 격리 단위는 cycle > route > request, 삼킨 예외는 반드시 로그. | ADR-013 |
 | I-9 | "비어 있음"과 "오류"를 구분한다. API 오류를 빈 리스트로 돌려주거나, 실패 결과로 좋은 캐시/파일을 덮어쓰지 않는다. | review #1~#3, [PM-008](../refactor/postmortems/PM-008-holiday-silent-empty-and-overwrite.md) |
 | I-10 | 설정 우선순위: env > `secret/` 파일. 새 설정은 env 로 추가하고 `.env.example` 에 문서화한다. | ADR-005, config.py |

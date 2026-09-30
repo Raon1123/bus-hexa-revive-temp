@@ -27,7 +27,7 @@ import requests
 
 from bushexa.api_clients.errors import TagoError
 from bushexa.api_clients.tago import BusLocation, TagoResponse
-from bushexa.data.constants import ROUTEID, STOP_IDS, clean_stop_name as _clean
+from bushexa.data.constants import STOP_IDS, TRACKED_ROUTES, clean_stop_name as _clean
 
 logger = logging.getLogger("bushexa.api_clients.composite_location")
 
@@ -57,7 +57,7 @@ def _build_route_name_index() -> dict[str, dict[str, list[str]]]:
     """노선별 이름→node_id 인덱스를 만든다(감사 2-2).
 
     반환: {route_id: {stop_name: [node_id, ...]}}
-    노선의 tracked stop_ids(ROUTEID[rid][3])와 STOP_IDS를 교집합해 노선에 속한 정류소만 포함.
+    노선의 tracked stop_ids(TRACKED_ROUTES[rid][3])와 STOP_IDS를 교집합해 노선에 속한 정류소만 포함.
     """
     # STOP_IDS는 node_id→name. 역인덱스 먼저 구축: name → [node_id, ...]
     name_to_nodes: dict[str, list[str]] = defaultdict(list)
@@ -65,7 +65,7 @@ def _build_route_name_index() -> dict[str, dict[str, list[str]]]:
         name_to_nodes[nm].append(nid)
 
     route_idx: dict[str, dict[str, list[str]]] = {}
-    for rid, meta in ROUTEID.items():
+    for rid, meta in TRACKED_ROUTES.items():
         stop_ids_for_route: list[str] = meta[3]
         idx: dict[str, list[str]] = defaultdict(list)
         for nid in stop_ids_for_route:
@@ -151,7 +151,7 @@ class CompositeLocationClient:
         return self._exact.get(present_stop) or self._clean.get(_clean(present_stop))
 
     def _ulsan_fallback(self, route_id: str) -> TagoResponse:
-        entry = ROUTEID.get(route_id)
+        entry = TRACKED_ROUTES.get(route_id)
         if not entry:
             return TagoResponse(result_code="ULSAN", total_count=0, items=[])
         stop_ids = entry[3]
