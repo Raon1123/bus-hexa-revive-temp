@@ -24,6 +24,7 @@ audience: 이 저장소에서 코드를 고치는 모든 사람·AI 세션 — �
 | **"빈 결과"와 "오류"를 구분한다.** 오류를 `[]`·`None` 으로 돌려주지 말고 타입 예외(`TagoError`, `UlsanBisError`, `HolidayError`, `ParseError`)를 올린다 | 공휴일 API 인증 오류가 "공휴일 없음"이 되어 공휴일에 평일 시간표가 나갔다 | PM-008, ADR-013 |
 | **HTTP 200 이어도 본문 resultCode 를 검사한다** | data.go.kr 게이트웨이는 키·한도 오류를 200 + XML 로 준다 | PM-008 |
 | **실패 결과로 알려진 좋은 캐시·파일을 덮지 않는다.** 쓰기 전에 "전부 비었으면 저장 안 함" 가드 | 0행 재크롤이 시간표 JSON 을 비울 수 있었다 | PM-008 (review #2, #3) |
+| 레코드를 새로 쓸 때 **부분 조회로 채우는 필드**(열차 `stops` 등)가 실패로 비면 기존 값을 옮겨 싣는다. 필드 단위로도 "덮지 않기"를 점검 | 후보역 조회 하나의 타임아웃으로 그날 정차역 41편이 null 로 덮였다 | PM-017 |
 | 외부 호출은 반드시 `api_clients/_http.get_with_service_key` 로 한다. 키 인코딩·timeout 을 직접 처리하지 않는다 | 보일러플레이트 4벌 중 1벌만 `unquote` 가 빠져 이중 인코딩 발생 | PM-008 (C1) |
 | XML 은 `resp.content`(bytes)로 파싱한다. `resp.text` 금지 | charset 헤더가 없으면 latin-1 로 디코드되어 한글이 깨진다 | PM-003 |
 | TAGO `items.item` 은 1건이면 dict, 0건이면 `""` 다. `_items_as_list` 를 거친다 | 타입 가정이 깨지면 노선 전체가 실패한다 | api-usage §2.2 |

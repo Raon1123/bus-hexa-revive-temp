@@ -1,0 +1,55 @@
+/* 요일별 KTX 연계표(/ktx) — 일본 철도 시각표형: 열 = 열차, 행 = 역·정류장.
+   탭·카드는 busan.css 를 재사용한다. 열차 시각은 굵게, 예상 버스 시각은 보통, 시간표 기점은 흐리게. */
+
+.ktx-tabs { align-items: center; }
+.ktx-sep { width: 1px; align-self: stretch; background: #d0d4dc; margin: 0 0.2rem; }
+.ktx-tabs small { opacity: 0.75; }
+
+.ktx-block { font-size: 0.95rem; margin: 1rem 0 0.35rem; color: #333; }
+.ktx-scroll { overflow-x: auto; border: 1px solid #c9ccd4; border-radius: 6px; }
+
+.ktx-sheet {
+    border-collapse: collapse; font-variant-numeric: tabular-nums;
+    font-family: "Noto Sans Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+    font-size: 0.88rem; line-height: 1.25; background: #fff;
+}
+.ktx-sheet th, .ktx-sheet td {
+    padding: 0.28rem 0.45rem; text-align: center; white-space: nowrap;
+    border-right: 1px solid #e3e5ea;
+}
+.ktx-sheet tbody tr { border-top: 1px dotted #d6d9e0; }
+
+/* 역 이름 열: 가로 스크롤 중에도 고정 */
+.ktx-sheet th[scope="row"] {
+    position: sticky; left: 0; z-index: 1; text-align: left;
+    font-family: system-ui, sans-serif; font-weight: 600; font-size: 0.82rem;
+    background: #f3f4f7; border-right: 2px solid #9aa0ad; min-width: 8.5rem;
+}
+
+.ktx-no th[scope="col"] { font-weight: 700; color: #1f2430; background: #eef0f5; font-size: 0.8rem; }
+.ktx-grade td { font-family: system-ui, sans-serif; font-size: 0.72rem; color: #555; background: #f7f8fb; }
+.ktx-sheet thead tr:last-child { border-bottom: 2px solid #9aa0ad; }
+
+.ktx-train-row td { font-weight: 800; color: #111; font-size: 0.95rem; }
+.ktx-bus-row td { color: #2c3e66; }
+.ktx-via-row th[scope="row"] { font-weight: 400; padding-left: 1.1rem; color: #444; }
+.ktx-via-row td { color: #333; font-size: 0.8rem; padding-top: 0.12rem; padding-bottom: 0.12rem; }
+.ktx-via-row td.ktx-pass { color: #a3a8b3; }
+.ktx-sheet tbody tr.ktx-via-row { border-top: 0; }
+.ktx-board td { background: #f3f7ff; font-weight: 600; }
+.ktx-dim td { color: #8a8f99; font-size: 0.8rem; }
+.ktx-first { border-top: 2px solid #9aa0ad !important; }
+
+.ktx-transfer td { color: #3a8f5c; font-size: 0.78rem; }
+.ktx-transfer td.is-tight { color: #8a5200; background: #fff4e3; font-weight: 700; }
+.ktx-tight-mark {
+    display: inline-block; margin-left: 0.1rem; padding: 0 0.25rem; border-radius: 3px;
+    background: #d98a1c; color: #fff; font-size: 0.7rem; font-weight: 800; line-height: 1.3;
+}
+.ktx-legend { line-height: 1.6; }
+
+@media (max-width: 600px) {
+    .ktx-sheet { font-size: 0.8rem; }
+    .ktx-sheet th[scope="row"] { min-width: 6.5rem; font-size: 0.74rem; }
+    .ktx-sheet th, .ktx-sheet td { padding: 0.25rem 0.32rem; }
+}

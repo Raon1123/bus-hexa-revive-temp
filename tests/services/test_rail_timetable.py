@@ -190,3 +190,31 @@ def test_metro_trips_matches_by_time_and_drops_non_busan_trains(tmp_path):
     assert r["trips"][0] == {"dep": "05:36:00", "arr": "06:31:30", "end_name": "부전"}
     assert all(t["arr"] for t in r["trips"])
     assert metro_trips(load_rail_store(path), "MTRKRK6K132", "MTRKRK6K119", "03") is None
+
+
+def test_failed_stop_lookup_keeps_previously_known_stops():
+    """정차역 후보 조회가 실패(None)해도 같은 날짜·같은 출발시각 열차의 기존 정차역을 덮지 않는다(PM-008)."""
+    from bushexa.services.rail_timetable import _carry_old_stops
+
+    old = {"trains": [{"dep": "2026-10-03T07:00:00+09:00", "stops": [{"name": "대전", "arr": "08:30"}]},
+                      {"dep": "2026-10-03T08:00:00+09:00", "stops": None}]}
+    rows = [{"dep": "2026-10-03T07:00:00+09:00", "stops": None},
+            {"dep": "2026-10-03T08:00:00+09:00", "stops": None},
+            {"dep": "2026-10-03T09:00:00+09:00"},
+            {"dep": "2026-10-03T07:00:00+09:00", "stops": [{"name": "동대구", "arr": "07:20"}]}]
+    _carry_old_stops(rows, old)
+    assert rows[0]["stops"] == [{"name": "대전", "arr": "08:30"}]
+    assert rows[1]["stops"] is None and "stops" not in rows[2]
+    assert rows[3]["stops"] == [{"name": "동대구", "arr": "07:20"}]      # 새로 안 값이 우선
+
+
+def test_stop_pattern_dates_adds_first_date_of_each_day_type():
+    """가까운 3일에 더해, 없던 요일구분(토·일/공휴일)의 첫 날짜를 정차역 조회 날짜로 고른다."""
+    from datetime import date, timedelta
+
+    from bushexa.services.rail_timetable import stop_pattern_dates
+
+    targets = [date(2026, 9, 28) + timedelta(days=i) for i in range(14)]   # 월요일부터
+    got = stop_pattern_dates(targets, {"20261003"})
+    assert got == [date(2026, 9, 28), date(2026, 9, 29), date(2026, 9, 30),
+                   date(2026, 10, 3), date(2026, 10, 10)]

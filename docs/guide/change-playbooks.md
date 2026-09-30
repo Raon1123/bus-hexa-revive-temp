@@ -28,6 +28,7 @@ audience: 반복되는 변경 작업을 수행하는 사람·AI 세션
 | 6 | `/admin/notices` (운영 중) 또는 `bushexa/data/notices.seed.json` (배포 기본값) | 공지가 필요하면 **기한형 공지**로 넣는다: 표시 기간(`show_until` 필수 권장), 시행일(`effective_from` → 시행 후 문구), 대상 노선·화면. 문구에 날짜를 박지 말고 `{date}` 를 쓴다. 템플릿·i18n 에 공지 문구를 하드코딩하지 않는다 |
 | 7 | (확인) | 공지는 공통 레이아웃이 모든 공개 화면(`/lite` 포함)에 그린다. 게시판·UNIST·정류소 화면은 공지 영역을 60초마다 갱신. `/admin/notices?at=YYYY-MM-DDTHH:MM` 로 시행 전·후 문구를 미리 본다. 운영 중 편집본이 있으면 seed 변경은 자동 반영되지 않으니 관리 화면의 '기본 공지 가져오기'를 쓴다 |
 | 8 | `data/timetable/<노선>.json` | 시간표가 바뀌면 관리자 재크롤 또는 편집(`/admin/timetable`) |
+| 9 | `constants.KTX_LEGS`, `data/ktx_leg_profile.json` | **513** 정류장·경로가 바뀌면 구간 정의를 고치고, 새 경로 통과기록이 쌓인 뒤 `bushexa build-leg-profile --tsv … [--db …]` 로 `/ktx` 소요 프로필을 다시 만든다(그 전까지는 옛 경로 소요로 계산됨을 안내) |
 
 **2단계: 시행일**
 

@@ -89,6 +89,7 @@ audience: 이 저장소에서 작업하는 사람·AI 세션
 | `holidays.json`(관리자 지정) / `holiday_cache.json`(API 캐시) | holiday_editor / holiday_service | atomic | 미추적 |
 | `via_overrides.json` | via_editor | atomic | 미추적 |
 | `rail_timetable.json` `{"trains": {"pairs": {"<출발>-<도착>": {"dates": {"YYYY-MM-DD": {"trains", "suspect"}}}}}, "metro": {"schedules": {"<역>:<U/D>:<01/02/03>": {"times"}}}}` | services/rail_timetable (cache-refresh·`crawl-rail`) | **locked_update_json** | ignore(런타임) |
+| `ktx_leg_profile.json` `{"period", "sources", "legs": {구간: {"by_day": {"0/1/2": {"all", "hours": {H: {n,p10,p50,p90}}}}}}}` (513 구간 소요, /ktx 입력) | services/leg_profile (CLI `build-leg-profile`, 수동) | atomic | **추적** |
 | `crawl_settings.json` (폴링 주기 3~600s) | services/crawl_settings | atomic | 미추적 |
 | `route_map_ab.json` `{"YYYY-MM-DD": {event: count}}` (노선도 A/B 노출·전환) | services/route_map_ab | locked | ignore |
 | `notices.json` 기한형 공지 (표시 기간·시행일·대상 화면/노선). 없거나 깨지면 seed `bushexa/data/notices.seed.json` | services/notices, `/admin/notices` | **locked_update_json** | 미추적 |

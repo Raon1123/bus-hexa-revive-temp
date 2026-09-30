@@ -46,6 +46,9 @@
         {% for tm in snapshot.origin_513 %}<span class="busan-chip">{{ tm }}</span>{% endfor %}</p>
     {% endif %}
     <p class="busan-note">{{ t('busan.note_513', min=unist_to_station_min, transfer=ktx_transfer_min) }}</p>
+    {% set ktx_to = 'suseo' if snapshot.dest == 'suseo' else 'seoul' %}
+    <p class="ktx-link"><a href="{{ url_for('ktx.ktx_page', dir='out', to=ktx_to) }}">📅 {{ t('ktx.link') }}</a>
+        · <a href="{{ url_for('ktx.ktx_page', dir='in', to=ktx_to) }}">{{ t('ktx.link_in') }}</a></p>
 </section>
 
 <section class="busan-route">
