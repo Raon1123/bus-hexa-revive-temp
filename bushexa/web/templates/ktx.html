@@ -1,0 +1,88 @@
+{% extends "_base.html" %}
+
+{% block title %}Bus HeXA — {{ t('ktx.title') }}{% endblock %}
+
+{% block extra_head %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/busan.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/ktx.css') }}">
+{% endblock %}
+
+{% macro q(dir=table.direction, to=table.dest, day=table.day) -%}
+?dir={{ dir }}&amp;to={{ to }}&amp;day={{ day }}
+{%- endmacro %}
+
+{% block content %}
+{% set out = table.direction == 'out' %}
+<h2>{{ t('ktx.title') }}</h2>
+<p class="busan-intro">{{ t('ktx.intro.' ~ table.direction, transfer=table.transfer_min) }}</p>
+
+<nav class="busan-jump" aria-label="{{ t('ktx.title') }}">
+    {% for d in ['out', 'in'] %}
+    <a href="{{ q(dir=d) }}"{% if table.direction == d %} class="active" aria-current="page"{% endif %}>{{ t('ktx.dir.' ~ d) }}</a>
+    {% endfor %}
+</nav>
+<nav class="busan-jump ktx-tabs">
+    {% for key in dests %}
+    <a href="{{ q(to=key) }}"{% if table.dest == key %} class="active" aria-current="true"{% endif %}>{{ t('ktx.dest.' ~ table.direction ~ '.' ~ key) }}</a>
+    {% endfor %}
+    <span class="ktx-sep" aria-hidden="true"></span>
+    {% for d in days %}
+    <a href="{{ q(day=d) }}"{% if table.day == d %} class="active" aria-current="true"{% endif %}>{{ t('ktx.day.' ~ d) }}{% if d == today_day %} <small>· {{ t('ktx.today') }}</small>{% endif %}</a>
+    {% endfor %}
+</nav>
+
+<section class="busan-route">
+    <header class="busan-route-head route-513">
+        <span class="busan-dest">{% if out %}🚌 → 🚄 {{ t('ktx.dest.out.' ~ table.dest) }}{% else %}🚄 {{ t('ktx.dest.in.' ~ table.dest) }} → 🚌{% endif %}</span>
+        <span class="busan-via">{{ t('ktx.day.' ~ table.day) }}{% if table.ref_date %} · {{ t('ktx.ref_date', date=table.ref_date.strftime('%Y-%m-%d')) }}{% endif %}</span>
+    </header>
+
+    {% if table.rail_state == 'missing' %}
+    <p class="empty-state">{{ t('ktx.rail_missing') }}</p>
+    {% elif table.bus_state == 'missing' %}
+    <p class="empty-state">{{ t('ktx.bus_missing') }}</p>
+    {% elif table.profile_state == 'missing' %}
+    <p class="empty-state">{{ t('ktx.profile_missing') }}</p>
+    {% elif not table.rows %}
+    <p class="empty-state">{{ t('ktx.no_rows') }}</p>
+    {% else %}
+    {% if table.rail_state == 'suspect' %}<div class="info-banner">{{ t('busan.rail_suspect') }}</div>{% endif %}
+    {% set dest_name = t('ktx.station.' ~ table.dest) %}
+    {% for key, rows in blocks %}
+    <h3 class="ktx-block">{{ t('ktx.block.' ~ key) }}</h3>
+    <div class="ktx-scroll">
+    <table class="ktx-sheet">
+        <thead>
+        <tr class="ktx-no"><th scope="row">{{ t('ktx.row.no') }}</th>{% for r in rows %}<th scope="col">{{ r.train_no | join('·') or '–' }}</th>{% endfor %}</tr>
+        <tr class="ktx-grade"><th scope="row">{{ t('ktx.row.grade') }}</th>{% for r in rows %}<td>{{ r.grade.split('(')[0] }}</td>{% endfor %}</tr>
+        </thead>
+        <tbody>
+        {% if out %}
+        <tr class="ktx-bus-row ktx-dim"><th scope="row">{{ t('ktx.row.deokha') }}</th>{% for r in rows %}<td>{{ r.origin_dep }}</td>{% endfor %}</tr>
+        <tr class="ktx-bus-row ktx-board"><th scope="row">{{ t('ktx.row.unist_via') }}</th>{% for r in rows %}<td>{{ r.unist_at }}</td>{% endfor %}</tr>
+        <tr class="ktx-bus-row"><th scope="row">{{ t('ktx.row.station_bus_arr') }}</th>{% for r in rows %}<td>{{ r.station_at }}</td>{% endfor %}</tr>
+        <tr class="ktx-transfer"><th scope="row">{{ t('ktx.row.margin') }}</th>{% for r in rows %}<td{% if r.tight %} class="is-tight" title="{{ t('ktx.tight') }}"{% endif %}>{{ r.margin_min }}{% if r.tight %}<span class="ktx-tight-mark">!</span>{% endif %}</td>{% endfor %}</tr>
+        <tr class="ktx-train-row ktx-first"><th scope="row">{{ t('ktx.row.ulsan_dep') }}</th>{% for r in rows %}<td>{{ r.train_dep }}</td>{% endfor %}</tr>
+        <tr class="ktx-train-row"><th scope="row">{{ t('ktx.row.dest_arr', station=dest_name) }}</th>{% for r in rows %}<td>{{ r.train_arr }}{% if r.arr_next_day %}<sup>+1</sup>{% endif %}</td>{% endfor %}</tr>
+        {% else %}
+        <tr class="ktx-train-row"><th scope="row">{{ t('ktx.row.origin_dep', station=dest_name) }}</th>{% for r in rows %}<td>{{ r.train_dep }}</td>{% endfor %}</tr>
+        <tr class="ktx-train-row"><th scope="row">{{ t('ktx.row.ulsan_arr') }}</th>{% for r in rows %}<td>{{ r.train_arr }}{% if r.arr_next_day %}<sup>+1</sup>{% endif %}</td>{% endfor %}</tr>
+        <tr class="ktx-transfer"><th scope="row">{{ t('ktx.row.wait') }}</th>{% for r in rows %}<td{% if r.tight %} class="is-tight" title="{{ t('ktx.tight') }}"{% endif %}>{{ r.wait_min }}{% if r.tight %}<span class="ktx-tight-mark">!</span>{% endif %}</td>{% endfor %}</tr>
+        <tr class="ktx-bus-row ktx-first ktx-board"><th scope="row">{{ t('ktx.row.station_bus_dep') }}</th>{% for r in rows %}<td>{{ r.station_at }}</td>{% endfor %}</tr>
+        <tr class="ktx-bus-row"><th scope="row">{{ t('ktx.row.unist_arr') }}</th>{% for r in rows %}<td>{{ r.unist_at }}</td>{% endfor %}</tr>
+        <tr class="ktx-bus-row ktx-dim"><th scope="row">{{ t('ktx.row.samnam') }}</th>{% for r in rows %}<td>{{ r.origin_dep }}</td>{% endfor %}</tr>
+        {% endif %}
+        </tbody>
+    </table>
+    </div>
+    {% endfor %}
+    <p class="busan-note ktx-legend"><b>{{ t('ktx.legend.bold') }}</b> · {{ t('ktx.legend.est') }} · <span class="ktx-tight-mark">!</span> {{ t('ktx.tight.' ~ table.direction, transfer=table.transfer_min) }}</p>
+    {% endif %}
+    {% if table.skipped %}<p class="busan-note">{{ t('ktx.skipped.' ~ table.direction, n=table.skipped) }}</p>{% endif %}
+    <p class="busan-note">{{ t('ktx.note.' ~ table.direction) }}</p>
+</section>
+
+{% if profile and profile.period %}
+<p class="busan-source">{{ t('ktx.source', start=profile.period[0], end=profile.period[1]) }}</p>
+{% endif %}
+{% endblock %}

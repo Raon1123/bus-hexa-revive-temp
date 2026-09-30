@@ -68,6 +68,8 @@
         {{ rail_trains(boards.ktx, view, limit=6) }}
     {% endif %}
     <p class="busan-note">{{ t('busan.note_513', min=unist_to_station_min, transfer=ktx_transfer_min) }}</p>
+    <p class="ktx-link"><a href="{{ url_for('ktx.ktx_page', dir='out', to='busan') }}">📅 {{ t('ktx.link') }}</a>
+        · <a href="{{ url_for('ktx.ktx_page', dir='in', to='busan') }}">{{ t('ktx.link_in') }}</a></p>
 </section>
 
 {# ── 루트 2: 743·753 → 좋은삼정병원앞 → 1224 ── #}

@@ -232,6 +232,10 @@ RAIL_PAIRS = [
     (RAIL_TAEHWAGANG, RAIL_BUJEON),   # 태화강 → 부전 (KTX-이음·ITX-마음·무궁화)
     (RAIL_ULSAN, RAIL_SEOUL),         # 울산 → 서울
     (RAIL_ULSAN, RAIL_SUSEO),         # 울산 → 수서
+    # 반대 방향(울산역 도착 → 513 → UNIST, /ktx 오는 편). 울산역 도착 시각만 쓴다.
+    (RAIL_BUSAN, RAIL_ULSAN),         # 부산 → 울산
+    (RAIL_SEOUL, RAIL_ULSAN),         # 서울 → 울산
+    (RAIL_SUSEO, RAIL_ULSAN),         # 수서 → 울산
 ]
 
 # 정차역 후보(운행 순서). API 가 정차역 목록을 주지 않으므로, 같은 출발역·출발시각의 열차가
@@ -302,3 +306,23 @@ BUSAN_TAEHWAGANG_WALK_MIN = {"713": 5, "743": 5, "753": 5, "1115": 8}
 
 # 루트 2: 743·753 → 좋은삼정병원앞 → 1224 → 노포. 1224 시간표·정류소는 조사 중(미확정).
 BUSAN_NOPO_FEEDER_BUSES = ("743", "753")
+
+
+# ── 요일별 KTX 연계표(/ktx) ─────────────────────────────────────────────────────
+# 가는 편: 513 덕하 출발(시간표) → UNIST(경유) → 울산역(언양 방면) → KTX 울산→부산·서울·수서.
+# 오는 편: KTX 부산·서울·수서→울산 → 513 삼남 출발(시간표) → 울산역(시내 방면) → UNIST(경유).
+# 구간 소요는 통과기록으로 만든 ``data/ktx_leg_profile.json``(CLI build-leg-profile)에서 읽는다.
+KTX_CONNECT_DESTS = {"busan": RAIL_BUSAN, "seoul": RAIL_SEOUL, "suseo": RAIL_SUSEO}
+KTX_OUT_513_ORIGIN = "덕하"                # 가는 편 시간표 키(route 196000421)
+KTX_IN_513_ORIGIN = "삼남"                 # 오는 편 시간표 키(route 196000422)
+KTX_CONNECT_TRANSFER_MIN = 5              # 울산역 버스 정류장 ↔ 열차 사이 최소 여유(분)
+# 구간 이름 → (route_id, 출발 정류장, 도착 정류장). 같은 차량의 통과기록을 짝지어 소요를 잰다.
+KTX_LEGS = {
+    "deokha_unist":   ("196000421", "196040142", "196040234"),   # 덕하(기점) → UNIST(경유)
+    "unist_station":  ("196000421", "196040234", "196015429"),   # UNIST(경유) → 울산역(언양 방면)
+    "deokha_station": ("196000421", "196040142", "196015429"),   # 덕하(기점) → 울산역(언양 방면)
+    "samnam_station": ("196000422", "196015417", "196015414"),   # 삼남(기점) → 울산역(시내 방면)
+    "station_unist":  ("196000422", "196015414", "196040234"),   # 울산역(시내 방면) → UNIST(경유)
+}
+KTX_LEG_MAX_MIN = 150                     # 이보다 긴 짝은 다른 운행으로 보고 버린다
+KTX_LEG_MIN_SAMPLES = 4                   # 시간대 값을 쓰는 최소 표본(미달이면 요일구분 전체값)

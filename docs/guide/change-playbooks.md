@@ -28,6 +28,7 @@ audience: 반복되는 변경 작업을 수행하는 사람·AI 세션
 | 6 | `bushexa/web/i18n.py` + `templates/board.html`·`unist_board.html` | 공지 배너가 필요하면 `board.notice.<id>` 키(ko·en) + `<div class="info-banner">{{ t(...) }}</div>` |
 | 7 | `templates/board_lite.html` | lite 에는 배너가 없다. 중요 공지면 여기도 검토 |
 | 8 | `data/timetable/<노선>.json` | 시간표가 바뀌면 관리자 재크롤 또는 편집(`/admin/timetable`) |
+| 9 | `constants.KTX_LEGS`, `data/ktx_leg_profile.json` | **513** 정류장·경로가 바뀌면 구간 정의를 고치고, 새 경로 통과기록이 쌓인 뒤 `bushexa build-leg-profile --tsv … [--db …]` 로 `/ktx` 소요 프로필을 다시 만든다(그 전까지는 옛 경로 소요로 계산됨을 안내) |
 
 **2단계: 시행일**
 

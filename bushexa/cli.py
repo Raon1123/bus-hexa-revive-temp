@@ -11,6 +11,8 @@
 * ``crawl-timetable``    -> P2 / F10 (시간표 재크롤)
 * ``crawl-rail``         -> 부산 루트 철도(열차·동해선) 시간표 즉시 갱신
 * ``debug-running``      -> F05 운행 재구성 진단 (제외 정류장·분리·덮어쓰기 출력)
+* ``build-leg-profile``  -> 통과기록 → 513 구간 소요 프로필(ktx_leg_profile.json, /ktx 입력)
+* ``ktx-connections``    -> 요일별 KTX↔513 연계표 출력(로컬 파일만, 네트워크 없음)
 
 설계(F09 §4.1)에 맞춰 ``crawl-loop``의 폴링 인자는 ``--poll``(기본 15초, 2026-06-06 10→15
 상향 — admin 크롤 주기 설정이 런타임 우선)이다. 신호 핸들러는
@@ -171,6 +173,99 @@ def cmd_crawl_rail(args) -> int:
     return 1 if trains.failed or metro.failed else 0
 
 
+def _source_meta(name: str, rows) -> dict:
+    """프로필 출처 한 줄: 이름·513 기록 수·기간(같은 이름의 TSV 가 여럿이어도 구분되게)."""
+    days = sorted(p.at.date().isoformat() for p in rows)
+    return {"name": name, "rows": len(rows), "period": [days[0], days[-1]] if days else None}
+
+
+def cmd_build_leg_profile(args) -> int:
+    """통과기록(TSV·DB) → 513 구간 소요 프로필 ``ktx_leg_profile.json``(요일별 KTX 연계표 입력)."""
+    from pathlib import Path
+
+    from bushexa.data.constants import KTX_LEGS
+    from bushexa.services.leg_profile import (
+        build_leg_profile,
+        default_profile_path,
+        holidays_for_span,
+        read_db_passages,
+        read_tsv_passages,
+        save_profile,
+    )
+    from bushexa.services.holiday_service import read_effective_holidays
+    from bushexa.time_utils import KSTClock
+
+    route_ids = {leg[0] for leg in KTX_LEGS.values()}
+    passages, sources = [], []
+    for path in args.tsv or []:
+        rows = read_tsv_passages(path, route_ids)
+        print(f"  {path}: 513 통과기록 {len(rows)}건")
+        passages += rows
+        sources.append(_source_meta(Path(path).name, rows))
+    if args.db:
+        from bushexa.db.connection import create_connection
+
+        conn = create_connection(args.db)
+        try:
+            rows = read_db_passages(conn, route_ids)
+        finally:
+            conn.close()
+        print(f"  bus_timelog: 513 통과기록 {len(rows)}건")
+        passages += rows
+        sources.append(_source_meta("bus_timelog", rows))
+    if not passages:
+        print("통과기록이 없습니다 — --tsv 또는 --db 를 지정하세요(기존 프로필은 그대로 둡니다).")
+        return 1
+    # 같은 통과가 TSV·DB 에 겹쳐 있어도 한 번만 센다.
+    passages = sorted(set(passages), key=lambda p: (p.route_id, p.vehicle, p.at))
+
+    config = _load_config()
+    holidays = holidays_for_span(passages, read_effective_holidays(config.data_dir))
+    profile = build_leg_profile(passages, holidays, generated_at=KSTClock().now().isoformat(),
+                                sources=sources)
+    for name, leg in profile["legs"].items():
+        cells = [f"{d}:{v['all']['p50']}분(n={v['all']['n']})" for d, v in leg["by_day"].items()]
+        print(f"  {name:15s} " + "  ".join(cells))
+    out = Path(args.out) if args.out else default_profile_path(config.data_dir)
+    save_profile(out, profile)
+    print(f"저장: {out} (기간 {profile['period']})")
+    return 0
+
+
+def cmd_ktx_connections(args) -> int:
+    """요일별 KTX 연계표를 로컬 파일만으로 만들어 출력(네트워크 없음)."""
+    import dataclasses
+    import json
+
+    from bushexa.services.holiday_service import read_effective_holidays
+    from bushexa.services.ktx_connections import build_connect_table
+    from bushexa.time_utils import KSTClock
+
+    config = _load_config()
+    today = KSTClock().now().date()
+    holidays = read_effective_holidays(config.data_dir)
+    table, errors, _ = build_connect_table(config, today, holidays, direction=args.dir,
+                                           dest=args.to, day=args.day)
+    if args.json:
+        data = dataclasses.asdict(table)
+        data["ref_date"] = table.ref_date.isoformat() if table.ref_date else None
+        print(json.dumps(data, ensure_ascii=False, indent=1))
+        return 0
+    print(f"{args.dir} {args.to} day={args.day} 기준일={table.ref_date} 철도={table.rail_state} "
+          f"버스={table.bus_state} 소요={table.profile_state} 제외={table.skipped}편")
+    for e in errors:
+        print(f"  오류: {e}")
+    for r in table.rows:
+        mark = " (빠듯)" if r.tight else ""
+        if args.dir == "out":
+            print(f"  덕하 {r.origin_dep} → UNIST {r.unist_at} → 울산역 {r.station_at}"
+                  f"  ⇒ {r.grade} {r.train_dep}→{r.train_arr} 여유 {r.margin_min}분{mark}")
+        else:
+            print(f"  {r.grade} {r.train_dep}→울산 {r.train_arr}  ⇒ 513 삼남 {r.origin_dep}"
+                  f" → 울산역 {r.station_at} → UNIST {r.unist_at} 대기 {r.wait_min}분{mark}")
+    return 0
+
+
 def _parse_cli_date(value: str | None):
     """``YYYYMMDD``/``YYYY-MM-DD`` → date. 미지정 시 오늘(KST). 형식 오류는 argparse 에러."""
     from datetime import date
@@ -315,6 +410,19 @@ def build_parser() -> argparse.ArgumentParser:
                        help="DB URL (예: sqlite:///data/debug/prod.db). 미지정 시 DATABASE_URL")
     p_dbg.add_argument("-v", "--verbose", action="store_true", help="운행별 정류장 통과 시각 출력")
 
+    p_leg = sub.add_parser(
+        "build-leg-profile", help="Build 513 leg travel-time profile for /ktx from passage logs",
+    )
+    p_leg.add_argument("--tsv", action="append", help="통과기록 logs.tsv (여러 번 지정 가능)")
+    p_leg.add_argument("--db", default=None, help="bus_timelog DB URL (예: sqlite:///data/bushexa.db)")
+    p_leg.add_argument("--out", default=None, help="저장 경로(기본: <data_dir>/ktx_leg_profile.json)")
+
+    p_ktx = sub.add_parser("ktx-connections", help="Print the per-day KTX↔513 connection table")
+    p_ktx.add_argument("--dir", choices=["out", "in"], default="out", help="out=UNIST→울산역, in=울산역→UNIST")
+    p_ktx.add_argument("--to", choices=["busan", "seoul", "suseo"], default="busan")
+    p_ktx.add_argument("--day", type=int, choices=[0, 1, 2], default=0, help="0 평일 / 1 토 / 2 일·공휴일")
+    p_ktx.add_argument("--json", action="store_true", help="JSON 으로 출력")
+
     return parser
 
 
@@ -385,6 +493,8 @@ def main(argv: list[str] | None = None) -> int:
         "crawl-timetable": cmd_crawl_timetable,
         "crawl-rail": cmd_crawl_rail,
         "debug-running": cmd_debug_running,
+        "build-leg-profile": cmd_build_leg_profile,
+        "ktx-connections": cmd_ktx_connections,
         "serve": cmd_serve,
     }
     # argparse가 required=True + 등록된 subparser만 허용하므로 KeyError 도달 불가
