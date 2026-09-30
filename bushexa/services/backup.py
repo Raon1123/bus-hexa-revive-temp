@@ -1,6 +1,6 @@
 """설정 백업/복구 서비스 (Feature 3).
 
-백업 번들: holidays.json, special_timetables.json, via_overrides.json,
+백업 번들: holidays.json, special_timetables.json, via_overrides.json, crawl_settings.json, notices.json,
           timetable/special/**/*.json (특별 에디션 시간표)
 
 보안:
@@ -32,6 +32,8 @@ _FLAT_FILES = frozenset([
     # 3차 웨이브: 관리자 편집 설정이므로 백업 대상. 화이트리스트 방식이라
     # 같은 data_dir의 transient 파일(.lock, timetable_crawl_job.json 등)은 자동 제외.
     "crawl_settings.json",
+    # 기한형 공지(services/notices.py) — 관리자 편집 데이터.
+    "notices.json",
 ])
 
 # 특별 시간표 파일은 timetable_dir / special / <edition> / <busno>.json 패턴
@@ -159,9 +161,15 @@ def validate_and_restore(
         for name in names:
             data = zf.read(name)
             try:
-                json.loads(data.decode("utf-8"))
+                parsed = json.loads(data.decode("utf-8"))
             except (UnicodeDecodeError, json.JSONDecodeError) as exc:
                 raise RestoreError(f"{name!r} 의 JSON 파싱 실패: {exc}")
+            if name == "notices.json":
+                # 공지는 항목 단위까지 검증한다. 잘못된 파일을 복구하면 공개 화면 공지가 전부 사라진다.
+                from bushexa.services.notices import parse_entries_report
+                _, rejected = parse_entries_report(parsed, source="backup:notices.json")
+                if rejected:
+                    raise RestoreError(f"'notices.json' 에 잘못된 공지가 있습니다: {'; '.join(rejected[:5])}")
             raw_by_name[name] = data
 
     # 3단계: 전부 통과 → 일괄 기록 (validate-then-write)

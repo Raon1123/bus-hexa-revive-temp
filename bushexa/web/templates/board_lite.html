@@ -15,6 +15,8 @@
 <p>출발 게시판 · {{ snapshot.weekday_str }} · 현재 {{ snapshot.current_time }}
 · {{ refresh_seconds }}초 자동갱신{% if fetched_at %} · 데이터 {{ fetched_at }}{% endif %}</p>
 
+{% for n in notices %}<p>[{{ t('notice.kind.' ~ n.kind) }}] {{ n.text }}{% if n.link and n.link in notice_link_endpoints %} <a href="{{ url_for(notice_link_endpoints[n.link]) }}">{{ t('notice.more') }}</a>{% endif %}</p>
+{% endfor %}
 {% if snapshot.error %}<p>⚠ {{ snapshot.error }}</p>{% endif %}
 
 <table border="1" cellpadding="4" cellspacing="0">

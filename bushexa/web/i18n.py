@@ -173,8 +173,6 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
 
     # ── Board page ─────────────────────────────────────────────────────────
     "board.title":          {"ko": "UNIST 출발안내",      "en": "UNIST Departures"},
-    "board.notice.743":    {"ko": "10월 3일부터 743번은 구영리에서 범서중학교를 경유합니다 (513번과 같은 경로, 713·753·1115번과 다름). 자세한 경로는 정보 페이지의 노선도를 확인하세요.",
-                            "en": "From Oct 3, bus 743 passes Beomseo Middle School in Guyoung-ri (same as 513; different from 713/753/1115). See the route map on the Info page."},
     "board.page_title":     {"ko": "출발 게시판",          "en": "Departure Board"},
     "board.btn.table":      {"ko": "표",                 "en": "Table"},
     "board.btn.flap":       {"ko": "Split-flap",         "en": "Split-flap"},
@@ -206,6 +204,13 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
     "stops.col.eta":        {"ko": "도착 예상",            "en": "Arriving in"},
     "stops.col.position":   {"ko": "현재 위치",            "en": "Current stop"},
     "stops.col.vehicle":    {"ko": "차량번호",             "en": "Vehicle No."},
+    # ── 기한형 공지 (services/notices.py) ───────────────────────────────────
+    "notice.region":             {"ko": "공지",       "en": "Notices"},
+    "notice.more":               {"ko": "자세히",     "en": "Details"},
+    "notice.kind.info":          {"ko": "안내",       "en": "Info"},
+    "notice.kind.route_change":  {"ko": "노선 변경",  "en": "Route change"},
+    "notice.kind.warning":       {"ko": "주의",       "en": "Caution"},
+    "notice.kind.suspension":    {"ko": "운행 중단",  "en": "Suspended"},
 
     # ── Language switcher UI labels ────────────────────────────────────────
     "lang.ko":              {"ko": "한국어",              "en": "한국어"},
