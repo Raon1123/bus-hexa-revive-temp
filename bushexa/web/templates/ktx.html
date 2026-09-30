@@ -8,7 +8,19 @@
 {% endblock %}
 
 {% macro q(dir=table.direction, to=table.dest, day=table.day) -%}
-?dir={{ dir }}&amp;to={{ to }}&amp;day={{ day }}
+?dir={{ dir }}&amp;to={{ to }}&amp;day={{ day }}&amp;ts={{ table.transfers.station }}&amp;tj={{ table.transfers.jinmok }}
+{%- endmacro %}
+
+{% macro dash(v) %}{{ '–' if v is none else v }}{% endmacro %}
+
+{# 환승 여유·대기 칸: 빠듯이면 주황 + ! #}
+{% macro min_cell(v, tight) -%}
+<td{% if tight %} class="is-tight" title="{{ t('ktx.tight') }}"{% endif %}>{{ dash(v) }}{% if tight %}<span class="ktx-tight-mark">!</span>{% endif %}</td>
+{%- endmacro %}
+
+{# 안(option) 머리 행: 가로로 이어지는 띠 #}
+{% macro opt_head(label, n, note='') -%}
+<tr class="ktx-opt"><th scope="row">{{ label }}</th><td colspan="{{ n }}">{{ note }}</td></tr>
 {%- endmacro %}
 
 {% block content %}
@@ -30,6 +42,15 @@
     <a href="{{ q(day=d) }}"{% if table.day == d %} class="active" aria-current="true"{% endif %}>{{ t('ktx.day.' ~ d) }}{% if d == today_day %} <small>· {{ t('ktx.today') }}</small>{% endif %}</a>
     {% endfor %}
 </nav>
+
+<form class="ktx-transfer-form" method="get" action="">
+    <input type="hidden" name="dir" value="{{ table.direction }}">
+    <input type="hidden" name="to" value="{{ table.dest }}">
+    <input type="hidden" name="day" value="{{ table.day }}">
+    <label>{{ t('ktx.form.station') }} <input type="number" name="ts" min="0" max="{{ transfer_max }}" value="{{ table.transfers.station }}">{{ t('ktx.form.min') }}</label>
+    <label>{{ t('ktx.form.jinmok') }} <input type="number" name="tj" min="0" max="{{ transfer_max }}" value="{{ table.transfers.jinmok }}">{{ t('ktx.form.min') }}</label>
+    <button type="submit">{{ t('ktx.form.apply') }}</button>
+</form>
 
 <section class="busan-route">
     <header class="busan-route-head route-513">
@@ -62,11 +83,21 @@
         <tr class="ktx-grade"><th scope="row">{{ t('ktx.row.grade') }}</th>{% for r in rows %}<td>{{ r.grade.split('(')[0] }}</td>{% endfor %}</tr>
         </thead>
         <tbody>
+        {% set n = rows | length %}
         {% if out %}
-        <tr class="ktx-bus-row ktx-dim"><th scope="row">{{ t('ktx.row.deokha') }}</th>{% for r in rows %}<td>{{ r.origin_dep }}</td>{% endfor %}</tr>
-        <tr class="ktx-bus-row ktx-board"><th scope="row">{{ t('ktx.row.unist_via') }}</th>{% for r in rows %}<td>{{ r.unist_at }}</td>{% endfor %}</tr>
-        <tr class="ktx-bus-row"><th scope="row">{{ t('ktx.row.station_bus_arr') }}</th>{% for r in rows %}<td>{{ r.station_at }}</td>{% endfor %}</tr>
-        <tr class="ktx-transfer"><th scope="row">{{ t('ktx.row.margin') }}</th>{% for r in rows %}<td{% if r.tight %} class="is-tight" title="{{ t('ktx.tight') }}"{% endif %}>{{ r.margin_min }}{% if r.tight %}<span class="ktx-tight-mark">!</span>{% endif %}</td>{% endfor %}</tr>
+        {{ opt_head(t('ktx.opt.513'), n) }}
+        <tr class="ktx-bus-row ktx-dim"><th scope="row">{{ t('ktx.row.deokha') }}</th>{% for r in rows %}<td>{{ dash(r.origin_dep) }}</td>{% endfor %}</tr>
+        <tr class="ktx-bus-row ktx-board"><th scope="row">{{ t('ktx.row.unist_via') }}</th>{% for r in rows %}<td{% if r.best == '513' %} class="ktx-best"{% endif %}>{{ dash(r.unist_at) }}</td>{% endfor %}</tr>
+        <tr class="ktx-bus-row"><th scope="row">{{ t('ktx.row.station_bus_arr') }}</th>{% for r in rows %}<td>{{ dash(r.station_at) }}</td>{% endfor %}</tr>
+        <tr class="ktx-transfer"><th scope="row">{{ t('ktx.row.margin') }}</th>{% for r in rows %}{{ min_cell(r.margin_min, r.tight) }}{% endfor %}</tr>
+        {% if table.alt_state == 'ok' %}
+        {{ opt_head(t('ktx.opt.5001'), n, t('ktx.opt.proxied') if table.alt_proxied else '') }}
+        <tr class="ktx-bus-row ktx-board"><th scope="row">{{ t('ktx.row.a_unist_dep') }}</th>{% for r in rows %}{% set a = r.alt %}<td{% if r.best == '5001' %} class="ktx-best"{% endif %}>{% if a %}{{ a.unist_dep }}<small class="ktx-busno">{{ a.feeder_no }}</small>{% else %}–{% endif %}</td>{% endfor %}</tr>
+        <tr class="ktx-bus-row"><th scope="row">{{ t('ktx.row.a_jinmok_arr') }}</th>{% for r in rows %}<td>{{ r.alt.jinmok_arr if r.alt else '–' }}</td>{% endfor %}</tr>
+        <tr class="ktx-bus-row"><th scope="row">{{ t('ktx.row.a_5001_jinmok') }}</th>{% for r in rows %}<td>{{ r.alt.bus_dep if r.alt else '–' }}</td>{% endfor %}</tr>
+        <tr class="ktx-bus-row"><th scope="row">{{ t('ktx.row.a_5001_station') }}</th>{% for r in rows %}<td>{{ r.alt.station_at if r.alt else '–' }}</td>{% endfor %}</tr>
+        <tr class="ktx-transfer"><th scope="row">{{ t('ktx.row.margin') }}</th>{% for r in rows %}{{ min_cell(r.alt.margin_min if r.alt else none, r.alt and r.alt.tight) }}{% endfor %}</tr>
+        {% endif %}
         <tr class="ktx-train-row ktx-first"><th scope="row">{{ t('ktx.row.ulsan_dep') }}</th>{% for r in rows %}<td>{{ r.train_dep }}</td>{% endfor %}</tr>
         {{ via_rows(rows) }}
         <tr class="ktx-train-row"><th scope="row">{{ t('ktx.row.dest_arr', station=dest_name) }}</th>{% for r in rows %}<td>{{ r.train_arr }}{% if r.arr_next_day %}<sup>+1</sup>{% endif %}</td>{% endfor %}</tr>
@@ -74,16 +105,27 @@
         <tr class="ktx-train-row"><th scope="row">{{ t('ktx.row.origin_dep', station=dest_name) }}</th>{% for r in rows %}<td>{{ r.train_dep }}</td>{% endfor %}</tr>
         {{ via_rows(rows) }}
         <tr class="ktx-train-row"><th scope="row">{{ t('ktx.row.ulsan_arr') }}</th>{% for r in rows %}<td>{{ r.train_arr }}{% if r.arr_next_day %}<sup>+1</sup>{% endif %}</td>{% endfor %}</tr>
-        <tr class="ktx-transfer"><th scope="row">{{ t('ktx.row.wait') }}</th>{% for r in rows %}<td{% if r.tight %} class="is-tight" title="{{ t('ktx.tight') }}"{% endif %}>{{ r.wait_min }}{% if r.tight %}<span class="ktx-tight-mark">!</span>{% endif %}</td>{% endfor %}</tr>
-        <tr class="ktx-bus-row ktx-first ktx-board"><th scope="row">{{ t('ktx.row.station_bus_dep') }}</th>{% for r in rows %}<td>{{ r.station_at }}</td>{% endfor %}</tr>
-        <tr class="ktx-bus-row"><th scope="row">{{ t('ktx.row.unist_arr') }}</th>{% for r in rows %}<td>{{ r.unist_at }}</td>{% endfor %}</tr>
-        <tr class="ktx-bus-row ktx-dim"><th scope="row">{{ t('ktx.row.samnam') }}</th>{% for r in rows %}<td>{{ r.origin_dep }}</td>{% endfor %}</tr>
+        {{ opt_head(t('ktx.opt.513'), n) }}
+        <tr class="ktx-transfer"><th scope="row">{{ t('ktx.row.wait') }}</th>{% for r in rows %}{{ min_cell(r.wait_min, r.tight) }}{% endfor %}</tr>
+        <tr class="ktx-bus-row ktx-board"><th scope="row">{{ t('ktx.row.station_bus_dep') }}</th>{% for r in rows %}<td>{{ dash(r.station_at) }}</td>{% endfor %}</tr>
+        <tr class="ktx-bus-row"><th scope="row">{{ t('ktx.row.unist_arr') }}</th>{% for r in rows %}<td{% if r.best == '513' %} class="ktx-best"{% endif %}>{{ dash(r.unist_at) }}</td>{% endfor %}</tr>
+        <tr class="ktx-bus-row ktx-dim"><th scope="row">{{ t('ktx.row.samnam') }}</th>{% for r in rows %}<td>{{ dash(r.origin_dep) }}</td>{% endfor %}</tr>
+        {% if table.alt_state == 'ok' %}
+        {{ opt_head(t('ktx.opt.5001'), n, t('ktx.opt.proxied') if table.alt_proxied else '') }}
+        <tr class="ktx-transfer"><th scope="row">{{ t('ktx.row.wait') }}</th>{% for r in rows %}{{ min_cell(r.alt.wait_min if r.alt else none, false) }}{% endfor %}</tr>
+        <tr class="ktx-bus-row ktx-board"><th scope="row">{{ t('ktx.row.a_5001_station_dep') }}</th>{% for r in rows %}<td>{{ r.alt.bus_dep if r.alt else '–' }}</td>{% endfor %}</tr>
+        <tr class="ktx-bus-row"><th scope="row">{{ t('ktx.row.a_jinmok_arr') }}</th>{% for r in rows %}<td>{{ r.alt.jinmok_arr if r.alt else '–' }}</td>{% endfor %}</tr>
+        <tr class="ktx-bus-row"><th scope="row">{{ t('ktx.row.a_feeder') }}</th>{% for r in rows %}{% set a = r.alt %}<td{% if a and a.tight %} class="is-tight" title="{{ t('ktx.tight') }}"{% endif %}>{% if a %}{{ a.feeder_dep }}<small class="ktx-busno">{{ a.feeder_no }}</small>{% if a.tight %}<span class="ktx-tight-mark">!</span>{% endif %}{% else %}–{% endif %}</td>{% endfor %}</tr>
+        <tr class="ktx-bus-row"><th scope="row">{{ t('ktx.row.unist_arr') }}</th>{% for r in rows %}<td{% if r.best == '5001' %} class="ktx-best"{% endif %}>{{ r.alt.unist_at if r.alt else '–' }}</td>{% endfor %}</tr>
+        {% endif %}
         {% endif %}
         </tbody>
     </table>
     </div>
     {% endfor %}
     <p class="busan-note ktx-legend"><b>{{ t('ktx.legend.bold') }}</b> · {{ t('ktx.legend.est') }} · <span class="ktx-tight-mark">!</span> {{ t('ktx.tight.' ~ table.direction, transfer=table.transfer_min) }}</p>
+    {% if table.alt_state == 'ok' %}<p class="busan-note"><span class="ktx-best-key">09:00</span> {{ t('ktx.legend.best.' ~ table.direction) }} · {{ t('ktx.legend.5001', transfer=table.transfers.jinmok) }}</p>{% endif %}
+    {% if table.alt_proxied %}<div class="info-banner">{{ t('ktx.proxied_note') }}</div>{% endif %}
     {% if table.stations %}<p class="busan-note">{{ t('ktx.legend.via') }}{% if table.stops_unknown %} {{ t('ktx.stops_unknown', n=table.stops_unknown) }}{% endif %}</p>{% endif %}
     {% endif %}
     {% if table.skipped %}<p class="busan-note">{{ t('ktx.skipped.' ~ table.direction, n=table.skipped) }}</p>{% endif %}

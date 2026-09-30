@@ -202,7 +202,7 @@ def cmd_build_leg_profile(args) -> int:
     passages, sources = [], []
     for path in args.tsv or []:
         rows = read_tsv_passages(path, route_ids)
-        print(f"  {path}: 513 통과기록 {len(rows)}건")
+        print(f"  {path}: 대상 노선 통과기록 {len(rows)}건")
         passages += rows
         sources.append(_source_meta(Path(path).name, rows))
     if args.db:
@@ -213,7 +213,7 @@ def cmd_build_leg_profile(args) -> int:
             rows = read_db_passages(conn, route_ids)
         finally:
             conn.close()
-        print(f"  bus_timelog: 513 통과기록 {len(rows)}건")
+        print(f"  bus_timelog: 대상 노선 통과기록 {len(rows)}건")
         passages += rows
         sources.append(_source_meta("bus_timelog", rows))
     if not passages:
@@ -240,6 +240,7 @@ def cmd_ktx_connections(args) -> int:
     import dataclasses
     import json
 
+    from bushexa.domain.ktx_connect import Transfers
     from bushexa.services.holiday_service import read_effective_holidays
     from bushexa.services.ktx_connections import build_connect_table
     from bushexa.time_utils import KSTClock
@@ -247,25 +248,40 @@ def cmd_ktx_connections(args) -> int:
     config = _load_config()
     today = KSTClock().now().date()
     holidays = read_effective_holidays(config.data_dir)
+    transfers = Transfers(station=args.transfer_station, jinmok=args.transfer_jinmok)
     table, errors, _ = build_connect_table(config, today, holidays, direction=args.dir,
-                                           dest=args.to, day=args.day)
+                                           dest=args.to, day=args.day, transfers=transfers)
     if args.json:
         data = dataclasses.asdict(table)
         data["ref_date"] = table.ref_date.isoformat() if table.ref_date else None
         print(json.dumps(data, ensure_ascii=False, indent=1))
         return 0
     print(f"{args.dir} {args.to} day={args.day} 기준일={table.ref_date} 철도={table.rail_state} "
-          f"버스={table.bus_state} 소요={table.profile_state} 제외={table.skipped}편")
+          f"버스={table.bus_state} 소요={table.profile_state} 5001={table.alt_state}"
+          f"{'(근사)' if table.alt_proxied else ''} 환승={transfers.station}/{transfers.jinmok}분 "
+          f"제외={table.skipped}편")
     for e in errors:
         print(f"  오류: {e}")
     for r in table.rows:
         mark = " (빠듯)" if r.tight else ""
+        a = r.alt
+        amark = " (빠듯)" if a and a.tight else ""
         if args.dir == "out":
-            print(f"  덕하 {r.origin_dep} → UNIST {r.unist_at} → 울산역 {r.station_at}"
-                  f"  ⇒ {r.grade} {r.train_dep}→{r.train_arr} 여유 {r.margin_min}분{mark}")
+            print(f"  {r.grade} {r.train_dep}→{r.train_arr}  최선={r.best or '-'}")
+            if r.origin_dep:
+                print(f"    ① 덕하 {r.origin_dep} → UNIST {r.unist_at} → 울산역 {r.station_at}"
+                      f" 여유 {r.margin_min}분{mark}")
+            if a:
+                print(f"    ② UNIST {a.unist_dep}({a.feeder_no}) → 진목회관 {a.jinmok_arr} → 5001 {a.bus_dep}"
+                      f" → 울산역 {a.station_at} 여유 {a.margin_min}분{amark}")
         else:
-            print(f"  {r.grade} {r.train_dep}→울산 {r.train_arr}  ⇒ 513 삼남 {r.origin_dep}"
-                  f" → 울산역 {r.station_at} → UNIST {r.unist_at} 대기 {r.wait_min}분{mark}")
+            print(f"  {r.grade} {r.train_dep}→울산 {r.train_arr}  최선={r.best or '-'}")
+            if r.origin_dep:
+                print(f"    ① 513 삼남 {r.origin_dep} → 울산역 {r.station_at} → UNIST {r.unist_at}"
+                      f" 대기 {r.wait_min}분{mark}")
+            if a:
+                print(f"    ② 5001 {a.bus_dep} → 진목회관 {a.jinmok_arr} → {a.feeder_no} {a.feeder_dep}"
+                      f" → UNIST {a.unist_at} 대기 {a.wait_min}분{amark}")
     return 0
 
 
@@ -425,6 +441,10 @@ def build_parser() -> argparse.ArgumentParser:
     p_ktx.add_argument("--to", choices=["busan", "seoul", "suseo"], default="busan")
     p_ktx.add_argument("--day", type=int, choices=[0, 1, 2], default=0, help="0 평일 / 1 토 / 2 일·공휴일")
     p_ktx.add_argument("--json", action="store_true", help="JSON 으로 출력")
+    p_ktx.add_argument("--transfer-station", type=int, default=5,
+                       help="울산역 버스 정류장 ↔ KTX 환승 최소 시간(분, 기본 5)")
+    p_ktx.add_argument("--transfer-jinmok", type=int, default=5,
+                       help="진목회관 길 건너 버스 ↔ 버스 환승 최소 시간(분, 기본 5)")
 
     return parser
 

@@ -7,12 +7,23 @@ from __future__ import annotations
 import datetime
 
 from bushexa.data.constants import (
+    KTX_5001,
+    KTX_5001_FROM_STATION,
+    KTX_5001_TO_STATION,
     KTX_CONNECT_DESTS,
+    KTX_JINMOK_IN_FEEDERS,
+    KTX_JINMOK_OUT_FEEDERS,
     KTX_IN_513_ORIGIN,
     KTX_OUT_513_ORIGIN,
     RAIL_ULSAN,
 )
-from bushexa.domain.ktx_connect import ConnectTable, build_inbound, build_outbound, reference_date
+from bushexa.domain.ktx_connect import (
+    ConnectTable,
+    Transfers,
+    build_inbound,
+    build_outbound,
+    reference_date,
+)
 from bushexa.services.board_support import timetable_provider_for
 from bushexa.services.leg_profile import default_profile_path, load_profile
 from bushexa.services.rail_timetable import (
@@ -72,6 +83,7 @@ def borrow_stops(train_day: dict, others: list[dict]) -> dict:
 
 def build_connect_table(config, today: datetime.date, holiday_set: set[str], *,
                         direction: str, dest: str, day: int,
+                        transfers: Transfers | None = None,
                         ) -> tuple[ConnectTable, list[str], dict | None]:
     """(표, 오류 문구 목록(시간표 파일 없음 등), 구간 소요 프로필 — 출처·기간 표시용)."""
     errors: list[str] = []
@@ -91,8 +103,19 @@ def build_connect_table(config, today: datetime.date, holiday_set: set[str], *,
         errors.append(f"513 {origin} 시간표 없음: {exc}")
         bus_times = []
 
+    # ② 5001 + 진목회관 환승 안의 시간표(5001 한 방향 + 환승 버스들). 없는 노선은 그 안에서 빠진다.
+    keys = ([(KTX_5001, KTX_5001_TO_STATION)] + [(b, k) for b, k, _p, _l in KTX_JINMOK_OUT_FEEDERS]
+            if direction == "out" else
+            [(KTX_5001, KTX_5001_FROM_STATION)] + [(b, k) for b, k, _p, _l in KTX_JINMOK_IN_FEEDERS])
+    timetables = {}
+    for busno, key in keys:
+        try:
+            timetables[(busno, key)] = list(provider(busno, day, key))
+        except (FileNotFoundError, KeyError) as exc:
+            errors.append(f"{busno} {key} 시간표 없음: {exc}")
+
     profile = load_profile(default_profile_path(config.data_dir))
     build = build_outbound if direction == "out" else build_inbound
     table = build(day, ref, dest=dest, train_day=train_day, bus_times=bus_times, profile=profile,
-                  pair=(dep_id, arr_id))
+                  pair=(dep_id, arr_id), timetables=timetables, transfers=transfers)
     return table, errors, profile

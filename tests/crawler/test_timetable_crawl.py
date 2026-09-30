@@ -14,7 +14,7 @@ from bushexa.crawler.timetable_crawl import (
     crawl_route_day,
 )
 
-BUSNOS = {"513", "713", "743", "753", "1115"}
+BUSNOS = {"513", "713", "743", "753", "1115", "5001"}   # 5001: 수집 전용(EXTRA_TIMETABLE_BUSES)
 
 
 class FakeTimetableClient:
@@ -33,7 +33,7 @@ class FakeTimetableClient:
 
 
 def test_writes_five_routes(tmp_path):
-    """mock 시간표 응답으로 재크롤을 돌리면 5개 노선 JSON이 atomic하게 기록되고 각 파일이
+    """mock 시간표 응답으로 재크롤을 돌리면 UNIST 5개 노선 + 5001 JSON이 atomic하게 기록되고 각 파일이
     valid JSON(요일 키 0/1/2)인지 검증한다."""
     client = FakeTimetableClient([TimetableRow("05:30", 1), TimetableRow("06:15", 2)], total=2)
 
@@ -140,7 +140,7 @@ class OneRouteDownClient(FakeTimetableClient):
 
 
 def test_one_route_failure_isolated(tmp_path):
-    """한 노선(513)이 계속 실패해도 나머지 4개 노선은 기록되고, 실패 노선 파일은 쓰지 않으며,
+    """한 노선(513)이 계속 실패해도 나머지 노선은 기록되고, 실패 노선 파일은 쓰지 않으며,
     종료 시 TimetableCrawlError로 부분 실패를 집계 보고하는지 검증한다 — ADR-013 결정 2.
 
     2026-06-05 울산 API 간헐 무응답 실측 회귀: 기존엔 첫 실패가 전체 스윕을 중단시켰다."""
@@ -177,3 +177,11 @@ def test_all_empty_crawl_preserves_existing_file(tmp_path):
     assert json.loads(existing.read_text(encoding="utf-8")) == {"0": {"덕하": ["05:30"]}}
     # 다른 노선 파일은 생성되지 않는다
     assert not (tmp_path / "1115.json").exists()
+
+
+def test_5001_directions_map_to_station_and_kkotbawi_origins(tmp_path):
+    """5001 은 작은 route_id(196000455, 울산역 기점)가 direction 1, 196000456(꽃바위 기점)이 2 로 기록된다."""
+    client = FakeTimetableClient([TimetableRow("05:20", 1), TimetableRow("04:00", 2)], total=2)
+    crawl_all_timetables(client, out_dir=tmp_path)
+    data = json.loads((tmp_path / "5001.json").read_text(encoding="utf-8"))
+    assert data["0"] == {"울산역": ["05:20"], "꽃바위": ["04:00"]}

@@ -90,3 +90,12 @@ def test_ktx_english_has_no_raw_keys_and_linked_from_busan_seoul(client):
     assert "KTX" in html and "ktx." not in html.replace("css/ktx.css", "")
     assert "/ktx?dir=out&amp;to=busan" in c.get("/busan").data.decode()
     assert "/ktx?dir=in&amp;to=seoul" in c.get("/seoul").data.decode()
+
+
+def test_ktx_transfer_minimum_query_params_are_validated(client):
+    """ts·tj 쿼리는 0~30 분만 받고, 그 밖·숫자 아님은 기본 5분. 폼에 현재 값이 채워진다."""
+    c, _ = client
+    html = c.get("/ktx?ts=12&tj=3").data.decode()
+    assert 'name="ts" min="0" max="30" value="12"' in html and 'name="tj" min="0" max="30" value="3"' in html
+    html = c.get("/ktx?ts=99&tj=abc").data.decode()
+    assert 'name="ts" min="0" max="30" value="5"' in html and 'name="tj" min="0" max="30" value="5"' in html
