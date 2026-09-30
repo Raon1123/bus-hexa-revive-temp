@@ -26,7 +26,7 @@ from pathlib import Path
 import requests
 
 from bushexa import fileio
-from bushexa.data.constants import ROUTEID
+from bushexa.data.constants import EXTRA_TIMETABLE_BUSES, EXTRA_TRACKED_ROUTES, ROUTEID
 from bushexa.data.timetable import timetable_dir
 
 logger = logging.getLogger("bushexa.crawler.timetable_crawl")
@@ -94,12 +94,14 @@ def crawl_route_day(client, route_no, day_of_week, *, rows: int = 50, on_progres
 
 
 def _busno_directions() -> dict[str, list[tuple[str, str, int]]]:
-    """ROUTEID에서 busno → [(route_id, departure, direction)] 매핑 생성(legacy 로직 동일).
+    """ROUTEID(+``EXTRA_TIMETABLE_BUSES`` 의 수집 전용 노선)에서 busno → [(route_id, departure,
+    direction)] 매핑 생성(legacy 로직 동일).
 
     같은 busno의 route_id를 정렬해 더 작은 쪽을 direction 1, 다른 쪽을 2로 둔다.
     """
+    extra = {rid: v for rid, v in EXTRA_TRACKED_ROUTES.items() if v[0] in EXTRA_TIMETABLE_BUSES}
     by_bus: dict[str, list[tuple[str, str]]] = {}
-    for route_id, value in ROUTEID.items():
+    for route_id, value in {**ROUTEID, **extra}.items():
         busno, departure = value[0], value[2]
         by_bus.setdefault(busno, []).append((route_id, departure))
     result: dict[str, list[tuple[str, str, int]]] = {}
@@ -112,7 +114,7 @@ def _busno_directions() -> dict[str, list[tuple[str, str, int]]]:
 def crawl_all_timetables(client, *, vacation: bool = False, out_dir=None,
                          on_progress=None, days=(0, 1, 2), attempts: int = 3,
                          sleep=_time.sleep) -> dict[str, Path]:
-    """전 노선 시간표를 재크롤해 ``{busno}.json`` 5개를 atomic하게 기록한다. {busno: path} 반환.
+    """전 노선 시간표를 재크롤해 ``{busno}.json`` 들(UNIST 5개 + 5001)을 atomic하게 기록한다. {busno: path} 반환.
 
     노선 단위 격리(ADR-013 결정 2): 한 노선의 *수집* 실패는 로그 후 다음 노선으로 계속하고,
     그 노선 파일은 쓰지 않는다(부분 시간표로 기존 데이터 덮어쓰기 금지). 전부 끝난 뒤 실패가

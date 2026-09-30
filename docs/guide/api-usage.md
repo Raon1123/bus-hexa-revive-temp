@@ -31,7 +31,8 @@ audience: 크롤러·API 클라이언트를 수정하거나 수집 장애를 진
 - **TAGO ID = `'USB'` + 울산 BIS 9자리 ID** (`ULSAN_PREFIX`). 예: 울산 노선 `195000177` ↔ TAGO `USB195000177`. 정류장도 같은 규칙.
 - 추적 대상:
   - `ROUTEID` — 5개 노선(513/713/743/753/1115) × 2방향 = 10개.
-  - `EXTRA_TRACKED_ROUTES` — UNIST 를 지나지 않지만 운행 기록을 모으는 노선(1224 × 2방향). govtrack 은 `TRACKED_ROUTES`(= 둘의 합, 12개)를 추적한다. 게시판·시간표·`/stops` 는 `ROUTEID` 만 본다.
+  - `EXTRA_TRACKED_ROUTES` — UNIST 를 지나지 않지만 운행 기록을 모으는 노선(1224·5001 × 2방향). govtrack 은 `TRACKED_ROUTES`(= 둘의 합, 14개)를 추적한다. 게시판·시간표·`/stops` 는 `ROUTEID` 만 본다. 5001(울산역 리무진, TAGO routeid `USB196000455` 울산역→꽃바위 / `USB196000456` 꽃바위→울산역)은 UNIST 에 서지 않고 양방향 모두 진목회관에 선다 — `/ktx` ② 안.
+  - `EXTRA_TIMETABLE_BUSES` — ROUTEID 밖이지만 울산 BIS 시간표를 받는 노선(5001). 방향 1(작은 routeid)=울산역 기점, 2=꽃바위 기점. 울산역발은 자정 `00:00` 막차가 있다(운행일 24:00 으로 정렬).
   - `SERACH_STOPS` — 도착정보 폴링 정류장 17개(철자 `SERACH` 는 원본 유지, 고치지 말 것).
   - `UNIST_VIA_STOP_ID = "196040234"`.
 - 철도 역 ID(부산 루트): 열차 `RAIL_STATIONS`(울산 `NATH13717`, 태화강 `NAT750726`, 부산 `NAT014445`, 부전 `NAT750046`), 동해선 광역전철 `METRO_STATIONS`(태화강 `MTRKRK6K132`, 벡스코 `MTRKRK6K119`, 부전 `MTRKRK6K110`). 수집 구간은 `RAIL_PAIRS`·`METRO_QUERIES`. 역 목록은 `TrainInfo/GetCtyAcctoTrainSttnList`(cityCode 26·21), `SubwayInfo/GetKwrdFndSubwaySttnList` 로 확인했다.
@@ -95,7 +96,7 @@ audience: 크롤러·API 클라이언트를 수정하거나 수집 장애를 진
 
 | 호출자 | 사이클당 | 주기 | 가동 | 일일 추정 |
 |---|---|---|---|---|
-| govtrack → TAGO | 12(`TRACKED_ROUTES` 노선×방향, 1224 포함), 기본 순차 | 사이클 **후** 15s 휴식 | 20h(01~05시 야간 휴식) | 상한 57,600, 관측 기준 약 36~48k |
+| govtrack → TAGO | 14(`TRACKED_ROUTES` 노선×방향, 1224·5001 포함), 기본 순차 | 사이클 **후** 15s 휴식 | 20h(01~05시 야간 휴식) | 상한 67,200, 관측 기준 약 42~56k |
 | arrival → 울산 도착정보 | 18(정류장, 좋은삼정병원앞 포함), 기본 순차 | 사이클 후 7s 휴식 | **24h(야간 휴식 없음)** | 호출당 1.2~1.5s 관측 → 약 50k. `FETCH_WORKERS=4` 면 110k+ |
 | govtrack 폴백 → 울산 | 노선의 추적 정류장 수만큼(8s 캐시로 중복 제거) | TAGO 장애 시 | — | 가변 |
 | cache-refresh → 특일정보 | 2(이번 달·다음 달) | 부팅 + 하루 1회 | — | ≈ 4 |

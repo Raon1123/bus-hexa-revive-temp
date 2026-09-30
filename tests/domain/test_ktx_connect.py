@@ -176,3 +176,91 @@ def test_rows_carry_via_cells_and_count_unknown_stops():
                        pair=(RAIL_ULSAN, RAIL_SEOUL))
     assert len(t.stations) == 10 and t.rows[0].via[4] == "09:05"
     assert t.rows[1].via == ("",) * 10 and t.stops_unknown == 1
+
+
+# ── ② 5001 + 진목회관 환승 ──────────────────────────────────────────────────
+
+def _alt_profile(**extra):
+    """① 기본 구간 + ② 5001·환승 구간(고정값). 5001 실측은 기본적으로 없음(근사 구간 사용)."""
+    prof = _profile(p513_station_jinmok=20, p1115_kkotbawi_gulhwa=60, p513_gulhwa_jinmok=15,
+                    p513_jinmok_station=18, myeongchon_jinmok_713=70, jinmok_unist_713=4,
+                    deokha_jinmok=57, jinmok_unist_513=3, unist_jinmok_713=3, samnam_unist=40,
+                    unist_jinmok_513=3, **extra)
+    return prof
+
+
+TTS_IN = {("5001", "울산역"): ["07:40", "08:05"], ("713", "명촌"): ["07:00", "07:10", "07:30"]}
+TTS_OUT = {("5001", "꽃바위"): ["05:30", "06:00"], ("713", "UNIST"): ["06:30", "06:40", "07:00"]}
+
+
+def test_inbound_5001_takes_first_5001_then_first_feeder_across_the_road():
+    """07:30 도착 → 5분 뒤 첫 5001(07:40) → 진목회관 08:00 → 5분 건너 → 713(07:00 명촌발, 08:10 통과) → UNIST 08:14."""
+    t = build_inbound(0, REF, dest="seoul", bus_times=[], profile=_alt_profile(),
+                      train_day=_day(("05:10", "07:30")), timetables=TTS_IN)
+    a = t.rows[0].alt
+    assert (a.bus_dep, a.wait_min, a.jinmok_arr, a.feeder_no, a.feeder_dep, a.unist_at) == (
+        "07:40", 10, "08:00", "713", "08:10", "08:14")
+    assert t.rows[0].origin_dep is None and t.alt_state == "ok" and t.alt_proxied
+    assert a.tight is False                # 근사 구간이면 빠듯 판정을 하지 않는다
+
+
+def test_transfer_minimums_are_parameters_with_five_minute_default():
+    """환승 최소 시간은 울산역·진목회관 각각 매개변수(기본 5분). 울산역 11분이면 07:40 5001 을 못 타
+    08:05 5001(진목회관 08:25) → 5분 건너 07:30 명촌발 713(08:40)을 탄다."""
+    from bushexa.domain.ktx_connect import Transfers
+
+    assert Transfers() == Transfers(station=5, jinmok=5)
+    t = build_inbound(0, REF, dest="seoul", bus_times=[], profile=_alt_profile(),
+                      train_day=_day(("05:10", "07:30")), timetables=TTS_IN,
+                      transfers=Transfers(station=11, jinmok=5))
+    assert (t.rows[0].alt.bus_dep, t.rows[0].alt.feeder_dep) == ("08:05", "08:40")
+    assert t.transfers.station == 11
+    # 진목회관 45분이면 마지막 713(08:40 통과)도 놓쳐 환승 버스가 없다 → 그 열차는 빠진다
+    t2 = build_inbound(0, REF, dest="seoul", bus_times=[], profile=_alt_profile(),
+                       train_day=_day(("05:10", "07:30")), timetables=TTS_IN,
+                       transfers=Transfers(station=5, jinmok=45))
+    assert t2.rows == [] and t2.skipped == 1
+
+
+def test_outbound_5001_latest_run_and_latest_unist_departure():
+    """08:00 열차: 06:00 꽃바위발 5001(진목회관 07:15, 울산역 07:33)은 여유 27분 → 이 5001 에
+    진목회관 5분 전까지 닿는 가장 늦은 713(UNIST 07:00 → 07:03)을 붙인다."""
+    t = build_outbound(0, REF, dest="busan", bus_times=[], profile=_alt_profile(),
+                       train_day=_day(("08:00", "08:21")), timetables=TTS_OUT)
+    a = t.rows[0].alt
+    assert (a.feeder_no, a.unist_dep, a.jinmok_arr, a.bus_dep, a.station_at, a.margin_min) == (
+        "713", "07:00", "07:03", "07:15", "07:33", 27)
+
+
+def test_best_option_compares_unist_times():
+    """두 안이 다 있으면 가는 편은 UNIST 를 더 늦게 떠나는 안, 오는 편은 UNIST 에 먼저 닿는 안이 best."""
+    tts = {**TTS_OUT, ("513", "삼남"): []}
+    out = build_outbound(0, REF, dest="busan", bus_times=["06:00"], profile=_alt_profile(),
+                         train_day=_day(("08:00", "08:21")), timetables=tts)
+    assert out.rows[0].unist_at == "07:00" and out.rows[0].alt.unist_dep == "07:00"
+    assert out.rows[0].best == "513"                   # 같으면 513
+    inn = build_inbound(0, REF, dest="seoul", bus_times=["07:40"], profile=_alt_profile(),
+                        train_day=_day(("05:10", "07:30")), timetables=TTS_IN)
+    assert inn.rows[0].unist_at == "08:18" and inn.rows[0].alt.unist_at == "08:14"
+    assert inn.rows[0].best == "5001"
+
+
+def test_real_5001_records_replace_proxy_when_enough_samples():
+    """5001 실측 표본이 KTX_LEG_REAL_MIN_N 이상이면 근사 대신 실측 구간을 쓰고 빠듯 판정도 켠다."""
+    from bushexa.domain.ktx_connect import leg_or_proxy
+
+    prof = _alt_profile()
+    est, proxied = leg_or_proxy(prof, "l5001_origin_jinmok", 0, 300)
+    assert proxied and est.p50 == 75                   # 1115 60 + 513 15
+    prof["legs"]["l5001_origin_jinmok"] = {"by_day": {"0": {"all": {**_stats(50), "n": 30}, "hours": {}}}}
+    est, proxied = leg_or_proxy(prof, "l5001_origin_jinmok", 0, 300)
+    assert not proxied and est.p50 == 50
+    prof["legs"]["l5001_origin_jinmok"]["by_day"]["0"]["all"]["n"] = 5
+    assert leg_or_proxy(prof, "l5001_origin_jinmok", 0, 300)[1] is True
+
+
+def test_train_kept_when_only_5001_reaches_it():
+    """513 첫차로는 못 닿는 이른 열차도 5001 안이 있으면 빼지 않는다(① 칸은 None)."""
+    t = build_outbound(0, REF, dest="busan", bus_times=["07:30"], profile=_alt_profile(),
+                       train_day=_day(("08:00", "08:21")), timetables=TTS_OUT)
+    assert t.skipped == 0 and t.rows[0].origin_dep is None and t.rows[0].alt is not None
