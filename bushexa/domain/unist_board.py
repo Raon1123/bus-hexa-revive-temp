@@ -22,6 +22,10 @@ from bushexa.time_utils import Clock, get_weekday
 class CardEntry:
     text: str                              # 표시 문자열
     source: Literal["live", "timetable"]   # 데이터 출처
+    # 렌더 계층 번역용 구조 값(text 는 한국어 폴백). live: stop+seconds, timetable: time.
+    stop: str = ""
+    seconds: int | None = None
+    time: str = ""
 
 
 @dataclass(frozen=True)
@@ -80,7 +84,10 @@ def _build_via_card(
                 secs = arrival.arrival_time
                 mins, secs_rem = divmod(secs, 60)
                 text = f"{arrival.present_stop} {mins}분{secs_rem}초"
-                entries.append(CardEntry(text=text, source="live"))
+                entries.append(CardEntry(
+                    text=text, source="live",
+                    stop=arrival.present_stop, seconds=secs,
+                ))
 
     # 부족분을 시간표로 채움
     if len(entries) < visualize:
@@ -92,7 +99,7 @@ def _build_via_card(
         for t in future_times:
             if len(entries) >= visualize:
                 break
-            entries.append(CardEntry(text=f"{t} 출발 예정", source="timetable"))
+            entries.append(CardEntry(text=f"{t} 출발 예정", source="timetable", time=t))
 
     is_last_bus = len(entries) == 0
     return BusCard(busno=busno, direction=direction, entries=entries, is_last_bus=is_last_bus)
@@ -117,7 +124,7 @@ def _build_from_card(
     future_times = [t for t in times if _is_future(t, now_h, now_m)]
     # F07 IndexError 결함 수정: bounds 검사 후 슬라이스
     for t in future_times[:visualize]:
-        entries.append(CardEntry(text=f"{t} 출발 예정", source="timetable"))
+        entries.append(CardEntry(text=f"{t} 출발 예정", source="timetable", time=t))
 
     is_last_bus = len(entries) == 0
     return BusCard(busno=busno, direction=direction, entries=entries, is_last_bus=is_last_bus)

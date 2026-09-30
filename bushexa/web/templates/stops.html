@@ -1,21 +1,21 @@
 {% extends "_base.html" %}
 
-{% block title %}정류소별 버스 도착 정보{% endblock %}
+{% block title %}{{ t('stops.title') }}{% endblock %}
 
 {% block content %}
-<h2>정류소별 버스 도착 정보</h2>
+<h2>{{ t('stops.title') }}</h2>
 
 <div class="stops-selector">
-    <label for="stop-select">정류소 선택:</label>
+    <label for="stop-select">{{ t('stops.select_label') }}</label>
     <select id="stop-select"
             name="stop_id"
             hx-get="/partial/stops"
             hx-trigger="change"
             hx-target="#stops-table"
             hx-include="[name='stop_id']">
-        <option value="" disabled {% if not selected_stop %}selected{% endif %}>-- 정류소를 선택해주세요 --</option>
+        <option value="" disabled {% if not selected_stop %}selected{% endif %}>{{ t('stops.select_prompt') }}</option>
         {% for stop_id, stop_name in stop_options %}
-        <option value="{{ stop_id }}" {% if stop_id == selected_stop %}selected{% endif %}>{{ stop_name }}</option>
+        <option value="{{ stop_id }}" {% if stop_id == selected_stop %}selected{% endif %}>{{ stop_name | stop }}</option>
         {% endfor %}
     </select>
 </div>
@@ -25,11 +25,11 @@
      hx-get="/partial/stops?stop_id={{ selected_stop }}"
      hx-trigger="load"
      hx-swap="outerHTML">
-    <p class="empty-state">불러오는 중…</p>
+    <p class="empty-state">{{ t('stops.loading') }}</p>
 </div>
 {% else %}
 <div id="stops-table">
-    <p class="empty-state">정류소를 선택하면 도착 정보가 표시됩니다.</p>
+    <p class="empty-state">{{ t('stops.pick_hint') }}</p>
 </div>
 {% endif %}
 {% endblock %}

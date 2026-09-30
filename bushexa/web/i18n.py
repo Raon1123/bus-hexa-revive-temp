@@ -187,6 +187,23 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
     "stop.annot.from_date": {"ko": "{date}부터",          "en": "from {date}"},
     "dir.towards":          {"ko": "{stop} 방면",         "en": "To {stop}"},
 
+    # ── Arrival info: /stops, /unist ───────────────────────────────────────
+    "arrival.min_sec":      {"ko": "{m}분 {s}초",          "en": "{m}m {s}s"},
+    "arrival.scheduled":    {"ko": "{time} 출발 예정",      "en": "Departs {time}"},
+    "arrival.no_service":   {"ko": "운행 종료 또는 정보 없음", "en": "Service ended or no info"},
+    "stops.title":          {"ko": "정류소별 버스 도착 정보", "en": "Arrivals by Stop"},
+    "stops.select_label":   {"ko": "정류소 선택:",          "en": "Select a stop:"},
+    "stops.select_prompt":  {"ko": "-- 정류소를 선택해주세요 --", "en": "-- Select a stop --"},
+    "stops.loading":        {"ko": "불러오는 중…",          "en": "Loading…"},
+    "stops.pick_hint":      {"ko": "정류소를 선택하면 도착 정보가 표시됩니다.", "en": "Select a stop to see arrival info."},
+    "stops.error":          {"ko": "실시간 정보를 가져오지 못했습니다:", "en": "Could not fetch live info:"},
+    "stops.long_gap":       {"ko": "첫 번째 버스와 두 번째 버스의 간격이 30분 이상입니다.", "en": "The gap between the first and second bus is 30 minutes or more."},
+    "stops.no_bus":         {"ko": "운행 중인 버스가 없습니다.", "en": "No buses are running."},
+    "stops.col.route":      {"ko": "노선",                "en": "Route"},
+    "stops.col.direction":  {"ko": "방향",                "en": "Direction"},
+    "stops.col.eta":        {"ko": "도착 예상",            "en": "Arriving in"},
+    "stops.col.position":   {"ko": "현재 위치",            "en": "Current stop"},
+    "stops.col.vehicle":    {"ko": "차량번호",             "en": "Vehicle No."},
     # ── 기한형 공지 (services/notices.py) ───────────────────────────────────
     "notice.region":             {"ko": "공지",       "en": "Notices"},
     "notice.more":               {"ko": "자세히",     "en": "Details"},
