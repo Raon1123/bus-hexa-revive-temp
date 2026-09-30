@@ -38,7 +38,7 @@ audience: 이 저장소에서 작업하는 사람·AI 세션
 - 설정: [docker/supervisord.conf](../../docker/supervisord.conf), [docker/compose.yaml](../../docker/compose.yaml) (canonical podman 판은 루트 `compose.podman.yaml`).
 - 포트 **8017(호스트) → 8000(컨테이너)**, healthcheck 는 `/lite`.
 - bind mount: `../bushexa`(ro), `../data`(rw), `../secret`(ro), `../logs`.
-  - 코드만 바뀌면 **재빌드 없이 `restart app`** 으로 반영된다. 이미지 재빌드는 `pyproject.toml`·`uv.lock`·`docker/` 변경 시에만.
+  - 반영은 **`down` → `up -d --build`**(운영 podman-compose 는 `CONTAINERS_CONF_OVERRIDE=$PWD/containers.conf` 필수). 코드는 bind mount 라 `--build` 는 캐시로 금방 끝나지만, `restart app` 만으로는 새 코드가 반영되지 않았다(2026-09-30). 절차는 change-playbooks §6.
   - 컨테이너가 root 로 돌기 때문에 `data/` 의 런타임 파일이 **root 소유**로 생긴다(로컬에서 `rm`·편집 시 권한 오류 주의).
 - Streamlit 시절 레거시는 `archive/streamlit-legacy/` 로 옮겨졌다(pytest 제외, 참고용). `old-stuff/`, `postgres-data/`, `media/` 도 현행 코드가 아니다. 수정 대상이 아니다.
 

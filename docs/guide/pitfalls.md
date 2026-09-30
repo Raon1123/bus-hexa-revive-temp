@@ -52,7 +52,8 @@ audience: 이 저장소에서 코드를 고치는 모든 사람·AI 세션 — �
 |---|---|---|
 | 각 프로세스는 자기 저장소 전제조건(스키마 등)을 **멱등으로 직접** 세운다. 부팅 순서를 가정하지 않는다 | 새 DB 에서 `/lite` 500, healthcheck 실패 | PM-009 |
 | mock 없는 스모크를 배포 게이트로 유지한다(`scripts/smoke_compose.sh`) | 데이터 접근을 전부 mock 한 라우트 테스트는 배선 결함을 못 본다 | PM-009 |
-| 코드만 바뀌면 `restart app`, `pyproject.toml`·`uv.lock`·`docker/` 가 바뀌면 `up -d --build` | 소스는 ro bind-mount 라 재빌드가 필요 없다. 반대로 의존성 변경은 재시작만으론 반영 안 됨 | README.txt |
+| 운영 반영은 코드만 바뀌어도 **`down` → `up -d --build`**. `restart app` 에 기대지 않는다 | 운영 podman-compose 에서 `restart app` 후에도 새 페이지(/ktx)가 반영되지 않았고 down/up 으로 해결됐다(2026-09-30) | README.txt, change-playbooks §6 |
+| 운영 podman-compose 명령에는 `CONTAINERS_CONF_OVERRIDE=$PWD/containers.conf` 를 붙인다 | rootless podman 이 keyring 을 만들다 EDQUOT("Disk quota exceeded")로 기동이 막힌다 | `containers.conf` 머리 주석 |
 | compose 의 Dockerfile 경로는 `docker/Dockerfile`. 바꾸면 CI docker-build 잡이 잡는다 | 경로 변경이 커밋 메시지에 없이 섞여 들어가 혼선 | PM-012 §4 |
 | 컨테이너는 root 로 돈다. `data/`·`logs/` 의 런타임 파일은 root 소유다 | 호스트에서 편집·삭제 시 권한 오류 | architecture §2 |
 | 배포 번들은 README.txt 절차대로 만들고 `tar tf … \| grep -E '\.env$\|secret/\|password\|\.db'` 가 비어야 한다 | 시크릿이 번들로 새어 나간다 | PM-013 |

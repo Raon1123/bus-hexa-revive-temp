@@ -27,7 +27,9 @@ DATABASE_URL=sqlite:///./data/bushexa.db uv run bushexa init-db
 DATABASE_URL=sqlite:///./data/bushexa.db uv run bushexa serve --dev   # http://localhost:8000/board
 uv run bushexa crawl-once --route 195000177 --dry-run                  # API 단발 점검 (키 필요)
 uv run bushexa crawl-rail                                              # KTX·동해선 시간표 즉시 갱신 (키 필요)
-podman compose -f docker/compose.yaml restart app                      # 운영: 코드만 바뀐 경우 (8017→8000)
+pc() { CONTAINERS_CONF_OVERRIDE=$PWD/containers.conf podman-compose -f docker/compose.yaml "$@"; }   # 운영(배포 루트에서)
+pc down && pc up -d --build                                            # 운영 반영(코드만 바뀌어도, restart 로는 안 됨)
+scripts/recrawl_rail.sh                                                # 운영 컨테이너에서 KTX·동해선 시간표 즉시 재수집
 ```
 
 ## 구조 한눈에
