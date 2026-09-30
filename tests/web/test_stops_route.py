@@ -157,3 +157,14 @@ def test_cache_expires():
     clock.advance(11)
     result3 = cache_mod.get_or_fetch(_STOP_ID, fetch_fn, clock)
     assert call_count == 2, "11s later (TTL expired): should refetch"
+
+
+def test_stops_partial_english_arrival(client, monkeypatch):
+    """?lang=en 이면 도착 안내(소요 시간·열 제목·정류소명)가 영문으로 렌더된다."""
+    monkeypatch.setattr(cache_mod, "get_or_fetch", lambda sid, fetch, clock: _MOCK_SNAPSHOT)
+    body = client.get(f"/partial/stops?stop_id={_STOP_ID}&lang=en").get_data(as_text=True)
+    assert "5m 30s" in body
+    assert "Arriving in" in body
+    assert "5분 30초" not in body
+    ko = client.get(f"/partial/stops?stop_id={_STOP_ID}&lang=ko").get_data(as_text=True)
+    assert "5분 30초" in ko

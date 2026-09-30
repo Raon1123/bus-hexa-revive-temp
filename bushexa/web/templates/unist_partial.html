@@ -10,14 +10,20 @@
     <div class="bus-card {% if card.is_last_bus %}last-bus{% endif %}">
         <div class="bus-card-header route-{{ card.busno }}">
             <span class="bus-number">{{ card.busno }}</span>
-            <span class="bus-direction">{{ card.direction }}</span>
+            <span class="bus-direction">{{ card.direction | stop }}</span>
         </div>
         <div class="bus-card-body">
             {% if card.is_last_bus %}
-            <p class="empty-state">운행 종료 또는 정보 없음</p>
+            <p class="empty-state">{{ t('arrival.no_service') }}</p>
             {% else %}
             {% for entry in card.entries %}
-            <p class="entry entry-{{ entry.source }}">{{ entry.text }}</p>
+            <p class="entry entry-{{ entry.source }}">{% if entry.source == 'live' and entry.seconds is not none -%}
+            {{ entry.stop | stop }} {{ t('arrival.min_sec', m=entry.seconds // 60, s=entry.seconds % 60) }}
+            {%- elif entry.time -%}
+            {{ t('arrival.scheduled', time=entry.time) }}
+            {%- else -%}
+            {{ entry.text }}
+            {%- endif %}</p>
             {% endfor %}
             {% endif %}
         </div>

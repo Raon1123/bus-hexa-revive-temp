@@ -8,40 +8,40 @@
      hx-trigger="every 10s"
      hx-swap="outerHTML">
 
-<h3>{{ snapshot.stop_name }}</h3>
+<h3>{{ snapshot.stop_name | stop }}</h3>
 
 {% if snapshot.error %}
 <div class="error-banner">
-    실시간 정보를 가져오지 못했습니다: {{ snapshot.error }}
+    {{ t('stops.error') }} {{ snapshot.error }}
 </div>
 {% endif %}
 
 {% if snapshot.long_gap %}
 <div class="warning-banner">
-    첫 번째 버스와 두 번째 버스의 간격이 30분 이상입니다.
+    {{ t('stops.long_gap') }}
 </div>
 {% endif %}
 
 {% if snapshot.has_no_bus %}
-<p class="empty-state">운행 중인 버스가 없습니다.</p>
+<p class="empty-state">{{ t('stops.no_bus') }}</p>
 {% else %}
 <table class="stops-table">
     <thead>
         <tr>
-            <th>노선</th>
-            <th>방향</th>
-            <th>도착 예상</th>
-            <th>현재 위치</th>
-            <th>차량번호</th>
+            <th>{{ t('stops.col.route') }}</th>
+            <th>{{ t('stops.col.direction') }}</th>
+            <th>{{ t('stops.col.eta') }}</th>
+            <th>{{ t('stops.col.position') }}</th>
+            <th>{{ t('stops.col.vehicle') }}</th>
         </tr>
     </thead>
     <tbody>
         {% for row in snapshot.rows %}
         <tr>
             <td><span class="c-route route-{{ row.bus_number }}">{{ row.bus_number }}</span></td>
-            <td>{{ row.direction_str }}</td>
-            <td>{{ row.arrival_str }}</td>
-            <td>{{ row.present_stop }}</td>
+            <td>{{ row.direction_str | stop }}</td>
+            <td>{{ t('arrival.min_sec', m=row.arrival_seconds // 60, s=row.arrival_seconds % 60) }}</td>
+            <td>{{ row.present_stop | stop }}</td>
             <td>{{ row.vehicle_no }}</td>
         </tr>
         {% endfor %}

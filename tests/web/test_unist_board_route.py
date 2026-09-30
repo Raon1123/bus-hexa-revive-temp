@@ -105,3 +105,23 @@ def test_partial(client):
     assert 'id="unist-grid"' in html, (
         'id="unist-grid" not found in /partial/unist response'
     )
+
+
+def test_unist_cards_english_entries(client):
+    """?lang=en 이면 카드의 실시간·시간표 항목과 빈 카드 문구가 영문으로 렌더된다."""
+    snap = UnistBoardSnapshot(
+        cards=[
+            BusCard("513", "덕하 (시내) 방면", [
+                CardEntry(text="천상 (시내) 3분5초", source="live", stop="천상 (시내)", seconds=185),
+                CardEntry(text="08:30 출발 예정", source="timetable", time="08:30"),
+            ], False),
+            BusCard("713", "명촌 (시내) 방면", [], True),
+        ],
+        bis_error=False,
+    )
+    with patch("bushexa.web.routes.unist_board.get_unist_board_data", return_value=snap):
+        body = client.get("/unist?lang=en").get_data(as_text=True)
+    assert "3m 5s" in body
+    assert "Departs 08:30" in body
+    assert "Service ended or no info" in body
+    assert "출발 예정" not in body
