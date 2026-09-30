@@ -70,7 +70,10 @@ def refresh_rail(config, *, clock=None, only_if_stale=False,
             if train_client is None:
                 from bushexa.api_clients.tago_rail import TrainInfoClient
                 train_client = TrainInfoClient(config.api_key)
-            logger.info("열차 시간표 갱신: %s", refresh_trains(train_client, path, clock=clock))
+            from bushexa.services.holiday_service import read_effective_holidays
+            holidays = read_effective_holidays(config.data_dir)
+            logger.info("열차 시간표 갱신: %s", refresh_trains(train_client, path, clock=clock,
+                                                         holiday_set=holidays))
         except Exception as exc:
             logger.error("열차 시간표 갱신 실패(계속): %s", exc, exc_info=True)
     if not (only_if_stale and refreshed_today(path, "metro", today)):

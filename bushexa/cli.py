@@ -163,8 +163,11 @@ def cmd_crawl_rail(args) -> int:
     config = _load_config()
     setup_logging(level=config.log_level, log_dir=config.log_dir, filename="bushexa-crawl.log")
     path = default_rail_path(config.data_dir)
+    from bushexa.services.holiday_service import read_effective_holidays
+
     kwargs = {} if args.days is None else {"days": args.days}
-    trains = refresh_trains(TrainInfoClient(config.api_key), path, **kwargs)
+    trains = refresh_trains(TrainInfoClient(config.api_key), path,
+                            holiday_set=read_effective_holidays(config.data_dir), **kwargs)
     print(f"열차 시간표: {trains}")
     metro = refresh_metro(SubwayInfoClient(config.api_key), path)
     print(f"동해선 시간표: {metro}")

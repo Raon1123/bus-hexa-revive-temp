@@ -32,6 +32,10 @@
 
 .ktx-train-row td { font-weight: 800; color: #111; font-size: 0.95rem; }
 .ktx-bus-row td { color: #2c3e66; }
+.ktx-via-row th[scope="row"] { font-weight: 400; padding-left: 1.1rem; color: #444; }
+.ktx-via-row td { color: #333; font-size: 0.8rem; padding-top: 0.12rem; padding-bottom: 0.12rem; }
+.ktx-via-row td.ktx-pass { color: #a3a8b3; }
+.ktx-sheet tbody tr.ktx-via-row { border-top: 0; }
 .ktx-board td { background: #f3f7ff; font-weight: 600; }
 .ktx-dim td { color: #8a8f99; font-size: 0.8rem; }
 .ktx-first { border-top: 2px solid #9aa0ad !important; }

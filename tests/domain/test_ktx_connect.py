@@ -138,3 +138,41 @@ def test_split_blocks_by_ulsan_time():
                       train_day=_day(("05:00", "05:10"), ("11:40", "12:00"), ("23:00", "23:40")))
     keys = [(k, [r.train_arr for r in rows]) for k, rows in split_blocks(t.rows, "in")]
     assert keys == [("morning", ["05:10"]), ("afternoon", ["12:00"]), ("evening", ["23:40"])]
+
+
+def test_station_layout_orders_trunk_then_branches_and_reverses_for_inbound():
+    """서울행은 줄기(경주…대전) → 고속선 → 수원 경유 순, 서울발은 그 역순. 부산행은 중간역이 없다."""
+    from bushexa.data.constants import RAIL_BUSAN, RAIL_SEOUL, RAIL_ULSAN
+    from bushexa.domain.ktx_connect import station_layout
+
+    out, branches = station_layout((RAIL_ULSAN, RAIL_SEOUL))
+    assert out[0] == "경주" and out[4] == "대전" and out[-2:] == ("수원", "영등포")
+    assert station_layout((RAIL_SEOUL, RAIL_ULSAN))[0] == out[::-1]
+    assert len(branches) == 2 and "광명" in branches[0]
+    assert station_layout((RAIL_ULSAN, RAIL_BUSAN)) == ((), ())
+
+
+def test_via_cells_marks_stop_pass_other_route_and_unknown():
+    """선 역은 도착 시각, 같은 갈래 통과는 レ, 다른 갈래 역은 ‖, 정차역을 모르면 빈 칸."""
+    from bushexa.domain.ktx_connect import OTHER_ROUTE, PASS, via_cells
+
+    names = ("대전", "오송", "광명", "수원")
+    branches = (frozenset({"오송", "광명"}), frozenset({"수원"}))
+    express = via_cells([{"name": "대전", "arr": "08:32"}, {"name": "광명", "arr": "09:23"}], names, branches)
+    assert express == ("08:32", PASS, "09:23", OTHER_ROUTE)
+    via_suwon = via_cells([{"name": "수원", "arr": "10:58"}], names, branches)
+    assert via_suwon == (PASS, OTHER_ROUTE, OTHER_ROUTE, "10:58")
+    assert via_cells([], names, branches) == (PASS, PASS, PASS, OTHER_ROUTE)   # 무정차는 고속선으로 본다
+    assert via_cells(None, names, branches) == ("",) * 4
+
+
+def test_rows_carry_via_cells_and_count_unknown_stops():
+    """pair 를 주면 행마다 중간역 칸이 붙고, 정차역을 모르는 열차 수를 센다."""
+    from bushexa.data.constants import RAIL_SEOUL, RAIL_ULSAN
+
+    day = _day(("08:00", "10:30"), ("09:00", "11:30"))
+    day["trains"][0]["stops"] = [{"name": "대전", "arr": "09:05"}]
+    t = build_outbound(0, REF, dest="seoul", bus_times=["06:00"], profile=_profile(), train_day=day,
+                       pair=(RAIL_ULSAN, RAIL_SEOUL))
+    assert len(t.stations) == 10 and t.rows[0].via[4] == "09:05"
+    assert t.rows[1].via == ("",) * 10 and t.stops_unknown == 1

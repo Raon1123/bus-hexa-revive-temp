@@ -21,6 +21,7 @@ from bushexa.services.rail_timetable import (
     pair_key,
     trains_on,
 )
+from bushexa.time_utils import get_weekday
 
 
 def rail_pair(direction: str, dest: str) -> tuple[str, str]:
@@ -40,6 +41,35 @@ def _stored_dates(store: dict, dep_id: str, arr_id: str) -> list[datetime.date]:
     return out
 
 
+def _same_kind_days(store: dict, dep_id: str, arr_id: str, ref: datetime.date, day: int,
+                    holiday_set: set[str]) -> list[dict]:
+    """기준일이 아닌, 요일구분이 같은 저장 날짜 항목들(가까운 날짜 먼저)."""
+    others = sorted((d for d in _stored_dates(store, dep_id, arr_id)
+                     if d != ref and get_weekday(d, holiday_set) == day), key=lambda d: abs((d - ref).days))
+    return [e for e in (trains_on(store, dep_id, arr_id, d) for d in others) if e]
+
+
+def borrow_stops(train_day: dict, others: list[dict]) -> dict:
+    """정차역을 모르는 열차에 같은 요일구분 다른 날짜의 같은 번호·같은 시각 열차 정차역을 빌려 준다.
+
+    KTX 는 같은 요일구분이면 편성·정차가 거의 같다. 번호와 출발·도착 시각(HH:MM)이 모두 같을 때만
+    빌린다. 원본 dict 는 바꾸지 않는다.
+    """
+    def key(t):
+        return (str(t.get("no", "")), str(t.get("dep", ""))[11:16], str(t.get("arr", ""))[11:16])
+    pool: dict[tuple, list] = {}
+    for entry in others:
+        for t in entry.get("trains") or []:
+            if isinstance(t, dict) and t.get("stops") is not None:
+                pool.setdefault(key(t), t["stops"])
+    trains = []
+    for t in train_day.get("trains") or []:
+        if isinstance(t, dict) and t.get("stops") is None and key(t) in pool:
+            t = {**t, "stops": pool[key(t)]}
+        trains.append(t)
+    return {**train_day, "trains": trains}
+
+
 def build_connect_table(config, today: datetime.date, holiday_set: set[str], *,
                         direction: str, dest: str, day: int,
                         ) -> tuple[ConnectTable, list[str], dict | None]:
@@ -49,6 +79,8 @@ def build_connect_table(config, today: datetime.date, holiday_set: set[str], *,
     dep_id, arr_id = rail_pair(direction, dest)
     ref = reference_date(today, day, holiday_set, _stored_dates(store, dep_id, arr_id))
     train_day = trains_on(store, dep_id, arr_id, ref) if ref else None
+    if train_day:
+        train_day = borrow_stops(train_day, _same_kind_days(store, dep_id, arr_id, ref, day, holiday_set))
 
     # 버스 시간표도 기준일의 것(특별편 지정일이면 그 편성)을 쓴다. 기준일이 없으면 오늘 기준 provider.
     provider = timetable_provider_for(config, ref or today, holiday_set)
@@ -61,5 +93,6 @@ def build_connect_table(config, today: datetime.date, holiday_set: set[str], *,
 
     profile = load_profile(default_profile_path(config.data_dir))
     build = build_outbound if direction == "out" else build_inbound
-    table = build(day, ref, dest=dest, train_day=train_day, bus_times=bus_times, profile=profile)
+    table = build(day, ref, dest=dest, train_day=train_day, bus_times=bus_times, profile=profile,
+                  pair=(dep_id, arr_id))
     return table, errors, profile

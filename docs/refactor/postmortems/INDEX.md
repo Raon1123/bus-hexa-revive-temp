@@ -21,6 +21,7 @@
 | [PM-014](PM-014-743-reroute-published-wrong.md) | 743 경로 변경을 틀린 경로·시행일로 게시 후 3회 정정 | medium | fixed | constants, route_diagram, info.html | change-playbooks §1 |
 | [PM-015](PM-015-per-process-state-under-gunicorn.md) | gunicorn 멀티 워커에서 프로세스 로컬 상태 불일치 (SSE 404, lockout, audit 유실) | medium | verified | web.routes.admin, services.recrawl_job, fileio | review #6 #7 #9 |
 | [PM-016](PM-016-api-key-in-log-files.md) | API 인증키가 요청 URL 째로 로그 파일에 기록, 뷰어 마스킹 누락 | high | fixed(기존 로그 정리는 운영) | redact, logging_setup, arrival_status, recrawl_job, admin | PM-006 |
+| [PM-017](PM-017-rail-stops-overwritten-on-lookup-timeout.md) | 정차역 후보 조회 타임아웃 하나로 그 날짜의 알던 정차역이 모두 null 로 덮임 | low | fixed | services/rail_timetable, services/ktx_connections | PM-008 |
 
 > 참고: P5 게이트의 운영 조건(레거시 `WhenMyBusRun` 비밀번호 교체, `secret/*` 0600 프로비저닝)은 코드 버그가 아니라 배포 운영 항목이므로 PM 대신 `migration-notes.md`·P5 W1 잔여목록에서 추적한다.
 

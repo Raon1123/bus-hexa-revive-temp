@@ -18,12 +18,19 @@ import datetime
 from dataclasses import dataclass, field
 from typing import Iterable
 
-from bushexa.data.constants import KTX_CONNECT_TRANSFER_MIN
+from bushexa.data.constants import (
+    KTX_CONNECT_TRANSFER_MIN,
+    RAIL_STATIONS,
+    RAIL_STOP_CANDIDATES,
+    RAIL_STRIP_LAYOUT,
+)
 from bushexa.domain.rail_match import service_minutes
 from bushexa.time_utils import get_weekday
 
 DAYS = (0, 1, 2)
 DIRECTIONS = ("out", "in")
+PASS = "レ"            # 통과(일본 시각표 관례)
+OTHER_ROUTE = "‖"      # 다른 갈래로 달려 이 역을 지나지 않음(고속선 ↔ 수원 경유)
 
 
 @dataclass(frozen=True)
@@ -45,6 +52,7 @@ class OutboundRow:
     station_at: str         # C: 울산역 도착(예상)
     margin_min: int         # 열차 출발 − C
     tight: bool             # 늦는 날(p90)엔 여유가 최소 여유 미만
+    via: tuple[str, ...] = ()   # 중간역 칸(ConnectTable.stations 순서): "HH:MM" 도착 / レ / ‖ / ""(모름)
 
 
 @dataclass(frozen=True)
@@ -59,6 +67,7 @@ class InboundRow:
     unist_at: str           # B: UNIST(경유) 도착(예상)
     wait_min: int           # C − 열차 도착
     tight: bool             # 일찍 오는 날(p10)엔 여유가 최소 여유 미만
+    via: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -73,6 +82,8 @@ class ConnectTable:
     bus_state: str = "missing"              # ok / missing
     profile_state: str = "missing"          # ok / missing
     transfer_min: int = KTX_CONNECT_TRANSFER_MIN
+    stations: tuple[str, ...] = ()          # 중간역(운행 순서) — 없으면 직행 구간(울산↔부산)
+    stops_unknown: int = 0                  # 정차역을 모르는 열차 수(조회 안 된 날짜·조회 실패)
 
 
 # ── 입력 정리 ────────────────────────────────────────────────────────────────
@@ -130,6 +141,47 @@ def _trains(day_entry: dict | None, ref_date: datetime.date | None,
     return out
 
 
+def station_layout(pair: tuple[str, str] | None) -> tuple[tuple[str, ...], tuple[frozenset, ...]]:
+    """구간의 중간역 행(운행 순서)과 갈래별 역 집합.
+
+    갈래가 있는 구간(서울행: 대전 뒤 고속선 / 수원 경유)은 줄기 → 갈래 순으로 늘어놓는다.
+    반대 방향은 같은 배치를 뒤집어 쓴다.
+    """
+    if not pair or pair not in RAIL_STOP_CANDIDATES:
+        return (), ()
+    dep_id, arr_id = pair
+    layout, reverse = RAIL_STRIP_LAYOUT.get(pair), False
+    if layout is None and (arr_id, dep_id) in RAIL_STRIP_LAYOUT:
+        layout, reverse = RAIL_STRIP_LAYOUT[(arr_id, dep_id)], True
+    if layout is None:
+        return tuple(RAIL_STATIONS.get(c, c) for c in RAIL_STOP_CANDIDATES[pair]), ()
+    order = layout["trunk"] + [c for b in layout["branches"] for c in b]
+    names = tuple(RAIL_STATIONS.get(c, c) for c in (order[::-1] if reverse else order))
+    branches = tuple(frozenset(RAIL_STATIONS.get(c, c) for c in b) for b in layout["branches"])
+    return names, branches
+
+
+def via_cells(stops, names: tuple[str, ...], branches: tuple[frozenset, ...]) -> tuple[str, ...]:
+    """열차의 ``stops``(``[{"name", "arr"}]`` 또는 None=모름) → 중간역 칸.
+
+    선다 → 도착 "HH:MM", 같은 갈래를 지나며 서지 않는다 → ``PASS``, 다른 갈래 역 → ``OTHER_ROUTE``.
+    갈래는 열차가 서는 역이 있는 갈래, 없으면 첫 갈래(고속선)로 본다. 모르면 빈 칸.
+    """
+    if stops is None:
+        return ("",) * len(names)
+    at = {s.get("name"): s.get("arr") for s in stops if isinstance(s, dict)}
+    route = next((b for b in branches if any(n in at for n in b)), branches[0] if branches else None)
+    out = []
+    for n in names:
+        if at.get(n):
+            out.append(at[n])
+        elif route is not None and any(n in b for b in branches) and n not in route:
+            out.append(OTHER_ROUTE)
+        else:
+            out.append(PASS)
+    return tuple(out)
+
+
 def _profile_state(profile: dict | None) -> str:
     return "ok" if profile and profile.get("legs") else "missing"
 
@@ -179,10 +231,14 @@ def _outbound_buses(bus_times: list[str], profile: dict | None, day: int) -> lis
 
 def build_outbound(day: int, ref_date: datetime.date | None, *, dest: str,
                    train_day: dict | None, bus_times: list[str] | None,
-                   profile: dict | None,
+                   profile: dict | None, pair: tuple[str, str] | None = None,
                    transfer_min: int = KTX_CONNECT_TRANSFER_MIN) -> ConnectTable:
-    """울산역 출발 열차마다 제시간에 닿는 가장 늦은 513(덕하 출발)을 붙인다."""
+    """울산역 출발 열차마다 제시간에 닿는 가장 늦은 513(덕하 출발)을 붙인다.
+
+    ``pair`` (울산, 도착역) 를 주면 중간역 시각(``via``)도 채운다.
+    """
     buses = _outbound_buses(list(bus_times or []), profile, day)
+    names, branches = station_layout(pair)
     rows, skipped = [], 0
     for dep, arr, t, nos in _trains(train_day, ref_date):
         ok = [b for b in buses if b.c + transfer_min <= dep]
@@ -196,12 +252,14 @@ def build_outbound(day: int, ref_date: datetime.date | None, *, dest: str,
             grade=t.get("grade", ""), origin_dep=_hhmm(bus.a), unist_at=_hhmm(bus.b),
             station_at=_hhmm(bus.c), margin_min=int(dep - round(bus.c)),
             tight=bus.c_late + transfer_min > dep,
+            via=via_cells(t.get("stops"), names, branches) if names else (),
         ))
     return ConnectTable(
         direction="out", dest=dest, day=day, ref_date=ref_date, rows=rows, skipped=skipped,
         rail_state=_rail_state(train_day), bus_state="ok" if bus_times else "missing",
         profile_state=_profile_state(profile),
-        transfer_min=transfer_min,
+        transfer_min=transfer_min, stations=names,
+        stops_unknown=sum(1 for r in rows if names and not any(r.via)),
     )
 
 
@@ -232,10 +290,11 @@ def _inbound_buses(bus_times: list[str], profile: dict | None, day: int) -> list
 
 def build_inbound(day: int, ref_date: datetime.date | None, *, dest: str,
                   train_day: dict | None, bus_times: list[str] | None,
-                  profile: dict | None,
+                  profile: dict | None, pair: tuple[str, str] | None = None,
                   transfer_min: int = KTX_CONNECT_TRANSFER_MIN) -> ConnectTable:
     """울산역 도착 열차마다 도착 ``transfer_min`` 분 뒤 이후 울산역에 오는 첫 513 을 붙인다."""
     buses = _inbound_buses(list(bus_times or []), profile, day)
+    names, branches = station_layout(pair)
     rows, skipped = [], 0
     for dep, arr, t, nos in sorted(_trains(train_day, ref_date), key=lambda x: (x[1], x[0])):
         ok = [b for b in buses if b.c >= arr + transfer_min]
@@ -249,12 +308,14 @@ def build_inbound(day: int, ref_date: datetime.date | None, *, dest: str,
             grade=t.get("grade", ""), origin_dep=_hhmm(bus.a), station_at=_hhmm(bus.c),
             unist_at=_hhmm(bus.b), wait_min=int(round(bus.c) - arr),
             tight=bus.c_early < arr + transfer_min,
+            via=via_cells(t.get("stops"), names, branches) if names else (),
         ))
     return ConnectTable(
         direction="in", dest=dest, day=day, ref_date=ref_date, rows=rows, skipped=skipped,
         rail_state=_rail_state(train_day), bus_state="ok" if bus_times else "missing",
         profile_state=_profile_state(profile),
-        transfer_min=transfer_min,
+        transfer_min=transfer_min, stations=names,
+        stops_unknown=sum(1 for r in rows if names and not any(r.via)),
     )
 
 

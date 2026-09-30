@@ -247,6 +247,10 @@ RAIL_STOP_CANDIDATES = {
                                "NAT050044", "NATH10960", "NATH30326"],
     (RAIL_TAEHWAGANG, RAIL_BUJEON): ["NAT750560", "NAT750329", "NAT750189", "NAT750161", "NAT750106"],
 }
+# 반대 방향(서울·수서 → 울산, /ktx 오는 편 중간역 시각). 같은 후보를 거꾸로 — "출발역 → 후보역"
+# 조회의 같은 출발시각 열차로 판정하는 방식은 방향과 무관하다.
+RAIL_STOP_CANDIDATES[(RAIL_SEOUL, RAIL_ULSAN)] = RAIL_STOP_CANDIDATES[(RAIL_ULSAN, RAIL_SEOUL)][::-1]
+RAIL_STOP_CANDIDATES[(RAIL_SUSEO, RAIL_ULSAN)] = RAIL_STOP_CANDIDATES[(RAIL_ULSAN, RAIL_SUSEO)][::-1]
 # 정차역 띠 모양. 서울행은 대전 뒤에서 고속선(오송-천안아산-광명)과 경부 일반선(수원-영등포)으로
 # 갈린다 — 열차가 서는 역이 있는 갈래만 그린다(둘 다 없으면 첫 갈래). 없는 구간은 후보 목록 그대로.
 RAIL_STRIP_LAYOUT = {
@@ -259,7 +263,8 @@ RAIL_STRIP_LAYOUT = {
 # 예외적인 정차 — 안내판·표에서 강조한다. key: 역명, value: 배지 i18n 키.
 RAIL_SPECIAL_STOPS = {"서대구": "rb.special.seodaegu", "수원": "rb.special.suwon"}
 
-# 정차역 조회는 가까운 날짜만(오늘 포함). 화면은 오늘·내일만 쓴다.
+# 정차역 조회는 가까운 날짜만(오늘 포함) — /seoul 안내판은 오늘·내일만 쓴다. 여기에 더해
+# /ktx 가 요일구분(평일·토·일/공휴일)마다 기준일로 쓰는 "그 구분의 첫 날짜"도 조회한다.
 RAIL_STOP_PATTERN_DAYS = 3
 
 # 동해선 광역전철 역. key: TAGO subwayStationId, value: 역명. 노선 ID MTRKRK6.
