@@ -86,17 +86,21 @@ audience: 반복되는 변경 작업을 수행하는 사람·AI 세션
 ## 6. 배포 · 코드 갱신
 
 ```bash
-# 코드만 바뀜 (bushexa/ 는 ro bind-mount)
-podman compose -f docker/compose.yaml restart app
-# 의존성·Dockerfile·docker/ 변경
-podman compose -f docker/compose.yaml up -d --build
+# 배포 루트에서. CONTAINERS_CONF_OVERRIDE 는 rootless podman keyring(EDQUOT) 회피 — 빠뜨리지 않는다
+pc() { CONTAINERS_CONF_OVERRIDE=$PWD/containers.conf podman-compose -f docker/compose.yaml "$@"; }
+# 반영: 코드만 바뀌어도 내렸다 올린다(restart app 으로는 새 코드가 반영되지 않았다, 2026-09-30)
+pc down
+pc up -d --build
+# 철도 수집 대상·규칙이 바뀐 배포면 즉시 재수집(아니면 다음 새벽 02~03시)
+scripts/recrawl_rail.sh
 # 확인
-podman compose -f docker/compose.yaml exec app supervisorctl -c /app/docker/supervisord.conf status
+pc exec app supervisorctl -c /app/docker/supervisord.conf status
 curl -sf http://localhost:8017/lite >/dev/null && echo OK
 ```
 
 - [ ] 서버의 `.env`, `secret/`, `data/`, `logs/` 는 덮어쓰지 않는다.
-- [ ] 번들은 README.txt 절차 + 시크릿 검사 grep.
+- [ ] 번들은 README.txt 절차 + 시크릿 검사 grep. `containers.conf`, `scripts/recrawl_rail.sh` 를 빠뜨리지 않는다.
+- [ ] 새 콘텐츠 파일(예: `data/ktx_leg_profile.json`, `data/timetable/5001.json`)은 그 파일만 서버 `data/` 에 놓는다. `data/` 를 통째로 덮으면 서버가 재크롤·관리자 편집한 시간표·changelog 가 되돌아간다.
 - [ ] 스키마 변경이 있으면 `init-db` 는 멱등이지만, 기존 데이터에 UNIQUE 인덱스 생성 실패 같은 경우가 있으니 로그를 확인한다.
 - [ ] 배포 뒤 관리자 `/admin/rail` 에서 철도 시간표 경고를 보고, 필요하면 "지금 다시 받기". 운행 기록이 쌓이면 "운행 기록으로 후보 계산" → 비교 → 병합 적용(5001 실측 표본 20건 이상이면 근사가 풀린다).
 
