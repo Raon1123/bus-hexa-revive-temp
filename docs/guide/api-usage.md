@@ -32,7 +32,7 @@ audience: 크롤러·API 클라이언트를 수정하거나 수집 장애를 진
 - 추적 대상:
   - `ROUTEID` — 5개 노선(513/713/743/753/1115) × 2방향 = 10개.
   - `EXTRA_TRACKED_ROUTES` — UNIST 를 지나지 않지만 운행 기록을 모으는 노선(1224·5001 × 2방향). govtrack 은 `TRACKED_ROUTES`(= 둘의 합, 14개)를 추적한다. 게시판·시간표·`/stops` 는 `ROUTEID` 만 본다. 5001(울산역 리무진, TAGO routeid `USB196000455` 울산역→꽃바위 / `USB196000456` 꽃바위→울산역)은 UNIST 에 서지 않고 양방향 모두 진목회관에 선다 — `/ktx` ② 안.
-  - `EXTRA_TIMETABLE_BUSES` — ROUTEID 밖이지만 울산 BIS 시간표를 받는 노선(5001). 방향 1(작은 routeid)=울산역 기점, 2=꽃바위 기점. 울산역발은 자정 `00:00` 막차가 있다(운행일 24:00 으로 정렬).
+  - `EXTRA_TIMETABLE_BUSES` — ROUTEID 밖이지만 울산 BIS 시간표를 받는 노선(5001·1224). 5001: 방향 1(작은 routeid)=울산역 기점, 2=꽃바위 기점. 1224: 방향 1(195000247)=농소 기점(노포 방면, 첫차 04:40), 2(195000248)=노포 기점(첫차 06:14) — TAGO 노선 목록의 기·종점과 대조 확인(2026-09-30). 시간표 시각은 **기점 출발**이라 좋은삼정병원앞 통과 시각이 아니다(실시간은 arrival 캐시). 울산역발은 자정 `00:00` 막차가 있다(운행일 24:00 으로 정렬).
   - `SERACH_STOPS` — 도착정보 폴링 정류장 17개(철자 `SERACH` 는 원본 유지, 고치지 말 것).
   - `UNIST_VIA_STOP_ID = "196040234"`.
 - 철도 역 ID(부산 루트): 열차 `RAIL_STATIONS`(울산 `NATH13717`, 태화강 `NAT750726`, 부산 `NAT014445`, 부전 `NAT750046`), 동해선 광역전철 `METRO_STATIONS`(태화강 `MTRKRK6K132`, 벡스코 `MTRKRK6K119`, 부전 `MTRKRK6K110`). 수집 구간은 `RAIL_PAIRS`·`METRO_QUERIES`. 역 목록은 `TrainInfo/GetCtyAcctoTrainSttnList`(cityCode 26·21), `SubwayInfo/GetKwrdFndSubwaySttnList` 로 확인했다.

@@ -14,7 +14,7 @@ from bushexa.crawler.timetable_crawl import (
     crawl_route_day,
 )
 
-BUSNOS = {"513", "713", "743", "753", "1115", "5001"}   # 5001: 수집 전용(EXTRA_TIMETABLE_BUSES)
+BUSNOS = {"513", "713", "743", "753", "1115", "5001", "1224"}   # 5001·1224: 수집 전용(EXTRA_TIMETABLE_BUSES)
 
 
 class FakeTimetableClient:
@@ -33,7 +33,7 @@ class FakeTimetableClient:
 
 
 def test_writes_five_routes(tmp_path):
-    """mock 시간표 응답으로 재크롤을 돌리면 UNIST 5개 노선 + 5001 JSON이 atomic하게 기록되고 각 파일이
+    """mock 시간표 응답으로 재크롤을 돌리면 UNIST 5개 노선 + 5001·1224 JSON이 atomic하게 기록되고 각 파일이
     valid JSON(요일 키 0/1/2)인지 검증한다."""
     client = FakeTimetableClient([TimetableRow("05:30", 1), TimetableRow("06:15", 2)], total=2)
 
@@ -185,3 +185,12 @@ def test_5001_directions_map_to_station_and_kkotbawi_origins(tmp_path):
     crawl_all_timetables(client, out_dir=tmp_path)
     data = json.loads((tmp_path / "5001.json").read_text(encoding="utf-8"))
     assert data["0"] == {"울산역": ["05:20"], "꽃바위": ["04:00"]}
+
+
+def test_1224_directions_map_to_nongso_and_nopo_origins(tmp_path):
+    """1224 는 작은 route_id(195000247, 노포 방면)가 direction 1 → 농소 기점, 195000248 이 2 → 노포 기점으로 기록된다.
+    (TAGO 노선 목록의 기점·첫차 04:40/06:14 와 일치 — 2026-09-30 확인)"""
+    client = FakeTimetableClient([TimetableRow("05:30", 1), TimetableRow("06:15", 2)], total=2)
+    crawl_all_timetables(client, out_dir=tmp_path)
+    data = json.loads((tmp_path / "1224.json").read_text(encoding="utf-8"))
+    assert data["0"] == {"농소": ["05:30"], "노포": ["06:15"]}

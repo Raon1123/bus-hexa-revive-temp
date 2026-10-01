@@ -83,7 +83,7 @@ audience: 이 저장소에서 작업하는 사람·AI 세션
 
 | 파일 | 소유 모듈 | 쓰기 방식 | git |
 |---|---|---|---|
-| `timetable/<노선>.json` `{"0"/"1"/"2": {출발지: ["HH:MM"]}}` (UNIST 5노선 + 수집 전용 5001) | data/timetable, crawler/timetable_crawl | atomic | **추적** |
+| `timetable/<노선>.json` `{"0"/"1"/"2": {출발지: ["HH:MM"]}}` (UNIST 5노선 + 수집 전용 5001·1224) | data/timetable, crawler/timetable_crawl | atomic | **추적** |
 | `timetable/special/<edition>/<노선>.json`, `special_timetables.json` | services/special_timetable | atomic | 미추적 |
 | `changelog.json` `[{"date","description"}]` (오래된 순) | services/changelog_editor | atomic | **추적** |
 | `holidays.json`(관리자 지정) / `holiday_cache.json`(API 캐시) | holiday_editor / holiday_service | atomic | 미추적 |
