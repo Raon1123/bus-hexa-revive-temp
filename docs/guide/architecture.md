@@ -90,6 +90,7 @@ audience: 이 저장소에서 작업하는 사람·AI 세션
 | `via_overrides.json` | via_editor | atomic | 미추적 |
 | `rail_timetable.json` `{"trains": {"pairs": {"<출발>-<도착>": {"dates": {"YYYY-MM-DD": {"trains", "suspect"}}}}}, "metro": {"schedules": {"<역>:<U/D>:<01/02/03>": {"times"}}}}` | services/rail_timetable (cache-refresh·`crawl-rail`) | **locked_update_json** | ignore(런타임) |
 | `ktx_leg_profile.json` `{"period", "sources", "legs": {구간: {"by_day": {"0/1/2": {"all", "hours": {H: {n,p10,p50,p90}}}}}}}` (513 구간 소요, /ktx 입력) | services/leg_profile (CLI `build-leg-profile`, `/admin/rail` 후보→적용) | atomic | **추적** |
+| `nopo_leg_profile.json` (같은 형식, 743·753·1224 → 좋은삼정병원앞 소요 실측, /busan 노포 연계 입력) | services/nopo_profile (cache-refresh 하루 1회, 기록 없으면 기존 파일 유지) | atomic | ignore |
 | `ktx_leg_profile.candidate.json` / `.prev.json` (관리자 재계산 후보·이전 값), `rail_crawl_*`·`ktx_profile_*` 잡 메타·진행 | admin_rail, recrawl_job | atomic / locked | ignore |
 | `ktx_settings.json` (연계표 환승 최소 시간 기본값 0~30분) | services/ktx_settings (`/admin/rail`) | atomic | 미추적 |
 | `crawl_settings.json` (폴링 주기 3~600s) | services/crawl_settings | atomic | 미추적 |

@@ -129,3 +129,12 @@ def test_busan_page_shows_1224_live_at_samjeong_hospital(client, tmp_sqlite_db):
     assert "좋은삼정병원앞 1224(노포 방면) 실시간" in html
     assert "10분 후" in html and "6분 대기" in html
     assert "준비 중" not in html
+
+
+def test_busan_page_shows_nopo_timetable_plan(client):
+    """노포 루트에 '시간표로 보는 연계' 표가 나오고(영문 포함) 도착 캐시 없이도 200이다."""
+    c, data_dir = client
+    resp = c.get("/busan")
+    assert resp.status_code == 200
+    assert "시간표로 보는 연계" in resp.get_data(as_text=True)
+    assert "Timetable-based connections" in c.get("/busan?lang=en").get_data(as_text=True)
