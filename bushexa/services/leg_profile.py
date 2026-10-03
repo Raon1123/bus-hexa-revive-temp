@@ -194,9 +194,9 @@ def source_meta(name: str, rows: list[Passage]) -> dict:
 
 
 def collect_passages(*, db_url: str | None = None, tsv_paths=(),
-                     on_progress=None) -> tuple[list[Passage], list[dict]]:
-    """DB(bus_timelog)·TSV 에서 ``KTX_LEGS`` 노선 통과기록을 모아 중복을 뺀다. (통과기록, 출처)."""
-    route_ids = {leg[0] for leg in KTX_LEGS.values()}
+                     on_progress=None, legs: dict = KTX_LEGS) -> tuple[list[Passage], list[dict]]:
+    """DB(bus_timelog)·TSV 에서 ``legs``(기본 ``KTX_LEGS``) 노선 통과기록을 모아 중복을 뺀다. (통과기록, 출처)."""
+    route_ids = {leg[0] for leg in legs.values()}
     passages: list[Passage] = []
     sources: list[dict] = []
     for path in tsv_paths:

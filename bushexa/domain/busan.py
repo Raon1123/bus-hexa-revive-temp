@@ -19,13 +19,19 @@ from bushexa.data.constants import (
     BUSAN_513_ROUTE_ID,
     BUSAN_1224_ROUTE_ID,
     BUSAN_KTX_TRANSFER_MIN,
+    BUSAN_1224_ORIGIN_TO_STOP_MIN,
     BUSAN_NOPO_FEEDER_BUSES,
+    BUSAN_NOPO_FEEDER_RUN_MIN,
+    BUSAN_NOPO_LIVE_SNAP_MIN,
+    BUSAN_NOPO_PLAN_MARGIN_MIN,
+    BUSAN_NOPO_REAL_MIN_N,
     BUSAN_NOPO_FEEDER_ROUTE_IDS,
     BUSAN_NOPO_TRANSFER_MIN,
     BUSAN_TAEHWAGANG_BUS_MIN,
     BUSAN_TAEHWAGANG_WALK_MIN,
     BUSAN_UNIST_TO_ULSAN_STATION_MIN,
 )
+from bushexa.domain.ktx_connect import leg_estimate
 from bushexa.domain.rail_match import service_minutes
 
 TimetableProvider = Callable[[str, int, str], list]
@@ -78,6 +84,20 @@ class NopoLiveRow:
 
 
 @dataclass(frozen=True)
+class NopoPlanRow:
+    """743·753 UNIST 출발 → 좋은삼정병원앞 → 1224 연계 한 줄(시간표 예상, 가능하면 실시간으로 보정)."""
+    busno: str
+    unist_dep: str            # UNIST 출발(시간표) "HH:MM"
+    feeder_at: str            # 좋은삼정병원앞 도착 "HH:MM"
+    feeder_live: bool         # 실시간 도착으로 보정했는가
+    feeder_measured: bool     # 소요를 통과기록 실측으로 잡았는가(아니면 추정치)
+    bus_1224_at: str | None   # 탈 수 있는 첫 1224 통과 "HH:MM"
+    bus_1224_live: bool
+    bus_1224_measured: bool
+    wait_min: int | None
+
+
+@dataclass(frozen=True)
 class BusanSnapshot:
     now: str
     weekday: int
@@ -91,6 +111,7 @@ class BusanSnapshot:
     nopo_buses: list[NopoRow] = field(default_factory=list)
     nopo_1224: list[LiveBus] = field(default_factory=list)      # 좋은삼정병원앞 1224 노포 방면
     nopo_live: list[NopoLiveRow] = field(default_factory=list)  # 743·753 → 1224 실시간 연결
+    nopo_plan: list[NopoPlanRow] = field(default_factory=list)  # 시간표 예상 연계
     transfer_fetched_at: str | None = None
     # 루트 3
     donghae: list[DonghaeRow] = field(default_factory=list)
@@ -149,6 +170,20 @@ def _upcoming(times: list[str], now_min: float) -> list[str]:
     return [t for t in times if service_minutes(f"{t}:00") >= now_min]
 
 
+def _run_minutes(profile: dict | None, leg: str, weekday: int, dep_min: float,
+                 fallback: float) -> tuple[float, bool]:
+    """구간 소요(분)와 실측 여부. 요일구분 표본이 충분하면 시간대 중앙값, 아니면 추정치."""
+    try:
+        n = profile["legs"][leg]["by_day"][str(weekday)]["all"]["n"]
+    except (KeyError, TypeError):
+        n = 0
+    if n >= BUSAN_NOPO_REAL_MIN_N:
+        est = leg_estimate(profile, leg, weekday, dep_min)
+        if est is not None:
+            return est.p50, True
+    return float(fallback), False
+
+
 def build_busan_snapshot(
     now: datetime.datetime,
     weekday: int,
@@ -162,6 +197,7 @@ def build_busan_snapshot(
     intercity_day: dict | None = None,
     metro_to_bexco: dict | None = None,
     metro_to_bujeon: dict | None = None,
+    nopo_profile: dict | None = None,
     rows: int = _ROWS,
 ) -> BusanSnapshot:
     """세 루트의 "지금부터" 행을 만든다.
@@ -214,6 +250,53 @@ def build_busan_snapshot(
         catch = next((b for b in buses_1224 if b.arrival_time >= ready), None)
         nopo_live.append(NopoLiveRow(busno, as_live_bus(a), as_live_bus(catch) if catch else None))
 
+    # 시간표 예상 연계: 743·753 UNIST 출발 + 소요 → 좋은삼정병원앞, 1224 농소 출발 + 소요 → 통과.
+    # 예상 시각 근처에 실시간 차가 있으면 그 시각으로 바꾸고 live 표시를 단다.
+    now_s = now_min * 60
+    live_feeder: dict[str, list[float]] = {}
+    for a in transfer:
+        busno = BUSAN_NOPO_FEEDER_ROUTE_IDS.get(a.route_id)
+        if busno:
+            live_feeder.setdefault(busno, []).append(now_s + a.arrival_time)
+    live_1224 = [now_s + b.arrival_time for b in buses_1224]
+    snap_s = BUSAN_NOPO_LIVE_SNAP_MIN * 60
+
+    def _snap(est_s: float, lives: list[float]) -> tuple[float, bool]:
+        near = min(lives, key=lambda x: abs(x - est_s), default=None)
+        if near is not None and abs(near - est_s) <= snap_s:
+            return near, True
+        return est_s, False
+
+    est_1224: list[tuple[float, bool]] = []   # (통과 시각 초, 실측 여부)
+    for t in _safe_times(timetable_provider, "1224", weekday, "농소", errors):
+        dep = service_minutes(f"{t}:00")
+        run, real = _run_minutes(nopo_profile, "1224_origin_stop", weekday, dep, BUSAN_1224_ORIGIN_TO_STOP_MIN)
+        est_1224.append(((dep + run) * 60, real))
+    est_1224.sort()
+    plan: list[NopoPlanRow] = []
+    for busno in BUSAN_NOPO_FEEDER_BUSES:
+        for t in _upcoming(_safe_times(timetable_provider, busno, weekday, "UNIST", errors), now_min):
+            dep = service_minutes(f"{t}:00")
+            run, f_real = _run_minutes(nopo_profile, f"{busno}_unist_stop", weekday, dep,
+                                       BUSAN_NOPO_FEEDER_RUN_MIN[busno])
+            at_s, f_live = _snap((dep + run) * 60, live_feeder.get(busno, []))
+            gate = at_s + (BUSAN_NOPO_TRANSFER_MIN if f_live else BUSAN_NOPO_PLAN_MARGIN_MIN) * 60
+            cands = sorted([(c, r) for c, r in est_1224] + [(c, False) for c in live_1224])
+            pick, b_live, b_real = None, False, False
+            for c_s, c_real in cands:
+                s2, l2 = _snap(c_s, live_1224)
+                if s2 >= gate:
+                    pick, b_live, b_real = s2, l2, c_real and not l2
+                    break
+            plan.append(NopoPlanRow(
+                busno=busno, unist_dep=t, feeder_at=_hhmm(at_s / 60), feeder_live=f_live,
+                feeder_measured=f_real and not f_live,
+                bus_1224_at=_hhmm(pick / 60) if pick is not None else None, bus_1224_live=b_live,
+                bus_1224_measured=b_real,
+                wait_min=round((pick - at_s) / 60) if pick is not None else None,
+            ))
+    plan.sort(key=lambda r: (r.feeder_at, r.busno))
+
     # ── 루트 3: 버스 → 태화강역 → 동해선 ────────────────────────────────
     bexco = {t["dep"]: t.get("arr") for t in (metro_to_bexco or {}).get("trips", [])}
     bujeon = {t["dep"]: t.get("arr") for t in (metro_to_bujeon or {}).get("trips", [])}
@@ -252,6 +335,7 @@ def build_busan_snapshot(
         nopo_buses=nopo[:rows],
         nopo_1224=[as_live_bus(a) for a in buses_1224][:rows],
         nopo_live=nopo_live[:rows],
+        nopo_plan=plan[:rows + 1],
         transfer_fetched_at=transfer_fetched_at,
         donghae=donghae[:rows + 1],
         metro_state=metro_state,

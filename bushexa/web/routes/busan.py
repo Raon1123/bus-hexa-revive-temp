@@ -27,6 +27,7 @@ from bushexa.domain.busan import build_busan_snapshot
 from bushexa.domain.rail_board import board_trains
 from bushexa.services.board_support import arrival_client, timetable_provider_for
 from bushexa.services.holiday_service import read_effective_holidays
+from bushexa.services.nopo_profile import load_nopo_profile
 from bushexa.services.rail_timetable import (
     default_rail_path,
     load_rail_store,
@@ -76,6 +77,7 @@ def _build_snapshot():
         intercity_day=trains_on(store, RAIL_TAEHWAGANG, RAIL_BUJEON, today),
         metro_to_bexco=metro_trips(store, metro_origin, bexco_id, day_type),
         metro_to_bujeon=metro_trips(store, metro_origin, bujeon_id, day_type),
+        nopo_profile=load_nopo_profile(config.data_dir),
     )
     boards = {
         "ktx": board_trains(trains_on(store, RAIL_ULSAN, RAIL_BUSAN, today), now, RAIL_ULSAN, RAIL_BUSAN)[0],

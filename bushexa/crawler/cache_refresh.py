@@ -100,6 +100,12 @@ def refresh_all(config, *, do_timetable=True, clock=None) -> None:
         refresh_rail(config, clock=clock, only_if_stale=not do_timetable)
     except Exception as exc:
         logger.error("철도 시간표 갱신 실패(계속): %s", exc, exc_info=True)
+    try:  # 통과기록 기반 소요 실측(새벽 윈도, 또는 부팅 때 파일이 아직 없을 때)
+        from bushexa.services.nopo_profile import nopo_profile_path, refresh_nopo_profile
+        if do_timetable or not nopo_profile_path(config.data_dir).exists():
+            refresh_nopo_profile(config, clock=clock)
+    except Exception as exc:
+        logger.error("노포 구간 소요 프로필 갱신 실패(계속): %s", exc, exc_info=True)
     if do_timetable:
         try:
             written = refresh_timetables(config)
