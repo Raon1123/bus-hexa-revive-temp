@@ -166,3 +166,32 @@ def test_nopo_plan_without_1224_timetable_still_lists_feeders():
     """1224 시간표 파일이 없어도 환승 줄은 만들고 1224 칸만 비운다(500 금지)."""
     snap = build_busan_snapshot(NOW, 0, timetable_provider=_provider(BASE_TT))
     assert snap.nopo_plan and all(r.bus_1224_at is None for r in snap.nopo_plan)
+
+
+def _profile(leg, n, p50):
+    return {"legs": {leg: {"by_day": {"0": {"all": {"n": n, "p10": p50, "p50": p50, "p90": p50}, "hours": {}}}}}}
+
+
+def test_nopo_plan_prefers_measured_run_time_when_enough_samples():
+    """743 소요 실측(표본 12, 중앙값 40분)이 있으면 추정 35분 대신 40분(08:10→08:50)을 쓰고 '실측'으로 표시한다."""
+    snap = build_busan_snapshot(NOW, 0, timetable_provider=_provider(PLAN_TT),
+                                nopo_profile=_profile("743_unist_stop", 12, 40))
+    row = next(r for r in snap.nopo_plan if r.busno == "743")
+    assert (row.feeder_at, row.feeder_measured) == ("08:50", True)
+    assert not next(r for r in snap.nopo_plan if r.busno == "753").feeder_measured
+
+
+def test_nopo_plan_falls_back_to_estimate_when_samples_too_few():
+    """표본이 적으면(3건) 실측을 쓰지 않고 추정 35분(08:45)으로 대체한다."""
+    snap = build_busan_snapshot(NOW, 0, timetable_provider=_provider(PLAN_TT),
+                                nopo_profile=_profile("743_unist_stop", 3, 40))
+    row = next(r for r in snap.nopo_plan if r.busno == "743")
+    assert (row.feeder_at, row.feeder_measured) == ("08:45", False)
+
+
+def test_nopo_plan_1224_measured_run_time():
+    """1224 소요 실측 30분이면 농소 08:25 출발이 08:55 통과로 잡히고 실측 표시가 붙는다."""
+    snap = build_busan_snapshot(NOW, 0, timetable_provider=_provider(PLAN_TT),
+                                nopo_profile=_profile("1224_origin_stop", 15, 30))
+    row = next(r for r in snap.nopo_plan if r.busno == "743")
+    assert (row.bus_1224_at, row.bus_1224_measured) == ("08:55", True)

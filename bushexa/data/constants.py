@@ -358,6 +358,15 @@ BUSAN_NOPO_TRANSFER_MIN = 1                          # 같은 정류장에서 �
 # 743 은 59개 중 32번째, 753 은 54개 중 23번째 정류장이 좋은삼정병원앞이고, 1224 는 26개 중 15번째다.
 BUSAN_NOPO_FEEDER_RUN_MIN = {"743": 35, "753": 28}   # UNIST 출발 → 좋은삼정병원앞 도착(분)
 BUSAN_1224_ORIGIN_TO_STOP_MIN = 35                   # 농소공영차고지 출발 → 좋은삼정병원앞 통과(분)
+# 실측: 통과기록(bus_timelog)에서 같은 차량의 두 정류장 통과 짝으로 잰다(cache-refresh 가 하루 1회
+# ``nopo_leg_profile.json`` 으로 요약). 요일구분 표본이 BUSAN_NOPO_REAL_MIN_N 이상이면 실측(시간대 중앙값)을
+# 쓰고, 미달·파일 없음이면 위 추정치로 대체한다.
+BUSAN_NOPO_LEGS = {
+    "743_unist_stop":  ("195000216", "196040233", "193030929"),   # 743 UNIST(기점) → 좋은삼정병원앞
+    "753_unist_stop":  ("195000222", "196040233", "193030929"),   # 753 UNIST(기점) → 좋은삼정병원앞
+    "1224_origin_stop": ("195000247", "195025331", "193030929"),  # 1224 농소공영차고지 → 좋은삼정병원앞
+}
+BUSAN_NOPO_REAL_MIN_N = 10
 BUSAN_NOPO_PLAN_MARGIN_MIN = 3                       # 예상끼리 잇는 환승 여유(오차 흡수)
 BUSAN_NOPO_LIVE_SNAP_MIN = 6                         # 예상 시각 ±이 안에 실시간 차가 있으면 실시간으로 대체
 
