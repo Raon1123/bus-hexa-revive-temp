@@ -97,6 +97,14 @@ class TestSpecialPreview:
         html = resp.data.decode("utf-8")
         assert "미리보기" in html
 
+    def test_preview_labels_departure_as_origin(self, authed, app):
+        """미리보기는 ROUTEID의 기점을 '출발'로 표시한다('방면'은 방향이 뒤바뀌어 보임)."""
+        _inject_mock_holiday_client(app, {})
+        client, _ = authed
+        html = client.get("/admin/special/preview?date=20260601").data.decode("utf-8")
+        assert "<strong>명촌</strong> 출발" in html
+        assert "<strong>명촌</strong> 방면" not in html
+
     def test_preview_weekday_label(self, authed, app, tmp_path):
         """평일에는 '평일' 라벨이 표시된다."""
         _inject_mock_holiday_client(app, {})
