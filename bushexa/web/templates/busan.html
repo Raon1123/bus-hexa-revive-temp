@@ -112,6 +112,32 @@
     <p class="empty-state">{{ t('busan.r2.no_live_feeder') }}</p>
     {% endif %}
 
+    <h3>{{ t('busan.r2.plan_title') }}</h3>
+    {% if snapshot.nopo_plan %}
+    <table class="timetable busan-table">
+        <thead><tr>
+            <th>{{ t('busan.col.bus') }}</th><th>{{ t('busan.r2.plan_dep') }}</th><th>{{ t('busan.col.transfer_arr') }}</th><th>{{ t('busan.r2.plan_1224') }}</th>
+        </tr></thead>
+        <tbody>
+        {% for r in snapshot.nopo_plan %}
+        <tr>
+            <td><span class="busan-busno route-{{ r.busno }}">{{ r.busno }}</span></td>
+            <td>{{ r.unist_dep }}</td>
+            <td><strong>{{ r.feeder_at }}</strong>{% if r.feeder_live %} <span class="busan-sub">{{ t('busan.r2.plan_live') }}</span>{% endif %}</td>
+            {% if r.bus_1224_at %}
+            <td>{{ r.bus_1224_at }}{% if r.bus_1224_live %} <span class="busan-sub">{{ t('busan.r2.plan_live') }}</span>{% endif %} <span class="busan-sub">{{ t('busan.r2.wait_min', min=r.wait_min) }}</span></td>
+            {% else %}
+            <td class="busan-muted">{{ t('busan.r2.plan_none') }}</td>
+            {% endif %}
+        </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+    <p class="busan-note">{{ t('busan.r2.plan_note') }}</p>
+    {% else %}
+    <p class="empty-state">{{ t('busan.no_more_buses') }}</p>
+    {% endif %}
+
     <h3>{{ t('busan.r2.unist_dep') }}</h3>
     {% if snapshot.nopo_buses %}
     <p class="busan-origin">
