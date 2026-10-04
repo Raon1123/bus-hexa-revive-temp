@@ -42,7 +42,7 @@
             {% for dep in deps %}
             {% set times = timetable.get(busno, {}).get(dep, []) %}
             <div class="preview-dep-block">
-                <strong>{{ dep }}</strong> 방면
+                <strong>{{ dep }}</strong> 출발
                 {% if times %}
                 <ul class="preview-times-list">
                     {% for t in times %}<li>{{ t }}</li>{% endfor %}

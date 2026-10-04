@@ -35,7 +35,7 @@
             <input type="hidden" name="departures__{{ busno }}__{{ wd }}" value="{{ deps | join(' ') }}">
             {% for dep in deps %}
             <div style="margin: 0.5em 0 0 0.5em;">
-                <label><strong>{{ dep }}</strong> 방면</label><br>
+                <label><strong>{{ dep }}</strong> 출발</label><br>
                 {% set times_list = busno_data.get(busno, {}).get(wd, {}).get(dep, []) %}
                 <textarea name="times__{{ busno }}__{{ wd }}__{{ dep }}"
                           rows="4" cols="12"
